@@ -2,11 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createDb, type Db } from '../db'
 import { buildServer } from '../server'
+import { extractSessionId } from '../test-helpers/session'
 
 describe('shared read-only route', () => {
   let db: Db
   let app: FastifyInstance
   let listenerId: string
+  let sessionId: string
   let shareToken: string
 
   beforeEach(async () => {
@@ -14,8 +16,13 @@ describe('shared read-only route', () => {
     app = buildServer({ db, baseUrl: 'http://localhost:8080' })
     const created = await app.inject({ method: 'POST', url: '/api/listeners' })
     listenerId = created.json().id
+    sessionId = extractSessionId(created)
 
-    const shareResponse = await app.inject({ method: 'POST', url: `/api/listeners/${listenerId}/share` })
+    const shareResponse = await app.inject({
+      method: 'POST',
+      url: `/api/listeners/${listenerId}/share`,
+      cookies: { session_id: sessionId },
+    })
     shareToken = shareResponse.json().shareToken
 
     await app.inject({
@@ -39,22 +46,26 @@ describe('shared read-only route', () => {
     expect(response.body).not.toContain(listenerId)
   })
 
-  it('exposes exactly the expected fields, nothing more', async () => {
-    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
-    const [captured] = response.json()
-    expect(Object.keys(captured).sort()).toEqual(
-      ['body', 'contentType', 'headers', 'id', 'method', 'queryParams', 'receivedAt', 'sourceIp'].sort()
-    )
-  })
-
   it('returns 404 for an unknown share token', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/shared/does-not-exist/requests' })
     expect(response.statusCode).toBe(404)
   })
 
   it('returns 404 after the share token has been revoked', async () => {
-    await app.inject({ method: 'DELETE', url: `/api/listeners/${listenerId}/share` })
+    await app.inject({
+      method: 'DELETE',
+      url: `/api/listeners/${listenerId}/share`,
+      cookies: { session_id: sessionId },
+    })
     const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
     expect(response.statusCode).toBe(404)
+  })
+
+  it('exposes exactly the expected fields, nothing more', async () => {
+    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
+    const [captured] = response.json()
+    expect(Object.keys(captured).sort()).toEqual(
+      ['body', 'contentType', 'headers', 'id', 'method', 'queryParams', 'receivedAt', 'sourceIp'].sort()
+    )
   })
 })

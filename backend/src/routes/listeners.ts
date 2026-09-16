@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Db } from '../db'
 import {
   createListener,
-  getListener,
+  getListenerForOwner,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -15,10 +15,10 @@ function shareUrlFor(baseUrl: string, shareToken: string | null): string | null 
 }
 
 export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: string): void {
-  app.post('/api/listeners', async (_request, reply) => {
+  app.post('/api/listeners', async (request, reply) => {
     const id = randomUUID()
     const createdAt = new Date().toISOString()
-    const listener = createListener(db, id, createdAt)
+    const listener = createListener(db, id, createdAt, request.sessionId)
     reply.code(201)
     return {
       id: listener.id,
@@ -29,7 +29,7 @@ export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: st
   })
 
   app.get<{ Params: { id: string } }>('/api/listeners/:id', async (request, reply) => {
-    const listener = getListener(db, request.params.id)
+    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
     if (!listener) {
       reply.code(404)
       return { error: 'listener not found' }
@@ -43,7 +43,7 @@ export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: st
   })
 
   app.get<{ Params: { id: string } }>('/api/listeners/:id/requests', async (request, reply) => {
-    const listener = getListener(db, request.params.id)
+    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
     if (!listener) {
       reply.code(404)
       return { error: 'listener not found' }
@@ -57,17 +57,23 @@ export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: st
   })
 
   app.delete<{ Params: { id: string } }>('/api/listeners/:id', async (request, reply) => {
-    const deleted = deleteListener(db, request.params.id)
-    if (!deleted) {
+    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
+    if (!listener) {
       reply.code(404)
       return { error: 'listener not found' }
     }
+    deleteListener(db, listener.id)
     reply.code(204)
     return null
   })
 
   app.post<{ Params: { id: string } }>('/api/listeners/:id/share', async (request, reply) => {
-    const token = getOrCreateShareToken(db, request.params.id)
+    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
+    if (!listener) {
+      reply.code(404)
+      return { error: 'listener not found' }
+    }
+    const token = getOrCreateShareToken(db, listener.id)
     if (!token) {
       reply.code(404)
       return { error: 'listener not found' }
@@ -76,11 +82,12 @@ export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: st
   })
 
   app.delete<{ Params: { id: string } }>('/api/listeners/:id/share', async (request, reply) => {
-    const revoked = revokeShareToken(db, request.params.id)
-    if (!revoked) {
+    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
+    if (!listener) {
       reply.code(404)
       return { error: 'listener not found' }
     }
+    revokeShareToken(db, listener.id)
     reply.code(204)
     return null
   })

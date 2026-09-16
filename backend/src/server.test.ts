@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createDb, type Db } from './db'
 import { buildServer } from './server'
+import { extractSessionId } from './test-helpers/session'
 
 describe('listener routes', () => {
   let db: Db
@@ -28,8 +29,13 @@ describe('listener routes', () => {
   it('fetches an existing listener', async () => {
     const created = await app.inject({ method: 'POST', url: '/api/listeners' })
     const { id } = created.json()
+    const sessionId = extractSessionId(created)
 
-    const response = await app.inject({ method: 'GET', url: `/api/listeners/${id}` })
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/listeners/${id}`,
+      cookies: { session_id: sessionId },
+    })
     expect(response.statusCode).toBe(200)
     expect(response.json().id).toBe(id)
   })
@@ -37,11 +43,20 @@ describe('listener routes', () => {
   it('deletes a listener', async () => {
     const created = await app.inject({ method: 'POST', url: '/api/listeners' })
     const { id } = created.json()
+    const sessionId = extractSessionId(created)
 
-    const deleteResponse = await app.inject({ method: 'DELETE', url: `/api/listeners/${id}` })
+    const deleteResponse = await app.inject({
+      method: 'DELETE',
+      url: `/api/listeners/${id}`,
+      cookies: { session_id: sessionId },
+    })
     expect(deleteResponse.statusCode).toBe(204)
 
-    const getResponse = await app.inject({ method: 'GET', url: `/api/listeners/${id}` })
+    const getResponse = await app.inject({
+      method: 'GET',
+      url: `/api/listeners/${id}`,
+      cookies: { session_id: sessionId },
+    })
     expect(getResponse.statusCode).toBe(404)
   })
 

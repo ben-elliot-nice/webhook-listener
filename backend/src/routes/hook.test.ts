@@ -2,17 +2,20 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { createDb, type Db } from '../db'
 import { buildServer } from '../server'
+import { extractSessionId } from '../test-helpers/session'
 
 describe('hook capture route', () => {
   let db: Db
   let app: FastifyInstance
   let listenerId: string
+  let sessionId: string
 
   beforeEach(async () => {
     db = createDb(':memory:')
     app = buildServer({ db, baseUrl: 'http://localhost:8080' })
     const created = await app.inject({ method: 'POST', url: '/api/listeners' })
     listenerId = created.json().id
+    sessionId = extractSessionId(created)
   })
 
   it('captures a POST payload and returns 200', async () => {
@@ -25,7 +28,11 @@ describe('hook capture route', () => {
 
     expect(response.statusCode).toBe(200)
 
-    const requests = await app.inject({ method: 'GET', url: `/api/listeners/${listenerId}/requests` })
+    const requests = await app.inject({
+      method: 'GET',
+      url: `/api/listeners/${listenerId}/requests`,
+      cookies: { session_id: sessionId },
+    })
     const [captured] = requests.json()
     expect(captured.method).toBe('POST')
     expect(captured.body).toBe(JSON.stringify({ foo: 'bar' }))
@@ -39,7 +46,11 @@ describe('hook capture route', () => {
       headers: { 'x-custom-header': 'value' },
     })
 
-    const requests = await app.inject({ method: 'GET', url: `/api/listeners/${listenerId}/requests` })
+    const requests = await app.inject({
+      method: 'GET',
+      url: `/api/listeners/${listenerId}/requests`,
+      cookies: { session_id: sessionId },
+    })
     const [captured] = requests.json()
     expect(captured.queryParams).toEqual({ foo: 'bar' })
     expect(captured.headers['x-custom-header']).toBe('value')
