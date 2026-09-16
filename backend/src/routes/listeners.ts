@@ -4,6 +4,7 @@ import type { Db } from '../db'
 import {
   createListener,
   getListenerForOwner,
+  getListenersForOwner,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -14,7 +15,19 @@ function shareUrlFor(baseUrl: string, shareToken: string | null): string | null 
   return shareToken ? `${baseUrl}/shared/${shareToken}` : null
 }
 
+const LIST_LIMIT = 100
+
 export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: string): void {
+  app.get('/api/listeners', async (request) => {
+    const listeners = getListenersForOwner(db, request.sessionId, LIST_LIMIT)
+    return listeners.map((listener) => ({
+      id: listener.id,
+      createdAt: listener.createdAt,
+      hookUrl: `${baseUrl}/hook/${listener.id}`,
+      shareUrl: shareUrlFor(baseUrl, listener.shareToken),
+    }))
+  })
+
   app.post('/api/listeners', async (request, reply) => {
     const id = randomUUID()
     const createdAt = new Date().toISOString()
