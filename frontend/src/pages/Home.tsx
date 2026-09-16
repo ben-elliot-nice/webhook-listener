@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createListener } from '../api'
+import { createListener, listListeners, type Listener } from '../api'
 
 export function Home() {
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [listeners, setListeners] = useState<Listener[]>([])
+
+  useEffect(() => {
+    listListeners()
+      .then(setListeners)
+      .catch(() => {
+        // Listing is a nice-to-have; a failed fetch must not block the create flow.
+      })
+  }, [])
 
   async function handleCreate() {
     setCreating(true)
@@ -26,6 +35,20 @@ export function Home() {
         <p className="mt-2 text-sm text-slate-500">
           Create a unique URL, send it webhook payloads, and watch them arrive here.
         </p>
+        {listeners.length > 0 && (
+          <ul className="mb-6 mt-6 space-y-2 text-left">
+            {listeners.map((listener) => (
+              <li key={listener.id}>
+                <a
+                  href={`/listener/${listener.id}`}
+                  className="block rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  {new Date(listener.createdAt).toLocaleString()}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
         <button
           onClick={handleCreate}
           disabled={creating}

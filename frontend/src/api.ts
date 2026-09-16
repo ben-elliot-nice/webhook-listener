@@ -48,6 +48,10 @@ export function getListener(id: string): Promise<Listener> {
   return fetch(`/api/listeners/${id}`).then((r) => parseJsonOrThrow<Listener>(r))
 }
 
+export function listListeners(): Promise<Listener[]> {
+  return fetch('/api/listeners').then((r) => parseJsonOrThrow<Listener[]>(r))
+}
+
 export function getRequests(id: string): Promise<CapturedRequest[]> {
   return fetch(`/api/listeners/${id}/requests`).then((r) => parseJsonOrThrow<CapturedRequest[]>(r))
 }
