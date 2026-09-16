@@ -12,8 +12,9 @@ declare module 'fastify' {
   }
 }
 
-const SESSION_COOKIE_NAME = 'session_id'
+const SESSION_COOKIE_NAME = 'wl_session_id'
 const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface ServerOptions {
   db: Db
@@ -26,12 +27,18 @@ export function buildServer({ db, baseUrl }: ServerOptions): FastifyInstance {
     bodyLimit: 10 * 1024 * 1024,
   })
 
+  // Must register before the onRequest hook below — @fastify/cookie's own parsing hook
+  // needs to run first so `request.cookies` is populated when our hook reads it.
   app.register(fastifyCookie)
   app.decorateRequest('sessionId', '')
 
   app.addHook('onRequest', async (request, reply) => {
+    if (request.url.startsWith('/hook/')) {
+      return
+    }
+
     const existing = request.cookies[SESSION_COOKIE_NAME]
-    if (existing) {
+    if (existing && UUID_PATTERN.test(existing)) {
       request.sessionId = existing
       return
     }

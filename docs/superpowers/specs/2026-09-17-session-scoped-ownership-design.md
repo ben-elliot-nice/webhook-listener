@@ -43,9 +43,16 @@ link's cross-browser bearer-token behavior untouched.
   this only ever runs over local HTTP per the project's existing
   local-only deployment scope). The resolved session id is attached to
   the request for handlers to read.
-- The cookie is unsigned — it carries exactly the same trust level as a
-  listener id or share token already does in this app (an unguessable
-  bearer value), so cryptographic signing adds nothing.
+- The cookie is unsigned. This is an accepted, explicit trade-off at this
+  project's local-only scope, not a closed gap: because cookies are scoped
+  by host (not by port), any other local server the same browser talks to
+  on `localhost` can also set a cookie for that host, meaning a value could
+  in principle be attacker-influenced (session fixation) if another local
+  process cooperated. A basic UUID-shape check on the incoming cookie value
+  guards against garbage/malformed input but does not close this specific
+  risk — closing it fully would require signing the cookie with a server
+  secret, judged disproportionate for a personal local dev tool. Documented
+  here so a future change to this area starts from an accurate baseline.
 - No frontend code changes are needed to transmit the cookie: `fetch()`'s
   default `credentials: 'same-origin'` already includes cookies for
   same-origin requests, and the frontend and API are same-origin behind

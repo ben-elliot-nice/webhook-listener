@@ -27,7 +27,7 @@ describe('listener ownership isolation', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: otherSessionId },
+      cookies: { wl_session_id: otherSessionId },
     })
     expect(response.statusCode).toBe(404)
   })
@@ -36,7 +36,7 @@ describe('listener ownership isolation', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}/requests`,
-      cookies: { session_id: otherSessionId },
+      cookies: { wl_session_id: otherSessionId },
     })
     expect(response.statusCode).toBe(404)
   })
@@ -45,14 +45,14 @@ describe('listener ownership isolation', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: otherSessionId },
+      cookies: { wl_session_id: otherSessionId },
     })
     expect(response.statusCode).toBe(404)
 
     const stillThere = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: ownerSessionId },
+      cookies: { wl_session_id: ownerSessionId },
     })
     expect(stillThere.statusCode).toBe(200)
   })
@@ -61,7 +61,7 @@ describe('listener ownership isolation', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: otherSessionId },
+      cookies: { wl_session_id: otherSessionId },
     })
     expect(response.statusCode).toBe(404)
   })
@@ -70,12 +70,12 @@ describe('listener ownership isolation', () => {
     await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: ownerSessionId },
+      cookies: { wl_session_id: ownerSessionId },
     })
     const response = await app.inject({
       method: 'DELETE',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: otherSessionId },
+      cookies: { wl_session_id: otherSessionId },
     })
     expect(response.statusCode).toBe(404)
   })
@@ -85,11 +85,54 @@ describe('listener ownership isolation', () => {
     expect(response.statusCode).toBe(404)
   })
 
+  it('cannot be deleted by a request with no session cookie at all', async () => {
+    const response = await app.inject({ method: 'DELETE', url: `/api/listeners/${listenerId}` })
+    expect(response.statusCode).toBe(404)
+  })
+
+  it('cannot have a share link created by a request with no session cookie at all', async () => {
+    const response = await app.inject({ method: 'POST', url: `/api/listeners/${listenerId}/share` })
+    expect(response.statusCode).toBe(404)
+  })
+
+  it('cannot have its share link revoked by a request with no session cookie at all', async () => {
+    const response = await app.inject({ method: 'DELETE', url: `/api/listeners/${listenerId}/share` })
+    expect(response.statusCode).toBe(404)
+  })
+
+  it('returns the exact same 404 body as a nonexistent listener', async () => {
+    const wrongSessionResponse = await app.inject({
+      method: 'GET',
+      url: `/api/listeners/${listenerId}`,
+      cookies: { wl_session_id: otherSessionId },
+    })
+    const nonexistentResponse = await app.inject({
+      method: 'GET',
+      url: '/api/listeners/does-not-exist',
+      cookies: { wl_session_id: otherSessionId },
+    })
+    expect(wrongSessionResponse.json()).toEqual(nonexistentResponse.json())
+    expect(wrongSessionResponse.statusCode).toBe(nonexistentResponse.statusCode)
+  })
+
+  it('a legacy listener with no owner_session is inaccessible via the route layer', async () => {
+    db.prepare(
+      "INSERT INTO listeners (id, created_at) VALUES ('legacy-listener', '2024-01-01T00:00:00.000Z')"
+    ).run()
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/listeners/legacy-listener',
+      cookies: { wl_session_id: ownerSessionId },
+    })
+    expect(response.statusCode).toBe(404)
+  })
+
   it('remains visible to the owning session throughout', async () => {
     const response = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: ownerSessionId },
+      cookies: { wl_session_id: ownerSessionId },
     })
     expect(response.statusCode).toBe(200)
   })

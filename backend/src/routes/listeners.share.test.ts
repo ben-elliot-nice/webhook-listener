@@ -22,7 +22,7 @@ describe('listener share management', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(response.json().shareUrl).toBeNull()
   })
@@ -31,7 +31,7 @@ describe('listener share management', () => {
     const response = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(response.statusCode).toBe(200)
     const body = response.json()
@@ -43,12 +43,12 @@ describe('listener share management', () => {
     const first = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const second = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(second.json().shareToken).toBe(first.json().shareToken)
   })
@@ -57,12 +57,12 @@ describe('listener share management', () => {
     const shareResponse = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const listenerResponse = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(listenerResponse.json().shareUrl).toBe(shareResponse.json().shareUrl)
   })
@@ -71,19 +71,19 @@ describe('listener share management', () => {
     await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const revokeResponse = await app.inject({
       method: 'DELETE',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(revokeResponse.statusCode).toBe(204)
 
     const listenerResponse = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(listenerResponse.json().shareUrl).toBeNull()
   })
@@ -92,17 +92,17 @@ describe('listener share management', () => {
     const first = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     await app.inject({
       method: 'DELETE',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const second = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(second.json().shareToken).not.toBe(first.json().shareToken)
   })
@@ -111,14 +111,14 @@ describe('listener share management', () => {
     const shareResponse = await app.inject({
       method: 'POST',
       url: '/api/listeners/does-not-exist/share',
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(shareResponse.statusCode).toBe(404)
 
     const revokeResponse = await app.inject({
       method: 'DELETE',
       url: '/api/listeners/does-not-exist/share',
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(revokeResponse.statusCode).toBe(404)
   })

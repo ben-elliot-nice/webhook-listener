@@ -34,7 +34,7 @@ describe('listener routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/api/listeners/${id}`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(response.statusCode).toBe(200)
     expect(response.json().id).toBe(id)
@@ -48,14 +48,14 @@ describe('listener routes', () => {
     const deleteResponse = await app.inject({
       method: 'DELETE',
       url: `/api/listeners/${id}`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(deleteResponse.statusCode).toBe(204)
 
     const getResponse = await app.inject({
       method: 'GET',
       url: `/api/listeners/${id}`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     expect(getResponse.statusCode).toBe(404)
   })
