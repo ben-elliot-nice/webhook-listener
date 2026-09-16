@@ -33,11 +33,20 @@ function ensureShareTokenColumn(db: Db): void {
   }
 }
 
+function ensureOwnerSessionColumn(db: Db): void {
+  const columns = db.pragma('table_info(listeners)') as { name: string }[]
+  const hasOwnerSession = columns.some((c) => c.name === 'owner_session')
+  if (!hasOwnerSession) {
+    db.exec('ALTER TABLE listeners ADD COLUMN owner_session TEXT')
+  }
+}
+
 export function createDb(path: string): Db {
   const db = new Database(path)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.exec(SCHEMA)
   ensureShareTokenColumn(db)
+  ensureOwnerSessionColumn(db)
   return db
 }

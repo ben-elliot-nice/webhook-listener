@@ -19,6 +19,12 @@ describe('createDb', () => {
     expect(columns.map((c) => c.name)).toContain('share_token')
   })
 
+  it('adds an owner_session column to the listeners table', () => {
+    const db = createDb(':memory:')
+    const columns = db.pragma('table_info(listeners)') as { name: string }[]
+    expect(columns.map((c) => c.name)).toContain('owner_session')
+  })
+
   it('is safe to run the migration twice against the same database file', () => {
     const path = join(tmpdir(), `webhook-listener-migration-test-${Date.now()}.db`)
     try {
