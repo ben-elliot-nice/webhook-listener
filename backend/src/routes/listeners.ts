@@ -73,11 +73,9 @@ export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: st
       reply.code(404)
       return { error: 'listener not found' }
     }
-    const token = getOrCreateShareToken(db, listener.id)
-    if (!token) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
+    // getOrCreateShareToken cannot return undefined here — `listener` above already
+    // confirmed this exact row exists (synchronous, single-threaded, same DB call shape).
+    const token = getOrCreateShareToken(db, listener.id) as string
     return { shareToken: token, shareUrl: shareUrlFor(baseUrl, token) }
   })
 
