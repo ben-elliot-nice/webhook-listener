@@ -4,6 +4,7 @@ import {
   createListener,
   getListener,
   getListenerForOwner,
+  getListenersForOwner,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -107,5 +108,36 @@ describe('share tokens', () => {
 
   it('reports failure when revoking an unknown listener', () => {
     expect(revokeShareToken(db, 'does-not-exist')).toBe(false)
+  })
+})
+
+describe('getListenersForOwner', () => {
+  let db: Db
+
+  beforeEach(() => {
+    db = createDb(':memory:')
+  })
+
+  it('returns only the calling session\'s listeners, newest first', () => {
+    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    createListener(db, 'listener-2', '2024-01-02T00:00:00.000Z', 'session-a')
+    createListener(db, 'listener-3', '2024-01-03T00:00:00.000Z', 'session-b')
+
+    const result = getListenersForOwner(db, 'session-a', 100)
+    expect(result.map((l) => l.id)).toEqual(['listener-2', 'listener-1'])
+  })
+
+  it('returns an empty array for a session with no listeners', () => {
+    expect(getListenersForOwner(db, 'session-with-nothing', 100)).toEqual([])
+  })
+
+  it('respects the limit', () => {
+    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    createListener(db, 'listener-2', '2024-01-02T00:00:00.000Z', 'session-a')
+    createListener(db, 'listener-3', '2024-01-03T00:00:00.000Z', 'session-a')
+
+    const result = getListenersForOwner(db, 'session-a', 2)
+    expect(result).toHaveLength(2)
+    expect(result.map((l) => l.id)).toEqual(['listener-3', 'listener-2'])
   })
 })

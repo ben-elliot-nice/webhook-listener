@@ -29,6 +29,20 @@ export function getListenerForOwner(db: Db, id: string, sessionId: string): List
     .get(id, sessionId) as ListenerRecord | undefined
 }
 
+export function getListenersForOwner(db: Db, sessionId: string, limit: number): ListenerRecord[] {
+  return db
+    .prepare(
+      `
+      SELECT id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession
+      FROM listeners
+      WHERE owner_session = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `
+    )
+    .all(sessionId, limit) as ListenerRecord[]
+}
+
 export function deleteListener(db: Db, id: string): boolean {
   const result = db.prepare('DELETE FROM listeners WHERE id = ?').run(id)
   return result.changes > 0
