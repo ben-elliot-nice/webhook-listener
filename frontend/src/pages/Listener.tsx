@@ -11,6 +11,7 @@ import {
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
+import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
@@ -97,6 +98,16 @@ export function Listener() {
     }
   }
 
+  function handleExportJson() {
+    if (!id) return
+    downloadFile(`webhook-${id}.json`, toJsonExport(filteredRequests), 'application/json')
+  }
+
+  function handleExportHar() {
+    if (!id || !listener) return
+    downloadFile(`webhook-${id}.har`, toHarExport(filteredRequests, listener.hookUrl), 'application/json')
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <div className="mb-6 flex items-center justify-between">
@@ -143,12 +154,28 @@ export function Listener() {
 
       {listener && requests.length > 0 && (
         <>
-          <RequestFilters
-            filter={filter}
-            onChange={setFilter}
-            methodOptions={uniqueMethods(requests)}
-            contentTypeOptions={uniqueContentTypes(requests)}
-          />
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <RequestFilters
+              filter={filter}
+              onChange={setFilter}
+              methodOptions={uniqueMethods(requests)}
+              contentTypeOptions={uniqueContentTypes(requests)}
+            />
+            <div className="mb-4 flex shrink-0 gap-2">
+              <button
+                onClick={handleExportJson}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Export JSON
+              </button>
+              <button
+                onClick={handleExportHar}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Export HAR
+              </button>
+            </div>
+          </div>
 
           {filteredRequests.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">

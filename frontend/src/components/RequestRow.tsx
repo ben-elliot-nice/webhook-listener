@@ -43,6 +43,7 @@ interface RequestRowProps {
 export function RequestRow({ request, previousRequest }: RequestRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
+  const [copied, setCopied] = useState(false)
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
 
   const detailJson = JSON.stringify(
@@ -59,6 +60,16 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
   const diffParts = previousRequest
     ? diffLines(prettyPrintBody(previousRequest.body), prettyPrintBody(request.body))
     : null
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(detailJson)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard write failed silently — no error state plumbed through for this per-row action
+    }
+  }
 
   return (
     <li className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -77,16 +88,22 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
       </button>
       {expanded && (
         <div className="rounded-b-lg border-t border-slate-200 bg-slate-900">
-          {previousRequest && (
-            <div className="flex justify-end px-2 pt-2">
+          <div className="flex justify-end gap-2 px-2 pt-2">
+            {previousRequest && (
               <button
                 onClick={() => setShowDiff((v) => !v)}
                 className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
               >
                 {showDiff ? 'Hide diff' : 'Diff vs previous'}
               </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={handleCopy}
+              className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
           {showDiff && diffParts ? (
             <pre className="overflow-x-auto whitespace-pre-wrap px-4 pb-4 text-xs">
               {diffParts.map((part, i) => (
