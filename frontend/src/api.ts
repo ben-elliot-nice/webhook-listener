@@ -2,6 +2,7 @@ export interface Listener {
   id: string
   createdAt: string
   hookUrl: string
+  shareUrl: string | null
 }
 
 export interface CapturedRequest {
@@ -14,6 +15,11 @@ export interface CapturedRequest {
   contentType: string | null
   sourceIp: string | null
   receivedAt: string
+}
+
+export interface ShareLink {
+  shareToken: string
+  shareUrl: string
 }
 
 export class ApiError extends Error {
@@ -45,6 +51,17 @@ export function getRequests(id: string): Promise<CapturedRequest[]> {
 
 export async function deleteListener(id: string): Promise<void> {
   const response = await fetch(`/api/listeners/${id}`, { method: 'DELETE' })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
+}
+
+export function getOrCreateShareLink(id: string): Promise<ShareLink> {
+  return fetch(`/api/listeners/${id}/share`, { method: 'POST' }).then((r) => parseJsonOrThrow<ShareLink>(r))
+}
+
+export async function revokeShareLink(id: string): Promise<void> {
+  const response = await fetch(`/api/listeners/${id}/share`, { method: 'DELETE' })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
