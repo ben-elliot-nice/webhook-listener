@@ -9,18 +9,23 @@ export interface ServerOptions {
 }
 
 export function buildServer({ db, baseUrl }: ServerOptions): FastifyInstance {
-  const app = Fastify({ logger: true })
-
-  // Fastify's default parsers for 'application/json' and 'text/plain' would otherwise
-  // take precedence over the '*' catch-all below, so they must be removed to guarantee
-  // every request body is captured as a raw string regardless of content-type.
-  app.removeContentTypeParser(['application/json'])
-  app.addContentTypeParser('*', { parseAs: 'string' }, (_req, body, done) => {
-    done(null, body)
+  const app = Fastify({
+    logger: process.env.NODE_ENV !== 'test',
+    bodyLimit: 10 * 1024 * 1024,
   })
 
   registerListenerRoutes(app, db, baseUrl)
-  registerHookRoute(app, db)
+
+  // The hook route needs every request body captured as a raw string regardless of
+  // content-type, since it must accept arbitrary webhook payload shapes. That parser
+  // override is scoped to this plugin registration so it can't leak into /api/* routes.
+  app.register(async (scope) => {
+    scope.addContentTypeParser('*', { parseAs: 'string' }, (_req, body, done) => {
+      done(null, body)
+    })
+    scope.removeContentTypeParser(['application/json'])
+    registerHookRoute(scope, db)
+  })
 
   return app
 }
