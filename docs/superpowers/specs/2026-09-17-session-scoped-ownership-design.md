@@ -36,7 +36,7 @@ link's cross-browser bearer-token behavior untouched.
 ## Session mechanics
 
 - New backend dependency: `@fastify/cookie`.
-- A global Fastify hook runs before every request: read the `session_id`
+- A global Fastify hook runs before every request: read the `wl_session_id`
   cookie; if absent, generate one via `randomUUID()` (same scheme as
   listener ids and share tokens) and set it (`httpOnly: true`,
   `sameSite: 'lax'`, `path: '/'`, `maxAge` ~1 year, no `Secure` flag since
@@ -83,7 +83,7 @@ visitor after the change becomes owner").
 
 | Route | Gating |
 |---|---|
-| `POST /api/listeners` | Ungated (creates). Records the caller's current `session_id` as the new listener's `owner_session`. |
+| `POST /api/listeners` | Ungated (creates). Records the caller's current `wl_session_id` as the new listener's `owner_session`. |
 | `GET /api/listeners/:id` | **Gated** — 404 unless `owner_session` matches the caller's session. |
 | `GET /api/listeners/:id/requests` | **Gated**, same rule. |
 | `DELETE /api/listeners/:id` | **Gated**, same rule. |
