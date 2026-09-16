@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -9,6 +9,8 @@ import {
   getRequests,
 } from '../api'
 import { RequestRow } from '../components/RequestRow'
+import { RequestFilters } from '../components/RequestFilters'
+import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
@@ -20,7 +22,9 @@ export function Listener() {
   const [requests, setRequests] = useState<CapturedRequest[]>([])
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
   const consecutiveNotFoundRef = useRef(0)
+  const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!id) return false
@@ -129,12 +133,27 @@ export function Listener() {
         </div>
       )}
 
-      {requests.length > 0 && (
-        <ul className="space-y-2">
-          {requests.map((req) => (
-            <RequestRow key={req.id} request={req} />
-          ))}
-        </ul>
+      {listener && requests.length > 0 && (
+        <>
+          <RequestFilters
+            filter={filter}
+            onChange={setFilter}
+            methodOptions={uniqueMethods(requests)}
+            contentTypeOptions={uniqueContentTypes(requests)}
+          />
+
+          {filteredRequests.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+              No requests match your filters.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {filteredRequests.map((req) => (
+                <RequestRow key={req.id} request={req} />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </main>
   )
