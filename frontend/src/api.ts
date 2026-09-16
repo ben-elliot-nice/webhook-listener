@@ -9,7 +9,7 @@ export interface CapturedRequest {
   listenerId: string
   method: string
   headers: Record<string, string>
-  queryParams: Record<string, string>
+  queryParams: Record<string, string | string[]>
   body: string | null
   contentType: string | null
   sourceIp: string | null

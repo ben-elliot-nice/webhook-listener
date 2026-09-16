@@ -54,6 +54,7 @@ export function Listener() {
   }, [id])
 
   useEffect(() => {
+    consecutiveNotFoundRef.current = 0
     let cancelled = false
     const timer = setInterval(async () => {
       const ok = await refresh()
@@ -73,13 +74,21 @@ export function Listener() {
   async function handleDelete() {
     if (!id) return
     if (!window.confirm('Delete this listener and all its history?')) return
-    await deleteListener(id)
-    navigate('/')
+    try {
+      await deleteListener(id)
+      navigate('/')
+    } catch {
+      setError('Failed to delete listener.')
+    }
   }
 
   async function handleCopy() {
     if (!listener) return
-    await navigator.clipboard.writeText(listener.hookUrl)
+    try {
+      await navigator.clipboard.writeText(listener.hookUrl)
+    } catch {
+      setError('Failed to copy to clipboard.')
+    }
   }
 
   if (error) {
