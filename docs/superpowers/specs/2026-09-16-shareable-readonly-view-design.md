@@ -17,9 +17,18 @@ model (see `docs/superpowers/specs/2026-09-16-webhook-listener-design.md`):
 - **Owner access** (existing): the listener's UUID, via `/listener/:id`. Full
   control — view history, delete the listener, manage the share link.
 - **Read-only access** (new): a separate `share_token`, via `/shared/:token`.
-  View history only. The read-only view and its API responses never expose
-  the listener's real UUID, so a read-only link can never be used to reach an
-  owner-only route.
+  View history only. Every app-generated field in the read-only view's API
+  responses (listener metadata, request id/method/contentType/sourceIp/
+  receivedAt) never exposes the listener's real UUID, so a read-only link
+  can never itself be used to derive owner access. This guarantee does not
+  extend to sender-supplied content: if a webhook sender includes its own
+  target URL (and therefore the listener's UUID) inside a captured header,
+  query parameter, or body, that value is captured and shown verbatim to
+  read-only viewers, same as it is to the owner. Sharing a listener means
+  trusting the read-only viewer with whatever senders actually transmitted
+  to it — this is an accepted trust boundary of the feature, not a gap to
+  close by filtering captured payload content (which would be brittle and
+  would corrupt legitimate captured data).
 
 The share token is generated on demand (not automatically at listener
 creation) and is revocable — revoking clears the token, so previously shared
@@ -100,3 +109,6 @@ page's existing logic for a deleted listener.
 - Any write/mutate capability on the shared view (already covered above, but
   explicit: this is strictly read-only, by construction, not by a permission
   check that could be bypassed).
+- Scrubbing or filtering sender-supplied header/query/body content for
+  UUID-shaped substrings before showing it to read-only viewers (see "Access
+  model" above — this is an accepted trust boundary, not a gap).
