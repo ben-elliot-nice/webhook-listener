@@ -8,18 +8,10 @@ import {
   getListener,
   getRequests,
 } from '../api'
+import { RequestRow } from '../components/RequestRow'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
-
-function safeParse(body: string | null): unknown {
-  if (!body) return body
-  try {
-    return JSON.parse(body)
-  } catch {
-    return body
-  }
-}
 
 export function Listener() {
   const { id } = useParams<{ id: string }>()
@@ -27,7 +19,7 @@ export function Listener() {
   const [listener, setListener] = useState<ListenerModel | null>(null)
   const [requests, setRequests] = useState<CapturedRequest[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [copied, setCopied] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -86,51 +78,64 @@ export function Listener() {
     if (!listener) return
     try {
       await navigator.clipboard.writeText(listener.hookUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
     } catch {
       setError('Failed to copy to clipboard.')
     }
   }
 
-  if (error) {
-    return <p role="alert">{error}</p>
-  }
-
-  if (!listener) {
-    return <p>Loading…</p>
-  }
-
   return (
-    <main>
-      <h1>Listener</h1>
-      <p>
-        <code>{listener.hookUrl}</code>
-        <button onClick={handleCopy}>Copy</button>
-      </p>
-      <button onClick={handleDelete}>Delete listener</button>
+    <main className="mx-auto max-w-3xl px-6 py-10">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-900">Listener</h1>
+        <button
+          onClick={handleDelete}
+          className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+        >
+          Delete listener
+        </button>
+      </div>
 
-      <ul>
-        {requests.map((req) => (
-          <li key={req.id}>
-            <button onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}>
-              {req.method} — {req.receivedAt} — {req.contentType ?? 'no content-type'}
-            </button>
-            {expandedId === req.id && (
-              <pre>
-                {JSON.stringify(
-                  {
-                    headers: req.headers,
-                    queryParams: req.queryParams,
-                    sourceIp: req.sourceIp,
-                    body: safeParse(req.body),
-                  },
-                  null,
-                  2
-                )}
-              </pre>
-            )}
-          </li>
-        ))}
-      </ul>
+      {listener && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <code className="flex-1 truncate text-sm text-slate-700">{listener.hookUrl}</code>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+          >
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
+
+      {!listener && !error && (
+        <ul className="space-y-2" aria-label="Loading requests">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="h-12 animate-pulse rounded-lg bg-slate-200" />
+          ))}
+        </ul>
+      )}
+
+      {listener && requests.length === 0 && (
+        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+          No requests yet — send a payload to the URL above.
+        </div>
+      )}
+
+      {requests.length > 0 && (
+        <ul className="space-y-2">
+          {requests.map((req) => (
+            <RequestRow key={req.id} request={req} />
+          ))}
+        </ul>
+      )}
     </main>
   )
 }
