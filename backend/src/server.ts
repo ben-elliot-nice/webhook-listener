@@ -1,8 +1,19 @@
 import Fastify, { type FastifyInstance } from 'fastify'
+import fastifyCookie from '@fastify/cookie'
+import { randomUUID } from 'node:crypto'
 import type { Db } from './db'
 import { registerListenerRoutes } from './routes/listeners'
 import { registerHookRoute } from './routes/hook'
 import { registerSharedRoutes } from './routes/shared'
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    sessionId: string
+  }
+}
+
+const SESSION_COOKIE_NAME = 'session_id'
+const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 
 export interface ServerOptions {
   db: Db
@@ -13,6 +24,26 @@ export function buildServer({ db, baseUrl }: ServerOptions): FastifyInstance {
   const app = Fastify({
     logger: process.env.NODE_ENV !== 'test',
     bodyLimit: 10 * 1024 * 1024,
+  })
+
+  app.register(fastifyCookie)
+  app.decorateRequest('sessionId', '')
+
+  app.addHook('onRequest', async (request, reply) => {
+    const existing = request.cookies[SESSION_COOKIE_NAME]
+    if (existing) {
+      request.sessionId = existing
+      return
+    }
+
+    const sessionId = randomUUID()
+    reply.setCookie(SESSION_COOKIE_NAME, sessionId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
+    })
+    request.sessionId = sessionId
   })
 
   registerListenerRoutes(app, db, baseUrl)
