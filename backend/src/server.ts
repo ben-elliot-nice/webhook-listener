@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import type { Db } from './db'
 import { registerListenerRoutes } from './routes/listeners'
 import { registerHookRoute } from './routes/hook'
+import { registerSharedRoutes } from './routes/shared'
 
 export interface ServerOptions {
   db: Db
@@ -15,6 +16,7 @@ export function buildServer({ db, baseUrl }: ServerOptions): FastifyInstance {
   })
 
   registerListenerRoutes(app, db, baseUrl)
+  registerSharedRoutes(app, db)
 
   // The hook route needs every request body captured as a raw string regardless of
   // content-type, since it must accept arbitrary webhook payload shapes. That parser
