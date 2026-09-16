@@ -4,3 +4,6 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
