@@ -23,6 +23,9 @@ export function deleteListener(db: Db, id: string): boolean {
   return result.changes > 0
 }
 
+// Safe only because this whole function runs synchronously (better-sqlite3 is a
+// synchronous driver) — nothing can interleave between the read and the write.
+// Do not introduce an `await` between them without adding a transaction.
 export function getOrCreateShareToken(db: Db, id: string): string | undefined {
   const listener = getListener(db, id)
   if (!listener) return undefined

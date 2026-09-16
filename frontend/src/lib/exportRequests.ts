@@ -36,7 +36,7 @@ function toQueryEntries(queryParams: Record<string, string | string[]>): { name:
   )
 }
 
-export function toHarExport(requests: RequestDetail[], hookUrl: string = ''): string {
+export function toHarExport(requests: RequestDetail[], hookUrl: string = 'http://webhook-listener.invalid/hook/redacted'): string {
   const har = {
     log: {
       version: '1.2',

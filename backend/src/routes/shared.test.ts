@@ -39,6 +39,14 @@ describe('shared read-only route', () => {
     expect(response.body).not.toContain(listenerId)
   })
 
+  it('exposes exactly the expected fields, nothing more', async () => {
+    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
+    const [captured] = response.json()
+    expect(Object.keys(captured).sort()).toEqual(
+      ['body', 'contentType', 'headers', 'id', 'method', 'queryParams', 'receivedAt', 'sourceIp'].sort()
+    )
+  })
+
   it('returns 404 for an unknown share token', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/shared/does-not-exist/requests' })
     expect(response.statusCode).toBe(404)
