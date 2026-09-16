@@ -25,6 +25,14 @@ export function Listener() {
   const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
   const consecutiveNotFoundRef = useRef(0)
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
+  const previousByRequestId = useMemo(() => {
+    // `requests` is newest-first, so the chronological predecessor of requests[i] is requests[i + 1]
+    const map = new Map<number, CapturedRequest>()
+    for (let i = 0; i < requests.length - 1; i++) {
+      map.set(requests[i].id, requests[i + 1])
+    }
+    return map
+  }, [requests])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!id) return false
@@ -149,7 +157,7 @@ export function Listener() {
           ) : (
             <ul className="space-y-2">
               {filteredRequests.map((req) => (
-                <RequestRow key={req.id} request={req} />
+                <RequestRow key={req.id} request={req} previousRequest={previousByRequestId.get(req.id)} />
               ))}
             </ul>
           )}

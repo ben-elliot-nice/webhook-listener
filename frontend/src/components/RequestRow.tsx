@@ -1,5 +1,12 @@
 import { useState } from 'react'
+import { diffLines } from 'diff'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark'
 import type { CapturedRequest } from '../api'
+import { prettyPrintBody } from '../lib/prettyPrint'
+
+SyntaxHighlighter.registerLanguage('json', json)
 
 const METHOD_STYLES: Record<string, string> = {
   GET: 'bg-emerald-100 text-emerald-700',
@@ -28,9 +35,30 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-export function RequestRow({ request }: { request: CapturedRequest }) {
+interface RequestRowProps {
+  request: CapturedRequest
+  previousRequest?: CapturedRequest
+}
+
+export function RequestRow({ request, previousRequest }: RequestRowProps) {
   const [expanded, setExpanded] = useState(false)
+  const [showDiff, setShowDiff] = useState(false)
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
+
+  const detailJson = JSON.stringify(
+    {
+      headers: request.headers,
+      queryParams: request.queryParams,
+      sourceIp: request.sourceIp,
+      body: safeParse(request.body),
+    },
+    null,
+    2
+  )
+
+  const diffParts = previousRequest
+    ? diffLines(prettyPrintBody(previousRequest.body), prettyPrintBody(request.body))
+    : null
 
   return (
     <li className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -48,18 +76,44 @@ export function RequestRow({ request }: { request: CapturedRequest }) {
         <span className="shrink-0 text-slate-400">{expanded ? '−' : '+'}</span>
       </button>
       {expanded && (
-        <pre className="overflow-x-auto rounded-b-lg border-t border-slate-200 bg-slate-900 p-4 text-xs text-slate-100">
-          {JSON.stringify(
-            {
-              headers: request.headers,
-              queryParams: request.queryParams,
-              sourceIp: request.sourceIp,
-              body: safeParse(request.body),
-            },
-            null,
-            2
+        <div className="rounded-b-lg border-t border-slate-200 bg-slate-900">
+          {previousRequest && (
+            <div className="flex justify-end px-2 pt-2">
+              <button
+                onClick={() => setShowDiff((v) => !v)}
+                className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+              >
+                {showDiff ? 'Hide diff' : 'Diff vs previous'}
+              </button>
+            </div>
           )}
-        </pre>
+          {showDiff && diffParts ? (
+            <pre className="overflow-x-auto whitespace-pre-wrap px-4 pb-4 text-xs">
+              {diffParts.map((part, i) => (
+                <span
+                  key={i}
+                  className={
+                    part.added
+                      ? 'block bg-emerald-900/40 text-emerald-300'
+                      : part.removed
+                        ? 'block bg-rose-900/40 text-rose-300'
+                        : 'block text-slate-400'
+                  }
+                >
+                  {part.value}
+                </span>
+              ))}
+            </pre>
+          ) : (
+            <SyntaxHighlighter
+              language="json"
+              style={oneDark}
+              customStyle={{ background: 'transparent', margin: 0, padding: '1rem' }}
+            >
+              {detailJson}
+            </SyntaxHighlighter>
+          )}
+        </div>
       )}
     </li>
   )
