@@ -156,43 +156,51 @@ export function Listener() {
       </div>
 
       {listener && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <code className="flex-1 truncate text-sm text-slate-700">{listener.hookUrl}</code>
-          <button
-            onClick={handleCopy}
-            className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
-          >
-            {copied ? 'Copied!' : 'Copy'}
-          </button>
+        <div className="mb-6">
+          <p className="mb-1 text-xs font-medium text-slate-500">Webhook URL</p>
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <code className="flex-1 truncate text-sm text-slate-700">{listener.hookUrl}</code>
+            <button
+              onClick={handleCopy}
+              aria-label="Copy webhook URL"
+              className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
         </div>
       )}
 
       {listener && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          {listener.shareUrl ? (
-            <>
-              <code className="flex-1 truncate text-sm text-slate-700">{listener.shareUrl}</code>
+        <div className="mb-6">
+          {listener.shareUrl && <p className="mb-1 text-xs font-medium text-slate-500">Share link (read-only)</p>}
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            {listener.shareUrl ? (
+              <>
+                <code className="flex-1 truncate text-sm text-slate-700">{listener.shareUrl}</code>
+                <button
+                  onClick={handleCopyShare}
+                  aria-label="Copy share link"
+                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                >
+                  {shareCopied ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  onClick={handleRevokeShare}
+                  className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                >
+                  Revoke share link
+                </button>
+              </>
+            ) : (
               <button
-                onClick={handleCopyShare}
-                className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                onClick={handleShare}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
               >
-                {shareCopied ? 'Copied!' : 'Copy'}
+                Get share link
               </button>
-              <button
-                onClick={handleRevokeShare}
-                className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
-              >
-                Revoke share link
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={handleShare}
-              className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
-            >
-              Get share link
-            </button>
-          )}
+            )}
+          </div>
         </div>
       )}
 
