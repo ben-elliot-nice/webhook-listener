@@ -3,7 +3,7 @@ import { diffLines } from 'diff'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark'
-import type { CapturedRequest } from '../api'
+import type { RequestDetail } from '../api'
 import { prettyPrintBody } from '../lib/prettyPrint'
 
 SyntaxHighlighter.registerLanguage('json', json)
@@ -36,8 +36,8 @@ function formatTimestamp(iso: string): string {
 }
 
 interface RequestRowProps {
-  request: CapturedRequest
-  previousRequest?: CapturedRequest
+  request: RequestDetail
+  previousRequest?: RequestDetail
 }
 
 export function RequestRow({ request, previousRequest }: RequestRowProps) {

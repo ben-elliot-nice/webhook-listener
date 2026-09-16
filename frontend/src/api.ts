@@ -5,9 +5,8 @@ export interface Listener {
   shareUrl: string | null
 }
 
-export interface CapturedRequest {
+export interface RequestDetail {
   id: number
-  listenerId: string
   method: string
   headers: Record<string, string>
   queryParams: Record<string, string | string[]>
@@ -15,6 +14,10 @@ export interface CapturedRequest {
   contentType: string | null
   sourceIp: string | null
   receivedAt: string
+}
+
+export interface CapturedRequest extends RequestDetail {
+  listenerId: string
 }
 
 export interface ShareLink {
@@ -65,4 +68,8 @@ export async function revokeShareLink(id: string): Promise<void> {
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
+}
+
+export function getSharedRequests(token: string): Promise<RequestDetail[]> {
+  return fetch(`/api/shared/${token}/requests`).then((r) => parseJsonOrThrow<RequestDetail[]>(r))
 }

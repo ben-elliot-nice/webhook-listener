@@ -1,4 +1,4 @@
-import type { CapturedRequest } from '../api'
+import type { RequestDetail } from '../api'
 import { prettyPrintBody } from './prettyPrint'
 
 function safeParse(body: string | null): unknown {
@@ -10,7 +10,7 @@ function safeParse(body: string | null): unknown {
   }
 }
 
-export function toJsonExport(requests: CapturedRequest[]): string {
+export function toJsonExport(requests: RequestDetail[]): string {
   return JSON.stringify(
     requests.map((req) => ({
       method: req.method,
@@ -36,7 +36,7 @@ function toQueryEntries(queryParams: Record<string, string | string[]>): { name:
   )
 }
 
-export function toHarExport(requests: CapturedRequest[], hookUrl: string): string {
+export function toHarExport(requests: RequestDetail[], hookUrl: string = ''): string {
   const har = {
     log: {
       version: '1.2',

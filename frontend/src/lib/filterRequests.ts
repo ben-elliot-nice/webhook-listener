@@ -1,4 +1,4 @@
-import type { CapturedRequest } from '../api'
+import type { RequestDetail } from '../api'
 
 export interface RequestFilter {
   method: string
@@ -8,7 +8,7 @@ export interface RequestFilter {
 
 export const ALL = 'All'
 
-export function filterRequests(requests: CapturedRequest[], filter: RequestFilter): CapturedRequest[] {
+export function filterRequests(requests: RequestDetail[], filter: RequestFilter): RequestDetail[] {
   const search = filter.search.trim().toLowerCase()
 
   return requests.filter((req) => {
@@ -26,10 +26,10 @@ export function filterRequests(requests: CapturedRequest[], filter: RequestFilte
   })
 }
 
-export function uniqueMethods(requests: CapturedRequest[]): string[] {
+export function uniqueMethods(requests: RequestDetail[]): string[] {
   return [...new Set(requests.map((r) => r.method))].sort()
 }
 
-export function uniqueContentTypes(requests: CapturedRequest[]): string[] {
+export function uniqueContentTypes(requests: RequestDetail[]): string[] {
   return [...new Set(requests.map((r) => r.contentType ?? 'none'))].sort()
 }
