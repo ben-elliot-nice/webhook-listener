@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  ApiError,
   type CapturedRequest,
   type Listener as ListenerModel,
   deleteListener,
@@ -9,6 +10,7 @@ import {
 } from '../api'
 
 const POLL_INTERVAL_MS = 3000
+const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 function safeParse(body: string | null): unknown {
   if (!body) return body
@@ -26,6 +28,7 @@ export function Listener() {
   const [requests, setRequests] = useState<CapturedRequest[]>([])
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const consecutiveNotFoundRef = useRef(0)
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!id) return false
@@ -34,10 +37,19 @@ export function Listener() {
       setListener(listenerData)
       setRequests(requestData)
       setError(null)
+      consecutiveNotFoundRef.current = 0
       return true
-    } catch {
+    } catch (err) {
       setError('Listener not found or unreachable.')
-      return false
+      if (err instanceof ApiError && err.status === 404) {
+        consecutiveNotFoundRef.current += 1
+        if (consecutiveNotFoundRef.current >= MAX_CONSECUTIVE_NOT_FOUND) {
+          return false
+        }
+        return true
+      }
+      consecutiveNotFoundRef.current = 0
+      return true
     }
   }, [id])
 
