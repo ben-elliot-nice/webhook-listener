@@ -36,7 +36,7 @@ export function getListenersForOwner(db: Db, sessionId: string, limit: number): 
       SELECT id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession
       FROM listeners
       WHERE owner_session = ?
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, id DESC
       LIMIT ?
     `
     )

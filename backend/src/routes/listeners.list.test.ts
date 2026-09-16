@@ -22,6 +22,10 @@ describe('GET /api/listeners', () => {
   it('returns only the calling session\'s own listeners, newest first', async () => {
     const first = await app.inject({ method: 'POST', url: '/api/listeners' })
     const sessionId = extractSessionId(first)
+    // Guarantee a distinct millisecond `created_at` between the two creations so
+    // "newest first" ordering is deterministic rather than a timing race (see
+    // getListenersForOwner's ORDER BY created_at DESC, id DESC tie-breaker).
+    await new Promise((resolve) => setTimeout(resolve, 5))
     const second = await app.inject({
       method: 'POST',
       url: '/api/listeners',
