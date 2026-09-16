@@ -6,7 +6,9 @@ import {
   type Listener as ListenerModel,
   deleteListener,
   getListener,
+  getOrCreateShareLink,
   getRequests,
+  revokeShareLink,
 } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
@@ -23,6 +25,7 @@ export function Listener() {
   const [requests, setRequests] = useState<CapturedRequest[]>([])
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
   const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
   const consecutiveNotFoundRef = useRef(0)
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
@@ -98,6 +101,38 @@ export function Listener() {
     }
   }
 
+  async function handleShare() {
+    if (!id) return
+    try {
+      await getOrCreateShareLink(id)
+      await refresh()
+    } catch {
+      setError('Failed to create share link.')
+    }
+  }
+
+  async function handleRevokeShare() {
+    if (!id) return
+    if (!window.confirm('Revoke this share link? Anyone using it will lose access.')) return
+    try {
+      await revokeShareLink(id)
+      await refresh()
+    } catch {
+      setError('Failed to revoke share link.')
+    }
+  }
+
+  async function handleCopyShare() {
+    if (!listener?.shareUrl) return
+    try {
+      await navigator.clipboard.writeText(listener.shareUrl)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 1500)
+    } catch {
+      setError('Failed to copy to clipboard.')
+    }
+  }
+
   function handleExportJson() {
     if (!id) return
     downloadFile(`webhook-${id}.json`, toJsonExport(filteredRequests), 'application/json')
@@ -129,6 +164,35 @@ export function Listener() {
           >
             {copied ? 'Copied!' : 'Copy'}
           </button>
+        </div>
+      )}
+
+      {listener && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          {listener.shareUrl ? (
+            <>
+              <code className="flex-1 truncate text-sm text-slate-700">{listener.shareUrl}</code>
+              <button
+                onClick={handleCopyShare}
+                className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+              >
+                {shareCopied ? 'Copied!' : 'Copy'}
+              </button>
+              <button
+                onClick={handleRevokeShare}
+                className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+              >
+                Revoke share link
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleShare}
+              className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+            >
+              Get share link
+            </button>
+          )}
         </div>
       )}
 
