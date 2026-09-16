@@ -5,17 +5,28 @@ export interface ListenerRecord {
   id: string
   createdAt: string
   shareToken: string | null
+  ownerSession: string | null
 }
 
-export function createListener(db: Db, id: string, createdAt: string): ListenerRecord {
-  db.prepare('INSERT INTO listeners (id, created_at) VALUES (?, ?)').run(id, createdAt)
-  return { id, createdAt, shareToken: null }
+export function createListener(db: Db, id: string, createdAt: string, ownerSession: string): ListenerRecord {
+  db.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)').run(id, createdAt, ownerSession)
+  return { id, createdAt, shareToken: null, ownerSession }
 }
 
 export function getListener(db: Db, id: string): ListenerRecord | undefined {
   return db
-    .prepare('SELECT id, created_at AS createdAt, share_token AS shareToken FROM listeners WHERE id = ?')
+    .prepare(
+      'SELECT id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession FROM listeners WHERE id = ?'
+    )
     .get(id) as ListenerRecord | undefined
+}
+
+export function getListenerForOwner(db: Db, id: string, sessionId: string): ListenerRecord | undefined {
+  return db
+    .prepare(
+      'SELECT id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession FROM listeners WHERE id = ? AND owner_session = ?'
+    )
+    .get(id, sessionId) as ListenerRecord | undefined
 }
 
 export function deleteListener(db: Db, id: string): boolean {
@@ -43,6 +54,8 @@ export function revokeShareToken(db: Db, id: string): boolean {
 
 export function getListenerByShareToken(db: Db, token: string): ListenerRecord | undefined {
   return db
-    .prepare('SELECT id, created_at AS createdAt, share_token AS shareToken FROM listeners WHERE share_token = ?')
+    .prepare(
+      'SELECT id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession FROM listeners WHERE share_token = ?'
+    )
     .get(token) as ListenerRecord | undefined
 }

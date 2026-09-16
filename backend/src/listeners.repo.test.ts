@@ -3,6 +3,7 @@ import { createDb, type Db } from './db'
 import {
   createListener,
   getListener,
+  getListenerForOwner,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -17,9 +18,14 @@ describe('listeners repo', () => {
   })
 
   it('creates and fetches a listener', () => {
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z')
+    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
     const found = getListener(db, 'listener-1')
-    expect(found).toEqual({ id: 'listener-1', createdAt: '2024-01-01T00:00:00.000Z', shareToken: null })
+    expect(found).toEqual({
+      id: 'listener-1',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      shareToken: null,
+      ownerSession: 'session-a',
+    })
   })
 
   it('returns undefined for an unknown listener', () => {
@@ -27,7 +33,7 @@ describe('listeners repo', () => {
   })
 
   it('deletes a listener and reports success', () => {
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z')
+    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
     expect(deleteListener(db, 'listener-1')).toBe(true)
     expect(getListener(db, 'listener-1')).toBeUndefined()
   })
@@ -37,12 +43,39 @@ describe('listeners repo', () => {
   })
 })
 
+describe('getListenerForOwner', () => {
+  let db: Db
+
+  beforeEach(() => {
+    db = createDb(':memory:')
+    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+  })
+
+  it('returns the listener when the session matches its owner', () => {
+    const found = getListenerForOwner(db, 'listener-1', 'session-a')
+    expect(found?.id).toBe('listener-1')
+  })
+
+  it('returns undefined when the session does not match', () => {
+    expect(getListenerForOwner(db, 'listener-1', 'session-b')).toBeUndefined()
+  })
+
+  it('returns undefined for an unknown listener id', () => {
+    expect(getListenerForOwner(db, 'does-not-exist', 'session-a')).toBeUndefined()
+  })
+
+  it('returns undefined for a listener with no owner_session recorded (legacy row)', () => {
+    db.prepare("INSERT INTO listeners (id, created_at) VALUES ('legacy-listener', '2024-01-01T00:00:00.000Z')").run()
+    expect(getListenerForOwner(db, 'legacy-listener', 'session-a')).toBeUndefined()
+  })
+})
+
 describe('share tokens', () => {
   let db: Db
 
   beforeEach(() => {
     db = createDb(':memory:')
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z')
+    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
   })
 
   it('creates a share token on first call and reuses it on subsequent calls', () => {
