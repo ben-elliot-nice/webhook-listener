@@ -21,7 +21,7 @@ describe('shared read-only route', () => {
     const shareResponse = await app.inject({
       method: 'POST',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     shareToken = shareResponse.json().shareToken
 
@@ -46,6 +46,26 @@ describe('shared read-only route', () => {
     expect(response.body).not.toContain(listenerId)
   })
 
+  it('never includes the owner session id anywhere in the response', async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/hook/${listenerId}`,
+      headers: { 'content-type': 'application/json', cookie: `wl_session_id=${sessionId}` },
+      payload: JSON.stringify({ probe: true }),
+    })
+    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
+    expect(response.body).not.toContain(sessionId)
+  })
+
+  it('is reachable by a session that is not the owner', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/shared/${shareToken}/requests`,
+      cookies: { wl_session_id: 'some-other-session-uuid-0000-0000-000000000000' },
+    })
+    expect(response.statusCode).toBe(200)
+  })
+
   it('returns 404 for an unknown share token', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/shared/does-not-exist/requests' })
     expect(response.statusCode).toBe(404)
@@ -55,7 +75,7 @@ describe('shared read-only route', () => {
     await app.inject({
       method: 'DELETE',
       url: `/api/listeners/${listenerId}/share`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
     expect(response.statusCode).toBe(404)

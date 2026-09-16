@@ -31,7 +31,7 @@ describe('hook capture route', () => {
     const requests = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}/requests`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const [captured] = requests.json()
     expect(captured.method).toBe('POST')
@@ -49,7 +49,7 @@ describe('hook capture route', () => {
     const requests = await app.inject({
       method: 'GET',
       url: `/api/listeners/${listenerId}/requests`,
-      cookies: { session_id: sessionId },
+      cookies: { wl_session_id: sessionId },
     })
     const [captured] = requests.json()
     expect(captured.queryParams).toEqual({ foo: 'bar' })
@@ -59,5 +59,23 @@ describe('hook capture route', () => {
   it('returns 404 for an unknown listener', async () => {
     const response = await app.inject({ method: 'POST', url: '/hook/does-not-exist' })
     expect(response.statusCode).toBe(404)
+  })
+
+  it('redacts the cookie header from captured requests', async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/hook/${listenerId}`,
+      headers: { 'content-type': 'application/json', cookie: 'session_id=some-secret-value' },
+      payload: JSON.stringify({ foo: 'bar' }),
+    })
+
+    const requests = await app.inject({
+      method: 'GET',
+      url: `/api/listeners/${listenerId}/requests`,
+      cookies: { wl_session_id: sessionId },
+    })
+    const [captured] = requests.json()
+    expect(captured.headers.cookie).toBeUndefined()
+    expect(JSON.stringify(captured.headers)).not.toContain('some-secret-value')
   })
 })
