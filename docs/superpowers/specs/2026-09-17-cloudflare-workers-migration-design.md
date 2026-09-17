@@ -71,6 +71,14 @@ deploy cadence between them:
   origin, `Lax` remains sufficient — no need for the stricter
   `SameSite=None; Secure` cross-site regime that fully unrelated
   domains would have required.
+- **Accepted risk:** widening `Domain` to `fde.nice-agentic.com` means
+  `wl_session_id` is technically visible to any other host under that
+  subdomain, not just the two webhook-listener Workers — including the
+  unrelated `dtmf.fde.nice-agentic.com` app already noted above. This
+  is accepted given the personal/low-stakes nature of this tool; the
+  alternative (fully separate domains per Worker, requiring
+  `SameSite=None; Secure` and losing the same-site CSRF protection
+  `Lax` provides) is worse. The cookie is also marked `Secure`.
 
 ### Why split into two Workers (recorded rationale)
 

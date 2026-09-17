@@ -52,6 +52,22 @@ describe('listener ownership isolation', () => {
     expect(stillThere.status).toBe(200)
   })
 
+  it('can be deleted by the owning session, and then 404s', async () => {
+    const deleteResponse = await app.request(
+      `/api/listeners/${listenerId}`,
+      { method: 'DELETE', headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      env
+    )
+    expect(deleteResponse.status).toBe(204)
+
+    const getResponse = await app.request(
+      `/api/listeners/${listenerId}`,
+      { headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      env
+    )
+    expect(getResponse.status).toBe(404)
+  })
+
   it('cannot have a share link created by a different session', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/share`,

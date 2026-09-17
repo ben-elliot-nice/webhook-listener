@@ -14,3 +14,4 @@ database_id = "8584b678-1372-4348-a7ef-7a4e51bc23f2"
 [vars]
 HOOK_BASE_URL = "https://webhook-api.fde.nice-agentic.com"
 APP_BASE_URL = "https://webhook.fde.nice-agentic.com"
+SESSION_COOKIE_DOMAIN = "fde.nice-agentic.com"

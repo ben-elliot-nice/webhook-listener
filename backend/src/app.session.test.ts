@@ -34,4 +34,15 @@ describe('session cookie', () => {
     const sessionId = extractSessionId(response)
     expect(sessionId).not.toBe('not-a-uuid')
   })
+
+  it('sets HttpOnly, Secure, SameSite=Lax, a ~1yr Max-Age, and the configured Domain', async () => {
+    const response = await app.request('/does-not-exist', {}, env)
+    const setCookie = response.headers.getSetCookie().find((c) => c.startsWith('wl_session_id='))
+    expect(setCookie).toBeDefined()
+    expect(setCookie).toMatch(/HttpOnly/i)
+    expect(setCookie).toMatch(/Secure/i)
+    expect(setCookie).toMatch(/SameSite=Lax/i)
+    expect(setCookie).toMatch(/Max-Age=31536000/i)
+    expect(setCookie).toMatch(new RegExp(`Domain=${env.SESSION_COOKIE_DOMAIN}`, 'i'))
+  })
 })

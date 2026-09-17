@@ -41,6 +41,13 @@ describe('GET /api/listeners', () => {
     expect(otherListed.map((l) => l.id)).toEqual([otherBody.id])
   })
 
+  it('builds hookUrl from HOOK_BASE_URL, not APP_BASE_URL', async () => {
+    const response = await app.request('/api/listeners', { method: 'POST' }, env)
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { id: string; hookUrl: string }
+    expect(body.hookUrl).toBe(`${env.HOOK_BASE_URL}/hook/${body.id}`)
+  })
+
   it('includes hookUrl and shareUrl on each item, matching the single-listener shape', async () => {
     const created = await app.request('/api/listeners', { method: 'POST' }, env)
     const sessionId = extractSessionId(created)
