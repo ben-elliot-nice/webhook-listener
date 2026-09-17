@@ -1,19 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { createDb, type Db } from './db'
+import { describe, it, expect } from 'vitest'
+import { env } from 'cloudflare:test'
 import { createListener } from './listeners.repo'
 import { insertRequest, getRequests } from './requests.repo'
 
 describe('requests repo', () => {
-  let db: Db
   const listenerId = 'listener-1'
 
-  beforeEach(() => {
-    db = createDb(':memory:')
-    createListener(db, listenerId, '2024-01-01T00:00:00.000Z')
-  })
-
-  it('stores and retrieves requests newest first', () => {
-    insertRequest(db, {
+  it('stores and retrieves requests newest first', async () => {
+    await createListener(env.DB, listenerId, '2024-01-01T00:00:00.000Z', 'session-a')
+    await insertRequest(env.DB, {
       listenerId,
       method: 'POST',
       headers: '{}',
@@ -23,7 +18,7 @@ describe('requests repo', () => {
       sourceIp: '127.0.0.1',
       receivedAt: '2024-01-01T00:00:01.000Z',
     })
-    insertRequest(db, {
+    await insertRequest(env.DB, {
       listenerId,
       method: 'POST',
       headers: '{}',
@@ -34,14 +29,17 @@ describe('requests repo', () => {
       receivedAt: '2024-01-01T00:00:02.000Z',
     })
 
-    const requests = getRequests(db, listenerId)
+    const requests = await getRequests(env.DB, listenerId)
     expect(requests.map((r) => r.body)).toEqual(['second', 'first'])
   })
 
-  it('prunes older requests beyond the 200-row retention cap', () => {
+  it('prunes older requests beyond the 200-row retention cap', async () => {
+    const pruneListenerId = 'listener-prune'
+    await createListener(env.DB, pruneListenerId, '2024-01-01T00:00:00.000Z', 'session-a')
+
     for (let i = 0; i < 205; i++) {
-      insertRequest(db, {
-        listenerId,
+      await insertRequest(env.DB, {
+        listenerId: pruneListenerId,
         method: 'POST',
         headers: '{}',
         queryParams: '{}',
@@ -54,7 +52,7 @@ describe('requests repo', () => {
       })
     }
 
-    const requests = getRequests(db, listenerId)
+    const requests = await getRequests(env.DB, pruneListenerId)
     expect(requests).toHaveLength(200)
     expect(requests[0].body).toBe('request-204')
     expect(requests[requests.length - 1].body).toBe('request-5')
