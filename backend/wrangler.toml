@@ -2,9 +2,15 @@ name = "webhook-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
-routes = [
-  { pattern = "webhook-api.fde.nice-agentic.com", custom_domain = true }
-]
+# No `routes` block here: the custom domain webhook-api.fde.nice-agentic.com
+# is attached out-of-band via Cloudflare's account-level Custom Domains API
+# (PUT /accounts/{id}/workers/domains/records), the same mechanism used for
+# the frontend Worker (see frontend/wrangler.toml). The deploy-time API token
+# lacks the Zone:Workers Routes permission wrangler needs to (re-)register a
+# `routes` entry here on every deploy, but does have Custom Domains
+# permission, so the binding is registered once, directly, and persists on
+# Cloudflare's side independent of this file. This is deliberate, not an
+# oversight.
 
 [[d1_databases]]
 binding = "DB"
