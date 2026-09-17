@@ -1,40 +1,55 @@
-import type { FastifyInstance } from 'fastify'
-import type { Db } from '../db'
+import { Hono } from 'hono'
+import type { Env } from '../env'
 import { getListener } from '../listeners.repo'
 import { insertRequest } from '../requests.repo'
 
 const REDACTED_HEADER_NAMES = new Set(['cookie', 'set-cookie'])
+const MAX_BODY_BYTES = 10 * 1024 * 1024
 
-function redactHeaders(headers: Record<string, unknown>): Record<string, unknown> {
-  const redacted: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(headers)) {
-    if (REDACTED_HEADER_NAMES.has(key.toLowerCase())) continue
+function redactHeaders(headers: Headers): Record<string, string> {
+  const redacted: Record<string, string> = {}
+  headers.forEach((value, key) => {
+    if (REDACTED_HEADER_NAMES.has(key.toLowerCase())) return
     redacted[key] = value
-  }
+  })
   return redacted
 }
 
-export function registerHookRoute(app: FastifyInstance, db: Db): void {
-  app.all<{ Params: { id: string } }>('/hook/:id', async (request, reply) => {
-    const listener = getListener(db, request.params.id)
-    if (!listener) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
-
-    const body = typeof request.body === 'string' ? request.body : null
-
-    insertRequest(db, {
-      listenerId: listener.id,
-      method: request.method,
-      headers: JSON.stringify(redactHeaders(request.headers)),
-      queryParams: JSON.stringify(request.query ?? {}),
-      body,
-      contentType: (request.headers['content-type'] as string | undefined) ?? null,
-      sourceIp: request.ip,
-      receivedAt: new Date().toISOString(),
-    })
-
-    reply.code(200).send()
-  })
+function parseQuery(url: URL): Record<string, string | string[]> {
+  const query: Record<string, string | string[]> = {}
+  for (const key of url.searchParams.keys()) {
+    if (key in query) continue
+    const values = url.searchParams.getAll(key)
+    query[key] = values.length > 1 ? values : values[0]
+  }
+  return query
 }
+
+export const hookRoute = new Hono<{ Bindings: Env }>()
+
+hookRoute.all('/hook/:id', async (c) => {
+  const listener = await getListener(c.env.DB, c.req.param('id'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+
+  const contentLength = c.req.header('content-length')
+  if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
+    return c.json({ error: 'payload too large' }, 413)
+  }
+
+  const body = c.req.raw.body ? await c.req.raw.clone().text() : null
+
+  await insertRequest(c.env.DB, {
+    listenerId: listener.id,
+    method: c.req.method,
+    headers: JSON.stringify(redactHeaders(c.req.raw.headers)),
+    queryParams: JSON.stringify(parseQuery(new URL(c.req.url))),
+    body,
+    contentType: c.req.header('content-type') ?? null,
+    sourceIp: c.req.header('cf-connecting-ip') ?? null,
+    receivedAt: new Date().toISOString(),
+  })
+
+  return c.body(null, 200)
+})

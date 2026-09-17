@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { getCookie, setCookie } from 'hono/cookie'
 import type { Env } from './env'
+import { hookRoute } from './routes/hook'
 
 export type Variables = { sessionId: string }
 
@@ -44,3 +45,5 @@ app.use('*', async (c, next) => {
   c.set('sessionId', sessionId)
   await next()
 })
+
+app.route('/', hookRoute)

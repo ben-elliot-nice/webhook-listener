@@ -1,81 +1,77 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { FastifyInstance } from 'fastify'
-import { createDb, type Db } from '../db'
-import { buildServer } from '../server'
-import { extractSessionId } from '../test-helpers/session'
+import { env } from 'cloudflare:test'
+import { app } from '../app'
+import { createListener } from '../listeners.repo'
+import { getRequests } from '../requests.repo'
 
 describe('hook capture route', () => {
-  let db: Db
-  let app: FastifyInstance
-  let listenerId: string
-  let sessionId: string
+  const listenerId = 'hook-test-listener'
 
   beforeEach(async () => {
-    db = createDb(':memory:')
-    app = buildServer({ db, baseUrl: 'http://localhost:8080' })
-    const created = await app.inject({ method: 'POST', url: '/api/listeners' })
-    listenerId = created.json().id
-    sessionId = extractSessionId(created)
+    await createListener(env.DB, listenerId, '2024-01-01T00:00:00.000Z', 'session-a')
   })
 
   it('captures a POST payload and returns 200', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: `/hook/${listenerId}`,
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ foo: 'bar' }),
-    })
+    const response = await app.request(
+      `/hook/${listenerId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ foo: 'bar' }),
+      },
+      env
+    )
+    expect(response.status).toBe(200)
 
-    expect(response.statusCode).toBe(200)
-
-    const requests = await app.inject({
-      method: 'GET',
-      url: `/api/listeners/${listenerId}/requests`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const [captured] = requests.json()
+    const [captured] = await getRequests(env.DB, listenerId)
     expect(captured.method).toBe('POST')
     expect(captured.body).toBe(JSON.stringify({ foo: 'bar' }))
     expect(captured.contentType).toBe('application/json')
   })
 
   it('captures query params and headers', async () => {
-    await app.inject({
-      method: 'GET',
-      url: `/hook/${listenerId}?foo=bar`,
-      headers: { 'x-custom-header': 'value' },
-    })
+    await app.request(
+      `/hook/${listenerId}?foo=bar`,
+      { method: 'GET', headers: { 'x-custom-header': 'value' } },
+      env
+    )
 
-    const requests = await app.inject({
-      method: 'GET',
-      url: `/api/listeners/${listenerId}/requests`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const [captured] = requests.json()
-    expect(captured.queryParams).toEqual({ foo: 'bar' })
-    expect(captured.headers['x-custom-header']).toBe('value')
+    const [captured] = await getRequests(env.DB, listenerId)
+    expect(JSON.parse(captured.queryParams)).toEqual({ foo: 'bar' })
+    expect(JSON.parse(captured.headers)['x-custom-header']).toBe('value')
   })
 
   it('returns 404 for an unknown listener', async () => {
-    const response = await app.inject({ method: 'POST', url: '/hook/does-not-exist' })
-    expect(response.statusCode).toBe(404)
+    const response = await app.request('/hook/does-not-exist', { method: 'POST' }, env)
+    expect(response.status).toBe(404)
   })
 
   it('redacts the cookie header from captured requests', async () => {
-    await app.inject({
-      method: 'POST',
-      url: `/hook/${listenerId}`,
-      headers: { 'content-type': 'application/json', cookie: 'session_id=some-secret-value' },
-      payload: JSON.stringify({ foo: 'bar' }),
-    })
+    await app.request(
+      `/hook/${listenerId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: 'session_id=some-secret-value' },
+        body: JSON.stringify({ foo: 'bar' }),
+      },
+      env
+    )
 
-    const requests = await app.inject({
-      method: 'GET',
-      url: `/api/listeners/${listenerId}/requests`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const [captured] = requests.json()
-    expect(captured.headers.cookie).toBeUndefined()
-    expect(JSON.stringify(captured.headers)).not.toContain('some-secret-value')
+    const [captured] = await getRequests(env.DB, listenerId)
+    const headers = JSON.parse(captured.headers)
+    expect(headers.cookie).toBeUndefined()
+    expect(captured.headers).not.toContain('some-secret-value')
+  })
+
+  it('rejects a payload over the 10MB cap with 413', async () => {
+    const response = await app.request(
+      `/hook/${listenerId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream', 'content-length': String(11 * 1024 * 1024) },
+      },
+      env
+    )
+    expect(response.status).toBe(413)
   })
 })
