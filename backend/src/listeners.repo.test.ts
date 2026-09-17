@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { createDb, type Db } from './db'
+import { describe, it, expect } from 'vitest'
+import { env } from 'cloudflare:test'
 import {
   createListener,
   getListener,
@@ -12,15 +12,9 @@ import {
 } from './listeners.repo'
 
 describe('listeners repo', () => {
-  let db: Db
-
-  beforeEach(() => {
-    db = createDb(':memory:')
-  })
-
-  it('creates and fetches a listener', () => {
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
-    const found = getListener(db, 'listener-1')
+  it('creates and fetches a listener', async () => {
+    await createListener(env.DB, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    const found = await getListener(env.DB, 'listener-1')
     expect(found).toEqual({
       id: 'listener-1',
       createdAt: '2024-01-01T00:00:00.000Z',
@@ -29,115 +23,100 @@ describe('listeners repo', () => {
     })
   })
 
-  it('returns undefined for an unknown listener', () => {
-    expect(getListener(db, 'does-not-exist')).toBeUndefined()
+  it('returns undefined for an unknown listener', async () => {
+    expect(await getListener(env.DB, 'does-not-exist')).toBeUndefined()
   })
 
-  it('deletes a listener and reports success', () => {
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
-    expect(deleteListener(db, 'listener-1')).toBe(true)
-    expect(getListener(db, 'listener-1')).toBeUndefined()
+  it('deletes a listener and reports success', async () => {
+    await createListener(env.DB, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    expect(await deleteListener(env.DB, 'listener-1')).toBe(true)
+    expect(await getListener(env.DB, 'listener-1')).toBeUndefined()
   })
 
-  it('reports failure when deleting an unknown listener', () => {
-    expect(deleteListener(db, 'does-not-exist')).toBe(false)
+  it('reports failure when deleting an unknown listener', async () => {
+    expect(await deleteListener(env.DB, 'does-not-exist')).toBe(false)
   })
 })
 
 describe('getListenerForOwner', () => {
-  let db: Db
-
-  beforeEach(() => {
-    db = createDb(':memory:')
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+  it('returns the listener when the session matches its owner', async () => {
+    await createListener(env.DB, 'listener-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    const found = await getListenerForOwner(env.DB, 'listener-2', 'session-a')
+    expect(found?.id).toBe('listener-2')
   })
 
-  it('returns the listener when the session matches its owner', () => {
-    const found = getListenerForOwner(db, 'listener-1', 'session-a')
-    expect(found?.id).toBe('listener-1')
+  it('returns undefined when the session does not match', async () => {
+    await createListener(env.DB, 'listener-3', '2024-01-01T00:00:00.000Z', 'session-a')
+    expect(await getListenerForOwner(env.DB, 'listener-3', 'session-b')).toBeUndefined()
   })
 
-  it('returns undefined when the session does not match', () => {
-    expect(getListenerForOwner(db, 'listener-1', 'session-b')).toBeUndefined()
+  it('returns undefined for an unknown listener id', async () => {
+    expect(await getListenerForOwner(env.DB, 'does-not-exist', 'session-a')).toBeUndefined()
   })
 
-  it('returns undefined for an unknown listener id', () => {
-    expect(getListenerForOwner(db, 'does-not-exist', 'session-a')).toBeUndefined()
-  })
-
-  it('returns undefined for a listener with no owner_session recorded (legacy row)', () => {
-    db.prepare("INSERT INTO listeners (id, created_at) VALUES ('legacy-listener', '2024-01-01T00:00:00.000Z')").run()
-    expect(getListenerForOwner(db, 'legacy-listener', 'session-a')).toBeUndefined()
+  it('returns undefined for a listener with no owner_session recorded (legacy row)', async () => {
+    await env.DB.prepare("INSERT INTO listeners (id, created_at) VALUES ('legacy-listener', '2024-01-01T00:00:00.000Z')").run()
+    expect(await getListenerForOwner(env.DB, 'legacy-listener', 'session-a')).toBeUndefined()
   })
 })
 
 describe('share tokens', () => {
-  let db: Db
-
-  beforeEach(() => {
-    db = createDb(':memory:')
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
-  })
-
-  it('creates a share token on first call and reuses it on subsequent calls', () => {
-    const first = getOrCreateShareToken(db, 'listener-1')
-    const second = getOrCreateShareToken(db, 'listener-1')
+  it('creates a share token on first call and reuses it on subsequent calls', async () => {
+    await createListener(env.DB, 'listener-4', '2024-01-01T00:00:00.000Z', 'session-a')
+    const first = await getOrCreateShareToken(env.DB, 'listener-4')
+    const second = await getOrCreateShareToken(env.DB, 'listener-4')
     expect(first).toBeTypeOf('string')
     expect(second).toBe(first)
   })
 
-  it('returns undefined for an unknown listener', () => {
-    expect(getOrCreateShareToken(db, 'does-not-exist')).toBeUndefined()
+  it('returns undefined for an unknown listener', async () => {
+    expect(await getOrCreateShareToken(env.DB, 'does-not-exist')).toBeUndefined()
   })
 
-  it('looks up a listener by its share token', () => {
-    const token = getOrCreateShareToken(db, 'listener-1') as string
-    const found = getListenerByShareToken(db, token)
-    expect(found?.id).toBe('listener-1')
+  it('looks up a listener by its share token', async () => {
+    await createListener(env.DB, 'listener-5', '2024-01-01T00:00:00.000Z', 'session-a')
+    const token = (await getOrCreateShareToken(env.DB, 'listener-5')) as string
+    const found = await getListenerByShareToken(env.DB, token)
+    expect(found?.id).toBe('listener-5')
   })
 
-  it('returns undefined for an unknown share token', () => {
-    expect(getListenerByShareToken(db, 'does-not-exist')).toBeUndefined()
+  it('returns undefined for an unknown share token', async () => {
+    expect(await getListenerByShareToken(env.DB, 'does-not-exist')).toBeUndefined()
   })
 
-  it('revokes a share token', () => {
-    const token = getOrCreateShareToken(db, 'listener-1') as string
-    expect(revokeShareToken(db, 'listener-1')).toBe(true)
-    expect(getListenerByShareToken(db, token)).toBeUndefined()
+  it('revokes a share token', async () => {
+    await createListener(env.DB, 'listener-6', '2024-01-01T00:00:00.000Z', 'session-a')
+    const token = (await getOrCreateShareToken(env.DB, 'listener-6')) as string
+    expect(await revokeShareToken(env.DB, 'listener-6')).toBe(true)
+    expect(await getListenerByShareToken(env.DB, token)).toBeUndefined()
   })
 
-  it('reports failure when revoking an unknown listener', () => {
-    expect(revokeShareToken(db, 'does-not-exist')).toBe(false)
+  it('reports failure when revoking an unknown listener', async () => {
+    expect(await revokeShareToken(env.DB, 'does-not-exist')).toBe(false)
   })
 })
 
 describe('getListenersForOwner', () => {
-  let db: Db
+  it("returns only the calling session's listeners, newest first", async () => {
+    await createListener(env.DB, 'listener-7', '2024-01-01T00:00:00.000Z', 'session-x')
+    await createListener(env.DB, 'listener-8', '2024-01-02T00:00:00.000Z', 'session-x')
+    await createListener(env.DB, 'listener-9', '2024-01-03T00:00:00.000Z', 'session-y')
 
-  beforeEach(() => {
-    db = createDb(':memory:')
+    const result = await getListenersForOwner(env.DB, 'session-x', 100)
+    expect(result.map((l) => l.id)).toEqual(['listener-8', 'listener-7'])
   })
 
-  it('returns only the calling session\'s listeners, newest first', () => {
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
-    createListener(db, 'listener-2', '2024-01-02T00:00:00.000Z', 'session-a')
-    createListener(db, 'listener-3', '2024-01-03T00:00:00.000Z', 'session-b')
-
-    const result = getListenersForOwner(db, 'session-a', 100)
-    expect(result.map((l) => l.id)).toEqual(['listener-2', 'listener-1'])
+  it('returns an empty array for a session with no listeners', async () => {
+    expect(await getListenersForOwner(env.DB, 'session-with-nothing', 100)).toEqual([])
   })
 
-  it('returns an empty array for a session with no listeners', () => {
-    expect(getListenersForOwner(db, 'session-with-nothing', 100)).toEqual([])
-  })
+  it('respects the limit', async () => {
+    await createListener(env.DB, 'listener-10', '2024-01-01T00:00:00.000Z', 'session-z')
+    await createListener(env.DB, 'listener-11', '2024-01-02T00:00:00.000Z', 'session-z')
+    await createListener(env.DB, 'listener-12', '2024-01-03T00:00:00.000Z', 'session-z')
 
-  it('respects the limit', () => {
-    createListener(db, 'listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
-    createListener(db, 'listener-2', '2024-01-02T00:00:00.000Z', 'session-a')
-    createListener(db, 'listener-3', '2024-01-03T00:00:00.000Z', 'session-a')
-
-    const result = getListenersForOwner(db, 'session-a', 2)
+    const result = await getListenersForOwner(env.DB, 'session-z', 2)
     expect(result).toHaveLength(2)
-    expect(result.map((l) => l.id)).toEqual(['listener-3', 'listener-2'])
+    expect(result.map((l) => l.id)).toEqual(['listener-12', 'listener-11'])
   })
 })
