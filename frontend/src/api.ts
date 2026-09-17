@@ -1,3 +1,5 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
 export interface Listener {
   id: string
   createdAt: string
@@ -41,39 +43,54 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
 }
 
 export function createListener(): Promise<Listener> {
-  return fetch('/api/listeners', { method: 'POST' }).then((r) => parseJsonOrThrow<Listener>(r))
+  return fetch(`${API_BASE_URL}/api/listeners`, { method: 'POST', credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Listener>(r)
+  )
 }
 
 export function getListener(id: string): Promise<Listener> {
-  return fetch(`/api/listeners/${id}`).then((r) => parseJsonOrThrow<Listener>(r))
+  return fetch(`${API_BASE_URL}/api/listeners/${id}`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Listener>(r)
+  )
 }
 
 export function listListeners(): Promise<Listener[]> {
-  return fetch('/api/listeners').then((r) => parseJsonOrThrow<Listener[]>(r))
+  return fetch(`${API_BASE_URL}/api/listeners`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Listener[]>(r)
+  )
 }
 
 export function getRequests(id: string): Promise<CapturedRequest[]> {
-  return fetch(`/api/listeners/${id}/requests`).then((r) => parseJsonOrThrow<CapturedRequest[]>(r))
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/requests`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<CapturedRequest[]>(r)
+  )
 }
 
 export async function deleteListener(id: string): Promise<void> {
-  const response = await fetch(`/api/listeners/${id}`, { method: 'DELETE' })
+  const response = await fetch(`${API_BASE_URL}/api/listeners/${id}`, { method: 'DELETE', credentials: 'include' })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
 }
 
 export function getOrCreateShareLink(id: string): Promise<ShareLink> {
-  return fetch(`/api/listeners/${id}/share`, { method: 'POST' }).then((r) => parseJsonOrThrow<ShareLink>(r))
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/share`, { method: 'POST', credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<ShareLink>(r)
+  )
 }
 
 export async function revokeShareLink(id: string): Promise<void> {
-  const response = await fetch(`/api/listeners/${id}/share`, { method: 'DELETE' })
+  const response = await fetch(`${API_BASE_URL}/api/listeners/${id}/share`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
 }
 
 export function getSharedRequests(token: string): Promise<RequestDetail[]> {
-  return fetch(`/api/shared/${token}/requests`).then((r) => parseJsonOrThrow<RequestDetail[]>(r))
+  return fetch(`${API_BASE_URL}/api/shared/${token}/requests`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<RequestDetail[]>(r)
+  )
 }
