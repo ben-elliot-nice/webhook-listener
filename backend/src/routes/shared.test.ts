@@ -1,89 +1,89 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { FastifyInstance } from 'fastify'
-import { createDb, type Db } from '../db'
-import { buildServer } from '../server'
-import { extractSessionId } from '../test-helpers/session'
+import { env } from 'cloudflare:test'
+import { app } from '../app'
+import { cookieHeader, extractSessionId } from '../test-helpers/session'
 
 describe('shared read-only route', () => {
-  let db: Db
-  let app: FastifyInstance
   let listenerId: string
   let sessionId: string
   let shareToken: string
 
   beforeEach(async () => {
-    db = createDb(':memory:')
-    app = buildServer({ db, baseUrl: 'http://localhost:8080' })
-    const created = await app.inject({ method: 'POST', url: '/api/listeners' })
-    listenerId = created.json().id
+    const created = await app.request('/api/listeners', { method: 'POST' }, env)
+    const createdBody = (await created.json()) as { id: string }
+    listenerId = createdBody.id
     sessionId = extractSessionId(created)
 
-    const shareResponse = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    shareToken = shareResponse.json().shareToken
+    const shareResponse = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    shareToken = (await shareResponse.json() as { shareToken: string }).shareToken
 
-    await app.inject({
-      method: 'POST',
-      url: `/hook/${listenerId}`,
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ foo: 'bar' }),
-    })
+    await app.request(
+      `/hook/${listenerId}`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ foo: 'bar' }) },
+      env
+    )
   })
 
   it('returns captured requests for a valid share token', async () => {
-    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
-    expect(response.statusCode).toBe(200)
-    const [captured] = response.json()
+    const response = await app.request(`/api/shared/${shareToken}/requests`, {}, env)
+    expect(response.status).toBe(200)
+    const [captured] = (await response.json()) as { body: string; method: string }[]
     expect(captured.body).toBe(JSON.stringify({ foo: 'bar' }))
     expect(captured.method).toBe('POST')
   })
 
   it('never includes the real listener id anywhere in the response', async () => {
-    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
-    expect(response.body).not.toContain(listenerId)
+    const response = await app.request(`/api/shared/${shareToken}/requests`, {}, env)
+    const text = await response.text()
+    expect(text).not.toContain(listenerId)
   })
 
   it('never includes the owner session id anywhere in the response', async () => {
-    await app.inject({
-      method: 'POST',
-      url: `/hook/${listenerId}`,
-      headers: { 'content-type': 'application/json', cookie: `wl_session_id=${sessionId}` },
-      payload: JSON.stringify({ probe: true }),
-    })
-    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
-    expect(response.body).not.toContain(sessionId)
+    await app.request(
+      `/hook/${listenerId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: `wl_session_id=${sessionId}` },
+        body: JSON.stringify({ probe: true }),
+      },
+      env
+    )
+    const response = await app.request(`/api/shared/${shareToken}/requests`, {}, env)
+    const text = await response.text()
+    expect(text).not.toContain(sessionId)
   })
 
   it('is reachable by a session that is not the owner', async () => {
-    const response = await app.inject({
-      method: 'GET',
-      url: `/api/shared/${shareToken}/requests`,
-      cookies: { wl_session_id: 'some-other-session-uuid-0000-0000-000000000000' },
-    })
-    expect(response.statusCode).toBe(200)
+    const response = await app.request(
+      `/api/shared/${shareToken}/requests`,
+      { headers: cookieHeader({ wl_session_id: 'some-other-session-uuid-0000-0000-000000000000' }) },
+      env
+    )
+    expect(response.status).toBe(200)
   })
 
   it('returns 404 for an unknown share token', async () => {
-    const response = await app.inject({ method: 'GET', url: '/api/shared/does-not-exist/requests' })
-    expect(response.statusCode).toBe(404)
+    const response = await app.request('/api/shared/does-not-exist/requests', {}, env)
+    expect(response.status).toBe(404)
   })
 
   it('returns 404 after the share token has been revoked', async () => {
-    await app.inject({
-      method: 'DELETE',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
-    expect(response.statusCode).toBe(404)
+    await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const response = await app.request(`/api/shared/${shareToken}/requests`, {}, env)
+    expect(response.status).toBe(404)
   })
 
   it('exposes exactly the expected fields, nothing more', async () => {
-    const response = await app.inject({ method: 'GET', url: `/api/shared/${shareToken}/requests` })
-    const [captured] = response.json()
+    const response = await app.request(`/api/shared/${shareToken}/requests`, {}, env)
+    const [captured] = (await response.json()) as Record<string, unknown>[]
     expect(Object.keys(captured).sort()).toEqual(
       ['body', 'contentType', 'headers', 'id', 'method', 'queryParams', 'receivedAt', 'sourceIp'].sort()
     )
