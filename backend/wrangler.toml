@@ -1,0 +1,12 @@
+name = "webhook-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "webhook-listener"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+HOOK_BASE_URL = "https://webhook-api.fde.nice-agentic.com"
+APP_BASE_URL = "https://webhook.fde.nice-agentic.com"
