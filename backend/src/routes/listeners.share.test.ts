@@ -1,125 +1,134 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { FastifyInstance } from 'fastify'
-import { createDb, type Db } from '../db'
-import { buildServer } from '../server'
-import { extractSessionId } from '../test-helpers/session'
+import { env } from 'cloudflare:test'
+import { app } from '../app'
+import { cookieHeader, extractSessionId } from '../test-helpers/session'
 
 describe('listener share management', () => {
-  let db: Db
-  let app: FastifyInstance
   let listenerId: string
   let sessionId: string
 
   beforeEach(async () => {
-    db = createDb(':memory:')
-    app = buildServer({ db, baseUrl: 'http://localhost:8080' })
-    const created = await app.inject({ method: 'POST', url: '/api/listeners' })
-    listenerId = created.json().id
+    const created = await app.request('/api/listeners', { method: 'POST' }, env)
+    const createdBody = (await created.json()) as { id: string }
+    listenerId = createdBody.id
     sessionId = extractSessionId(created)
   })
 
   it('has no share link by default', async () => {
-    const response = await app.inject({
-      method: 'GET',
-      url: `/api/listeners/${listenerId}`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(response.json().shareUrl).toBeNull()
+    const response = await app.request(
+      `/api/listeners/${listenerId}`,
+      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect((await response.json() as { shareUrl: string | null }).shareUrl).toBeNull()
   })
 
   it('creates a share link', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(response.statusCode).toBe(200)
-    const body = response.json()
+    const response = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { shareToken: string; shareUrl: string }
     expect(body.shareToken).toBeTypeOf('string')
-    expect(body.shareUrl).toBe(`http://localhost:8080/shared/${body.shareToken}`)
+    // NOTE: deviates from the task-6 brief, which hardcoded
+    // `https://webhook.fde.nice-agentic.com/shared/...` here. That literal cannot pass in
+    // this (or any correctly configured) local/test environment: backend/.dev.vars sets
+    // APP_BASE_URL="http://localhost:5173" for local dev/test per Task 1, and
+    // @cloudflare/vitest-pool-workers loads .dev.vars automatically. Asserting against the
+    // actual configured env.APP_BASE_URL keeps the test's intent (verify shareUrl shape)
+    // without hardcoding a production domain that contradicts the established local config.
+    expect(body.shareUrl).toBe(`${env.APP_BASE_URL}/shared/${body.shareToken}`)
   })
 
   it('is idempotent — repeat calls return the same token', async () => {
-    const first = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const second = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(second.json().shareToken).toBe(first.json().shareToken)
+    const first = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const second = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect((await second.json() as { shareToken: string }).shareToken).toBe(
+      (await first.json() as { shareToken: string }).shareToken
+    )
   })
 
   it('reflects the created share link on the listener', async () => {
-    const shareResponse = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const listenerResponse = await app.inject({
-      method: 'GET',
-      url: `/api/listeners/${listenerId}`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(listenerResponse.json().shareUrl).toBe(shareResponse.json().shareUrl)
+    const shareResponse = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const listenerResponse = await app.request(
+      `/api/listeners/${listenerId}`,
+      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect((await listenerResponse.json() as { shareUrl: string }).shareUrl).toBe(
+      (await shareResponse.json() as { shareUrl: string }).shareUrl
+    )
   })
 
   it('revokes a share link', async () => {
-    await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const revokeResponse = await app.inject({
-      method: 'DELETE',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(revokeResponse.statusCode).toBe(204)
+    await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const revokeResponse = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect(revokeResponse.status).toBe(204)
 
-    const listenerResponse = await app.inject({
-      method: 'GET',
-      url: `/api/listeners/${listenerId}`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(listenerResponse.json().shareUrl).toBeNull()
+    const listenerResponse = await app.request(
+      `/api/listeners/${listenerId}`,
+      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect((await listenerResponse.json() as { shareUrl: string | null }).shareUrl).toBeNull()
   })
 
   it('generates a new token after revoke then re-share', async () => {
-    const first = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    await app.inject({
-      method: 'DELETE',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    const second = await app.inject({
-      method: 'POST',
-      url: `/api/listeners/${listenerId}/share`,
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(second.json().shareToken).not.toBe(first.json().shareToken)
+    const first = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const second = await app.request(
+      `/api/listeners/${listenerId}/share`,
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect((await second.json() as { shareToken: string }).shareToken).not.toBe(
+      (await first.json() as { shareToken: string }).shareToken
+    )
   })
 
   it('returns 404 for an unknown listener on both endpoints', async () => {
-    const shareResponse = await app.inject({
-      method: 'POST',
-      url: '/api/listeners/does-not-exist/share',
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(shareResponse.statusCode).toBe(404)
+    const shareResponse = await app.request(
+      '/api/listeners/does-not-exist/share',
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect(shareResponse.status).toBe(404)
 
-    const revokeResponse = await app.inject({
-      method: 'DELETE',
-      url: '/api/listeners/does-not-exist/share',
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(revokeResponse.statusCode).toBe(404)
+    const revokeResponse = await app.request(
+      '/api/listeners/does-not-exist/share',
+      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    expect(revokeResponse.status).toBe(404)
   })
 })

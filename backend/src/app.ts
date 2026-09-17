@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { getCookie, setCookie } from 'hono/cookie'
 import type { Env } from './env'
 import { hookRoute } from './routes/hook'
+import { listenerRoutes } from './routes/listeners'
 
 export type Variables = { sessionId: string }
 
@@ -47,3 +48,4 @@ app.use('*', async (c, next) => {
 })
 
 app.route('/', hookRoute)
+app.route('/', listenerRoutes)

@@ -1,68 +1,54 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import type { FastifyInstance } from 'fastify'
-import { createDb, type Db } from '../db'
-import { buildServer } from '../server'
-import { extractSessionId } from '../test-helpers/session'
+import { describe, it, expect } from 'vitest'
+import { env } from 'cloudflare:test'
+import { app } from '../app'
+import { cookieHeader, extractSessionId } from '../test-helpers/session'
 
 describe('GET /api/listeners', () => {
-  let db: Db
-  let app: FastifyInstance
-
-  beforeEach(() => {
-    db = createDb(':memory:')
-    app = buildServer({ db, baseUrl: 'http://localhost:8080' })
-  })
-
   it('returns an empty array for a session with no listeners', async () => {
-    const response = await app.inject({ method: 'GET', url: '/api/listeners' })
-    expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual([])
+    const response = await app.request('/api/listeners', {}, env)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
   })
 
-  it('returns only the calling session\'s own listeners, newest first', async () => {
-    const first = await app.inject({ method: 'POST', url: '/api/listeners' })
+  it("returns only the calling session's own listeners, newest first", async () => {
+    const first = await app.request('/api/listeners', { method: 'POST' }, env)
     const sessionId = extractSessionId(first)
-    // Guarantee a distinct millisecond `created_at` between the two creations so
-    // "newest first" ordering is deterministic rather than a timing race (see
-    // getListenersForOwner's ORDER BY created_at DESC, id DESC tie-breaker).
+    const firstBody = (await first.json()) as { id: string }
+
     await new Promise((resolve) => setTimeout(resolve, 5))
-    const second = await app.inject({
-      method: 'POST',
-      url: '/api/listeners',
-      cookies: { wl_session_id: sessionId },
-    })
+    const second = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const secondBody = (await second.json()) as { id: string }
 
-    const otherSessionCreate = await app.inject({ method: 'POST', url: '/api/listeners' })
-    const otherSessionId = extractSessionId(otherSessionCreate)
+    const otherCreate = await app.request('/api/listeners', { method: 'POST' }, env)
+    const otherSessionId = extractSessionId(otherCreate)
+    const otherBody = (await otherCreate.json()) as { id: string }
 
-    const response = await app.inject({
-      method: 'GET',
-      url: '/api/listeners',
-      cookies: { wl_session_id: sessionId },
-    })
-    expect(response.statusCode).toBe(200)
-    const body = response.json()
-    expect(body.map((l: { id: string }) => l.id)).toEqual([second.json().id, first.json().id])
+    const response = await app.request('/api/listeners', { headers: cookieHeader({ wl_session_id: sessionId }) }, env)
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { id: string }[]
+    expect(body.map((l) => l.id)).toEqual([secondBody.id, firstBody.id])
 
-    const otherResponse = await app.inject({
-      method: 'GET',
-      url: '/api/listeners',
-      cookies: { wl_session_id: otherSessionId },
-    })
-    expect(otherResponse.json().map((l: { id: string }) => l.id)).toEqual([otherSessionCreate.json().id])
+    const otherResponse = await app.request(
+      '/api/listeners',
+      { headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      env
+    )
+    const otherListed = (await otherResponse.json()) as { id: string }[]
+    expect(otherListed.map((l) => l.id)).toEqual([otherBody.id])
   })
 
   it('includes hookUrl and shareUrl on each item, matching the single-listener shape', async () => {
-    const created = await app.inject({ method: 'POST', url: '/api/listeners' })
+    const created = await app.request('/api/listeners', { method: 'POST' }, env)
     const sessionId = extractSessionId(created)
+    const createdBody = (await created.json()) as { hookUrl: string }
 
-    const response = await app.inject({
-      method: 'GET',
-      url: '/api/listeners',
-      cookies: { wl_session_id: sessionId },
-    })
-    const [listed] = response.json()
-    expect(listed.hookUrl).toBe(created.json().hookUrl)
+    const response = await app.request('/api/listeners', { headers: cookieHeader({ wl_session_id: sessionId }) }, env)
+    const [listed] = (await response.json()) as { hookUrl: string; shareUrl: string | null }[]
+    expect(listed.hookUrl).toBe(createdBody.hookUrl)
     expect(listed.shareUrl).toBeNull()
   })
 })

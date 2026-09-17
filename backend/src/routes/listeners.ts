@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify'
-import { randomUUID } from 'node:crypto'
-import type { Db } from '../db'
+import { Hono } from 'hono'
+import type { Env } from '../env'
+import type { Variables } from '../app'
 import {
   createListener,
   getListenerForOwner,
@@ -11,95 +11,92 @@ import {
 } from '../listeners.repo'
 import { getRequests } from '../requests.repo'
 
-function shareUrlFor(baseUrl: string, shareToken: string | null): string | null {
-  return shareToken ? `${baseUrl}/shared/${shareToken}` : null
+function shareUrlFor(appBaseUrl: string, shareToken: string | null): string | null {
+  return shareToken ? `${appBaseUrl}/shared/${shareToken}` : null
 }
 
 const LIST_LIMIT = 100
 
-export function registerListenerRoutes(app: FastifyInstance, db: Db, baseUrl: string): void {
-  app.get('/api/listeners', async (request) => {
-    const listeners = getListenersForOwner(db, request.sessionId, LIST_LIMIT)
-    return listeners.map((listener) => ({
+export const listenerRoutes = new Hono<{ Bindings: Env; Variables: Variables }>()
+
+listenerRoutes.get('/api/listeners', async (c) => {
+  const listeners = await getListenersForOwner(c.env.DB, c.get('sessionId'), LIST_LIMIT)
+  return c.json(
+    listeners.map((listener) => ({
       id: listener.id,
       createdAt: listener.createdAt,
-      hookUrl: `${baseUrl}/hook/${listener.id}`,
-      shareUrl: shareUrlFor(baseUrl, listener.shareToken),
+      hookUrl: `${c.env.HOOK_BASE_URL}/hook/${listener.id}`,
+      shareUrl: shareUrlFor(c.env.APP_BASE_URL, listener.shareToken),
     }))
-  })
+  )
+})
 
-  app.post('/api/listeners', async (request, reply) => {
-    const id = randomUUID()
-    const createdAt = new Date().toISOString()
-    const listener = createListener(db, id, createdAt, request.sessionId)
-    reply.code(201)
-    return {
+listenerRoutes.post('/api/listeners', async (c) => {
+  const id = crypto.randomUUID()
+  const createdAt = new Date().toISOString()
+  const listener = await createListener(c.env.DB, id, createdAt, c.get('sessionId'))
+  return c.json(
+    {
       id: listener.id,
       createdAt: listener.createdAt,
-      hookUrl: `${baseUrl}/hook/${listener.id}`,
-      shareUrl: shareUrlFor(baseUrl, listener.shareToken),
-    }
-  })
+      hookUrl: `${c.env.HOOK_BASE_URL}/hook/${listener.id}`,
+      shareUrl: shareUrlFor(c.env.APP_BASE_URL, listener.shareToken),
+    },
+    201
+  )
+})
 
-  app.get<{ Params: { id: string } }>('/api/listeners/:id', async (request, reply) => {
-    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
-    if (!listener) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
-    return {
-      id: listener.id,
-      createdAt: listener.createdAt,
-      hookUrl: `${baseUrl}/hook/${listener.id}`,
-      shareUrl: shareUrlFor(baseUrl, listener.shareToken),
-    }
+listenerRoutes.get('/api/listeners/:id', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+  return c.json({
+    id: listener.id,
+    createdAt: listener.createdAt,
+    hookUrl: `${c.env.HOOK_BASE_URL}/hook/${listener.id}`,
+    shareUrl: shareUrlFor(c.env.APP_BASE_URL, listener.shareToken),
   })
+})
 
-  app.get<{ Params: { id: string } }>('/api/listeners/:id/requests', async (request, reply) => {
-    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
-    if (!listener) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
-    const requests = getRequests(db, listener.id)
-    return requests.map((r) => ({
+listenerRoutes.get('/api/listeners/:id/requests', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+  const requests = await getRequests(c.env.DB, listener.id)
+  return c.json(
+    requests.map((r) => ({
       ...r,
       headers: JSON.parse(r.headers),
       queryParams: JSON.parse(r.queryParams),
     }))
-  })
+  )
+})
 
-  app.delete<{ Params: { id: string } }>('/api/listeners/:id', async (request, reply) => {
-    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
-    if (!listener) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
-    deleteListener(db, listener.id)
-    reply.code(204)
-    return null
-  })
+listenerRoutes.delete('/api/listeners/:id', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+  await deleteListener(c.env.DB, listener.id)
+  return c.body(null, 204)
+})
 
-  app.post<{ Params: { id: string } }>('/api/listeners/:id/share', async (request, reply) => {
-    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
-    if (!listener) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
-    // getOrCreateShareToken cannot return undefined here — `listener` above already
-    // confirmed this exact row exists (synchronous, single-threaded, same DB call shape).
-    const token = getOrCreateShareToken(db, listener.id) as string
-    return { shareToken: token, shareUrl: shareUrlFor(baseUrl, token) }
-  })
+listenerRoutes.post('/api/listeners/:id/share', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+  const token = (await getOrCreateShareToken(c.env.DB, listener.id)) as string
+  return c.json({ shareToken: token, shareUrl: shareUrlFor(c.env.APP_BASE_URL, token) })
+})
 
-  app.delete<{ Params: { id: string } }>('/api/listeners/:id/share', async (request, reply) => {
-    const listener = getListenerForOwner(db, request.params.id, request.sessionId)
-    if (!listener) {
-      reply.code(404)
-      return { error: 'listener not found' }
-    }
-    revokeShareToken(db, listener.id)
-    reply.code(204)
-    return null
-  })
-}
+listenerRoutes.delete('/api/listeners/:id/share', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+  await revokeShareToken(c.env.DB, listener.id)
+  return c.body(null, 204)
+})
