@@ -2,10 +2,14 @@ name = "webhook-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
+routes = [
+  { pattern = "webhook-api.fde.nice-agentic.com", custom_domain = true }
+]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "webhook-listener"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "8584b678-1372-4348-a7ef-7a4e51bc23f2"
 
 [vars]
 HOOK_BASE_URL = "https://webhook-api.fde.nice-agentic.com"
