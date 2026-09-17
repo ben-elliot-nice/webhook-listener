@@ -1,11 +1,17 @@
-import type { FastifyInstance } from 'fastify'
-
-type InjectResponse = Awaited<ReturnType<FastifyInstance['inject']>>
-
-export function extractSessionId(response: InjectResponse): string {
-  const cookie = response.cookies.find((c) => c.name === 'wl_session_id')
-  if (!cookie) {
-    throw new Error('no session_id cookie found in response')
+export function cookieHeader(cookies?: Record<string, string>): Record<string, string> {
+  if (!cookies) return {}
+  return {
+    cookie: Object.entries(cookies)
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; '),
   }
-  return cookie.value
+}
+
+export function extractSessionId(response: Response): string {
+  const setCookies = response.headers.getSetCookie()
+  const match = setCookies.find((c) => c.startsWith('wl_session_id='))
+  if (!match) {
+    throw new Error('no wl_session_id cookie found in response')
+  }
+  return match.split(';')[0].split('=')[1]
 }
