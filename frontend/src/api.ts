@@ -5,7 +5,11 @@ export interface Listener {
   createdAt: string
   hookUrl: string
   shareUrl: string | null
+  slug: string | null
+  label: string | null
 }
+
+export type SortMode = 'date' | 'name' | 'activity' | 'custom'
 
 export interface RequestDetail {
   id: number
@@ -54,8 +58,8 @@ export function getListener(id: string): Promise<Listener> {
   )
 }
 
-export function listListeners(): Promise<Listener[]> {
-  return fetch(`${API_BASE_URL}/api/listeners`, { credentials: 'include' }).then((r) =>
+export function listListeners(sort: SortMode = 'date'): Promise<Listener[]> {
+  return fetch(`${API_BASE_URL}/api/listeners?sort=${sort}`, { credentials: 'include' }).then((r) =>
     parseJsonOrThrow<Listener[]>(r)
   )
 }
@@ -93,4 +97,57 @@ export function getSharedRequests(token: string): Promise<RequestDetail[]> {
   return fetch(`${API_BASE_URL}/api/shared/${token}/requests`, { credentials: 'include' }).then((r) =>
     parseJsonOrThrow<RequestDetail[]>(r)
   )
+}
+
+export interface SlugResult {
+  slug: string
+  webhookToken: string
+  hookUrl: string
+}
+
+export function setSlug(id: string, slug: string): Promise<SlugResult> {
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/slug`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ slug }),
+  }).then((r) => parseJsonOrThrow<SlugResult>(r))
+}
+
+export function rotateWebhookToken(id: string): Promise<{ webhookToken: string }> {
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/slug/rotate-token`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<{ webhookToken: string }>(r))
+}
+
+export async function removeSlug(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/listeners/${id}/slug`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
+}
+
+export function setLabel(id: string, label: string): Promise<{ label: string | null }> {
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/label`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ label }),
+  }).then((r) => parseJsonOrThrow<{ label: string | null }>(r))
+}
+
+export async function reorderListeners(orderedIds: string[]): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/listeners/reorder`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ orderedIds }),
+  })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
 }
