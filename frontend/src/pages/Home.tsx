@@ -101,7 +101,10 @@ export function Home() {
                   <li
                     key={listener.id}
                     draggable={sort === 'custom'}
-                    onDragStart={() => setDragId(listener.id)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', listener.id)
+                      setDragId(listener.id)
+                    }}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => handleDrop(listener.id)}
                     className="flex items-center gap-2"
