@@ -12,6 +12,7 @@ import {
 } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
+import { Logo } from '../components/Logo'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 
@@ -146,7 +147,10 @@ export function Listener() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Listener</h1>
+        <div className="flex items-center gap-2">
+          <Logo className="h-6 w-6 text-slate-900" />
+          <h1 className="text-xl font-semibold text-slate-900">Listener</h1>
+        </div>
         <button
           onClick={handleDelete}
           className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
