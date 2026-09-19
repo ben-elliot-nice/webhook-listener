@@ -49,18 +49,43 @@ export async function getListenerForOwner(
   return row ?? undefined
 }
 
+export type SortMode = 'date' | 'name' | 'activity' | 'custom'
+
+const SORT_CLAUSES: Record<SortMode, string> = {
+  date: 'created_at DESC, id DESC',
+  name: '(COALESCE(label, slug) IS NULL), COALESCE(label, slug) COLLATE NOCASE ASC, created_at DESC',
+  activity: '(last_request_at IS NULL), last_request_at DESC, created_at DESC',
+  custom: '(sort_position IS NULL), sort_position ASC, created_at DESC',
+}
+
 export async function getListenersForOwner(
   db: Env['DB'],
   sessionId: string,
-  limit: number
+  limit: number,
+  sort: SortMode = 'date'
 ): Promise<ListenerRecord[]> {
   const { results } = await db
-    .prepare(
-      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE owner_session = ? ORDER BY created_at DESC, id DESC LIMIT ?`
-    )
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE owner_session = ? ORDER BY ${SORT_CLAUSES[sort]} LIMIT ?`)
     .bind(sessionId, limit)
     .all<ListenerRecord>()
   return results
+}
+
+export async function reorderListeners(db: Env['DB'], sessionId: string, orderedIds: string[]): Promise<boolean> {
+  if (orderedIds.length === 0) return false
+
+  const { results } = await db
+    .prepare('SELECT id FROM listeners WHERE owner_session = ?')
+    .bind(sessionId)
+    .all<{ id: string }>()
+  const ownedIds = new Set(results.map((r) => r.id))
+  if (!orderedIds.every((id) => ownedIds.has(id))) return false
+
+  const statements = orderedIds.map((id, index) =>
+    db.prepare('UPDATE listeners SET sort_position = ? WHERE id = ?').bind(index, id)
+  )
+  await db.batch(statements)
+  return true
 }
 
 export async function deleteListener(db: Env['DB'], id: string): Promise<boolean> {

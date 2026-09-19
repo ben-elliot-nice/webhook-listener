@@ -47,9 +47,13 @@ export async function insertRequest(db: Env['DB'], req: NewRequest): Promise<voi
     )
     .bind(req.listenerId, req.listenerId, RETENTION_LIMIT)
 
+  const touchListener = db
+    .prepare('UPDATE listeners SET last_request_at = ? WHERE id = ?')
+    .bind(req.receivedAt, req.listenerId)
+
   // D1's batch() runs both statements as one atomic unit — the replacement
   // for better-sqlite3's synchronous db.transaction() closure.
-  await db.batch([insert, prune])
+  await db.batch([insert, prune, touchListener])
 }
 
 export async function getRequests(db: Env['DB'], listenerId: string): Promise<RequestRecord[]> {

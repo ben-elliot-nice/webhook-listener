@@ -5,6 +5,8 @@ import {
   createListener,
   getListenerForOwner,
   getListenersForOwner,
+  reorderListeners,
+  type SortMode,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -36,11 +38,31 @@ function serializeListener(env: Env, listener: ListenerRecord) {
 
 const LIST_LIMIT = 100
 
+const VALID_SORTS: SortMode[] = ['date', 'name', 'activity', 'custom']
+
+function parseSortMode(raw: string | undefined): SortMode {
+  return (VALID_SORTS as string[]).includes(raw ?? '') ? (raw as SortMode) : 'date'
+}
+
 export const listenerRoutes = new Hono<{ Bindings: Env; Variables: Variables }>()
 
 listenerRoutes.get('/api/listeners', async (c) => {
-  const listeners = await getListenersForOwner(c.env.DB, c.get('sessionId'), LIST_LIMIT)
+  const sort = parseSortMode(c.req.query('sort'))
+  const listeners = await getListenersForOwner(c.env.DB, c.get('sessionId'), LIST_LIMIT, sort)
   return c.json(listeners.map((listener) => serializeListener(c.env, listener)))
+})
+
+listenerRoutes.post('/api/listeners/reorder', async (c) => {
+  const body = await c.req.json<{ orderedIds?: unknown }>().catch(() => ({}) as { orderedIds?: unknown })
+  if (!Array.isArray(body.orderedIds) || body.orderedIds.some((id) => typeof id !== 'string')) {
+    return c.json({ error: 'orderedIds must be an array of strings' }, 400)
+  }
+
+  const ok = await reorderListeners(c.env.DB, c.get('sessionId'), body.orderedIds)
+  if (!ok) {
+    return c.json({ error: 'orderedIds must only contain your own listeners' }, 400)
+  }
+  return c.body(null, 204)
 })
 
 listenerRoutes.post('/api/listeners', async (c) => {

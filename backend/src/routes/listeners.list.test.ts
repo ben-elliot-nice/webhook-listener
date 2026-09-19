@@ -58,4 +58,25 @@ describe('GET /api/listeners', () => {
     expect(listed.hookUrl).toBe(createdBody.hookUrl)
     expect(listed.shareUrl).toBeNull()
   })
+
+  it('falls back to date sort for an unrecognized ?sort= value', async () => {
+    const first = await app.request('/api/listeners', { method: 'POST' }, env)
+    const sessionId = extractSessionId(first)
+    const firstBody = (await first.json()) as { id: string }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const second = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const secondBody = (await second.json()) as { id: string }
+
+    const response = await app.request(
+      '/api/listeners?sort=nonsense',
+      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      env
+    )
+    const body = (await response.json()) as { id: string }[]
+    expect(body.map((l) => l.id)).toEqual([secondBody.id, firstBody.id])
+  })
 })

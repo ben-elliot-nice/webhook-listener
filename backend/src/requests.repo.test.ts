@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
-import { createListener } from './listeners.repo'
+import { createListener, getListener } from './listeners.repo'
 import { insertRequest, getRequests } from './requests.repo'
 
 describe('requests repo', () => {
@@ -56,5 +56,21 @@ describe('requests repo', () => {
     expect(requests).toHaveLength(200)
     expect(requests[0].body).toBe('request-204')
     expect(requests[requests.length - 1].body).toBe('request-5')
+  })
+
+  it('updates the listener\'s last_request_at on insert', async () => {
+    await createListener(env.DB, 'activity-listener', '2024-01-01T00:00:00.000Z', 'session-a')
+    await insertRequest(env.DB, {
+      listenerId: 'activity-listener',
+      method: 'POST',
+      headers: '{}',
+      queryParams: '{}',
+      body: null,
+      contentType: null,
+      sourceIp: null,
+      receivedAt: '2024-06-01T00:00:00.000Z',
+    })
+    const listener = await getListener(env.DB, 'activity-listener')
+    expect(listener?.lastRequestAt).toBe('2024-06-01T00:00:00.000Z')
   })
 })

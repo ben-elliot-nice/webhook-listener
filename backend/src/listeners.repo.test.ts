@@ -5,6 +5,8 @@ import {
   getListener,
   getListenerForOwner,
   getListenersForOwner,
+  type SortMode,
+  reorderListeners,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -20,6 +22,7 @@ import {
   LabelValidationError,
   resolveListenerForHook,
 } from './listeners.repo'
+import { insertRequest } from './requests.repo'
 
 describe('listeners repo', () => {
   it('creates and fetches a listener', async () => {
@@ -133,6 +136,75 @@ describe('getListenersForOwner', () => {
     const result = await getListenersForOwner(env.DB, 'session-z', 2)
     expect(result).toHaveLength(2)
     expect(result.map((l) => l.id)).toEqual(['listener-12', 'listener-11'])
+  })
+})
+
+describe('getListenersForOwner sort modes', () => {
+  it('sorts by name, falling back to created_at for listeners with neither label nor slug', async () => {
+    await createListener(env.DB, 'sort-name-1', '2024-01-01T00:00:00.000Z', 'session-sort')
+    await createListener(env.DB, 'sort-name-2', '2024-01-02T00:00:00.000Z', 'session-sort')
+    await createListener(env.DB, 'sort-name-3', '2024-01-03T00:00:00.000Z', 'session-sort')
+    await setListenerLabel(env.DB, 'sort-name-2', 'Alpha')
+    await setListenerLabel(env.DB, 'sort-name-1', 'Beta')
+
+    const result = await getListenersForOwner(env.DB, 'session-sort', 100, 'name')
+    expect(result.map((l) => l.id)).toEqual(['sort-name-2', 'sort-name-1', 'sort-name-3'])
+  })
+
+  it('sorts by activity, most recent request first, nulls last', async () => {
+    await createListener(env.DB, 'sort-activity-1', '2024-01-01T00:00:00.000Z', 'session-activity')
+    await createListener(env.DB, 'sort-activity-2', '2024-01-02T00:00:00.000Z', 'session-activity')
+    await insertRequest(env.DB, {
+      listenerId: 'sort-activity-1',
+      method: 'GET',
+      headers: '{}',
+      queryParams: '{}',
+      body: null,
+      contentType: null,
+      sourceIp: null,
+      receivedAt: '2024-06-01T00:00:00.000Z',
+    })
+
+    const result = await getListenersForOwner(env.DB, 'session-activity', 100, 'activity')
+    expect(result.map((l) => l.id)).toEqual(['sort-activity-1', 'sort-activity-2'])
+  })
+
+  it('sorts by custom position, unpositioned listeners last', async () => {
+    await createListener(env.DB, 'sort-custom-1', '2024-01-01T00:00:00.000Z', 'session-custom')
+    await createListener(env.DB, 'sort-custom-2', '2024-01-02T00:00:00.000Z', 'session-custom')
+    await reorderListeners(env.DB, 'session-custom', ['sort-custom-2', 'sort-custom-1'])
+
+    const result = await getListenersForOwner(env.DB, 'session-custom', 100, 'custom')
+    expect(result.map((l) => l.id)).toEqual(['sort-custom-2', 'sort-custom-1'])
+  })
+
+  it('defaults to date sort when no sort mode is given', async () => {
+    await createListener(env.DB, 'sort-default-1', '2024-01-01T00:00:00.000Z', 'session-default')
+    await createListener(env.DB, 'sort-default-2', '2024-01-02T00:00:00.000Z', 'session-default')
+    const result = await getListenersForOwner(env.DB, 'session-default', 100)
+    expect(result.map((l) => l.id)).toEqual(['sort-default-2', 'sort-default-1'])
+  })
+})
+
+describe('reorderListeners', () => {
+  it('assigns sort positions in the given order', async () => {
+    await createListener(env.DB, 'reorder-1', '2024-01-01T00:00:00.000Z', 'session-reorder')
+    await createListener(env.DB, 'reorder-2', '2024-01-02T00:00:00.000Z', 'session-reorder')
+    const ok = await reorderListeners(env.DB, 'session-reorder', ['reorder-2', 'reorder-1'])
+    expect(ok).toBe(true)
+    const result = await getListenersForOwner(env.DB, 'session-reorder', 100, 'custom')
+    expect(result.map((l) => l.id)).toEqual(['reorder-2', 'reorder-1'])
+  })
+
+  it('rejects an id that does not belong to the session, changing nothing', async () => {
+    await createListener(env.DB, 'reorder-3', '2024-01-01T00:00:00.000Z', 'session-owns')
+    await createListener(env.DB, 'reorder-4', '2024-01-01T00:00:00.000Z', 'session-other')
+    const ok = await reorderListeners(env.DB, 'session-owns', ['reorder-3', 'reorder-4'])
+    expect(ok).toBe(false)
+  })
+
+  it('rejects an empty list', async () => {
+    expect(await reorderListeners(env.DB, 'session-empty', [])).toBe(false)
   })
 })
 
