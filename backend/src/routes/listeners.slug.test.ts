@@ -163,4 +163,29 @@ describe('listener slug management', () => {
     const uuidHookResponse = await app.request(`/hook/${listenerId}`, { method: 'POST' }, env)
     expect(uuidHookResponse.status).toBe(200)
   })
+
+  it('rejects setting a slug to another listener\'s UUID, and leaves that listener\'s hook URL working', async () => {
+    // listenerId/sessionId is listener A, with no slug set (so its hook URL is its bare UUID).
+    const listenerA = listenerId
+
+    const other = await app.request('/api/listeners', { method: 'POST' }, env)
+    const otherSessionId = extractSessionId(other)
+    const listenerB = ((await other.json()) as { id: string }).id
+
+    // Listener B's owner attempts to set B's slug to A's raw UUID.
+    const response = await app.request(
+      `/api/listeners/${listenerB}/slug`,
+      {
+        method: 'PUT',
+        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        body: JSON.stringify({ slug: listenerA }),
+      },
+      env
+    )
+    expect(response.status).toBe(409)
+
+    // Listener A's UUID hook URL must still resolve to listener A (no token needed).
+    const hookResponse = await app.request(`/hook/${listenerA}`, { method: 'POST' }, env)
+    expect(hookResponse.status).toBe(200)
+  })
 })

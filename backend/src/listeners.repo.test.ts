@@ -255,6 +255,12 @@ describe('setListenerSlug', () => {
     await setListenerSlug(env.DB, 'listener-slug-5', 'taken-slug')
     await expect(setListenerSlug(env.DB, 'listener-slug-6', 'taken-slug')).rejects.toThrow(SlugConflictError)
   })
+
+  it('rejects a slug that collides with another listener\'s id', async () => {
+    await createListener(env.DB, 'listener-slug-7', '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, 'listener-slug-8', '2024-01-01T00:00:00.000Z', 'session-b')
+    await expect(setListenerSlug(env.DB, 'listener-slug-8', 'listener-slug-7')).rejects.toThrow(SlugConflictError)
+  })
 })
 
 describe('getListenerBySlug', () => {

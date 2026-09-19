@@ -157,6 +157,17 @@ export async function setListenerSlug(
   const slug = normalizeSlug(rawSlug)
   assertValidSlug(slug)
 
+  // A slug that happens to match another listener's UUID would let
+  // resolveListenerForHook's slug lookup shadow that listener's id-based
+  // lookup, breaking its (token-less) hook URL. Reject that collision with
+  // the same error the DB's partial unique index produces for slug-vs-slug
+  // conflicts, since from the caller's perspective it's the same "already in
+  // use" situation.
+  const idCollision = await db.prepare('SELECT id FROM listeners WHERE id = ? AND id != ?').bind(slug, id).first()
+  if (idCollision) {
+    throw new SlugConflictError(`slug "${slug}" is already in use`)
+  }
+
   const listener = await getListener(db, id)
   const webhookToken = listener?.webhookToken ?? crypto.randomUUID()
 
