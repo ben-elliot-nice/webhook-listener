@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createListener, listListeners, type Listener } from '../api'
+import { Logo } from '../components/Logo'
 
 export function Home() {
   const navigate = useNavigate()
@@ -31,7 +32,10 @@ export function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Webhook Listener</h1>
+        <div className="flex items-center justify-center gap-2">
+          <Logo className="h-7 w-7 text-slate-900" />
+          <h1 className="text-2xl font-semibold text-slate-900">Webhook Listener</h1>
+        </div>
         <p className="mt-2 text-sm text-slate-500">
           Create a unique URL, send it webhook payloads, and watch them arrive here.
         </p>

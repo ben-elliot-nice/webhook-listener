@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { ApiError, type RequestDetail, getSharedRequests } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
+import { Logo } from '../components/Logo'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 
@@ -78,7 +79,8 @@ export function SharedListener() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-2">
+        <Logo className="h-6 w-6 text-slate-900" />
         <h1 className="text-xl font-semibold text-slate-900">Shared listener (read-only)</h1>
       </div>
 
