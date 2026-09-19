@@ -51,3 +51,8 @@ app.use('*', async (c, next) => {
 app.route('/', hookRoute)
 app.route('/', listenerRoutes)
 app.route('/', sharedRoutes)
+
+app.onError((err, c) => {
+  console.error('Unhandled error:', err)
+  return c.json({ error: 'internal server error' }, 500)
+})
