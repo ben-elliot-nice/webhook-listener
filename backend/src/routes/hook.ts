@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { getListener } from '../listeners.repo'
+import { resolveListenerForHook } from '../listeners.repo'
 import { insertRequest } from '../requests.repo'
 
 const REDACTED_HEADER_NAMES = new Set(['cookie', 'set-cookie'])
@@ -28,7 +28,7 @@ function parseQuery(url: URL): Record<string, string | string[]> {
 export const hookRoute = new Hono<{ Bindings: Env }>()
 
 hookRoute.all('/hook/:id', async (c) => {
-  const listener = await getListener(c.env.DB, c.req.param('id'))
+  const listener = await resolveListenerForHook(c.env.DB, c.req.param('id'), c.req.header('x-webhook-token'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }

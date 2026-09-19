@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { createListener } from '../listeners.repo'
+import { createListener, setListenerSlug } from '../listeners.repo'
 import { getRequests } from '../requests.repo'
 
 describe('hook capture route', () => {
@@ -73,5 +73,55 @@ describe('hook capture route', () => {
       env
     )
     expect(response.status).toBe(413)
+  })
+})
+
+describe('hook capture route — slug + token', () => {
+  it('captures via the slug URL when the correct token is provided', async () => {
+    await createListener(env.DB, 'hook-slug-listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { slug, webhookToken } = await setListenerSlug(env.DB, 'hook-slug-listener-1', 'slug-hook-1')
+
+    const response = await app.request(
+      `/hook/${slug}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-webhook-token': webhookToken },
+        body: JSON.stringify({ ok: true }),
+      },
+      env
+    )
+    expect(response.status).toBe(200)
+
+    const [captured] = await getRequests(env.DB, 'hook-slug-listener-1')
+    expect(captured.body).toBe(JSON.stringify({ ok: true }))
+  })
+
+  it('returns 404 for the slug URL with a missing token', async () => {
+    await createListener(env.DB, 'hook-slug-listener-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { slug } = await setListenerSlug(env.DB, 'hook-slug-listener-2', 'slug-hook-2')
+
+    const response = await app.request(`/hook/${slug}`, { method: 'POST' }, env)
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'listener not found' })
+  })
+
+  it('returns 404 for the slug URL with a wrong token', async () => {
+    await createListener(env.DB, 'hook-slug-listener-3', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { slug } = await setListenerSlug(env.DB, 'hook-slug-listener-3', 'slug-hook-3')
+
+    const response = await app.request(
+      `/hook/${slug}`,
+      { method: 'POST', headers: { 'x-webhook-token': 'wrong-token' } },
+      env
+    )
+    expect(response.status).toBe(404)
+  })
+
+  it('returns 404 for the UUID hook URL once a slug has been set', async () => {
+    await createListener(env.DB, 'hook-slug-listener-4', '2024-01-01T00:00:00.000Z', 'session-a')
+    await setListenerSlug(env.DB, 'hook-slug-listener-4', 'slug-hook-4')
+
+    const response = await app.request(`/hook/hook-slug-listener-4`, { method: 'POST' }, env)
+    expect(response.status).toBe(404)
   })
 })
