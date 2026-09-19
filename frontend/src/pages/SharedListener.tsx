@@ -6,12 +6,15 @@ import { RequestFilters } from '../components/RequestFilters'
 import { Logo } from '../components/Logo'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
+import { useSettings } from '../hooks/useSettings'
+import { WIDTH_CLASSES } from '../lib/settings'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 export function SharedListener() {
   const { token } = useParams<{ token: string }>()
+  const { width } = useSettings()
   const [requests, setRequests] = useState<RequestDetail[]>([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,14 +81,14 @@ export function SharedListener() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
       <div className="mb-6 flex items-center gap-2">
-        <Logo className="h-6 w-6 text-slate-900" />
-        <h1 className="text-xl font-semibold text-slate-900">Shared listener (read-only)</h1>
+        <Logo className="h-6 w-6 text-slate-900 dark:text-slate-100" />
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Shared listener (read-only)</h1>
       </div>
 
       {error && (
-        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
           {error}
         </p>
       )}
@@ -99,7 +102,7 @@ export function SharedListener() {
       )}
 
       {loaded && requests.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           No requests yet.
         </div>
       )}
@@ -116,13 +119,13 @@ export function SharedListener() {
             <div className="mb-4 flex shrink-0 gap-2">
               <button
                 onClick={handleExportJson}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Export JSON
               </button>
               <button
                 onClick={handleExportHar}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Export HAR
               </button>
@@ -130,7 +133,7 @@ export function SharedListener() {
           </div>
 
           {filteredRequests.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+            <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               No requests match your filters.
             </div>
           ) : (

@@ -68,12 +68,12 @@ export function Home() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
         <div className="flex items-center justify-center gap-2">
-          <Logo className="h-7 w-7 text-slate-900" />
-          <h1 className="text-2xl font-semibold text-slate-900">Webhook Listener</h1>
+          <Logo className="h-7 w-7 text-slate-900 dark:text-slate-100" />
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Webhook Listener</h1>
         </div>
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Create a unique URL, send it webhook payloads, and watch them arrive here.
         </p>
         {listeners.length > 0 && (
@@ -86,7 +86,7 @@ export function Home() {
                   className={`rounded-md px-2 py-1 text-xs font-medium transition ${
                     sort === option.value
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                   }`}
                 >
                   {option.label}
@@ -110,17 +110,17 @@ export function Home() {
                     className="flex items-center gap-2"
                   >
                     {sort === 'custom' && (
-                      <span className="cursor-grab text-slate-400" aria-hidden="true">
+                      <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
                         ⠿
                       </span>
                     )}
                     <a
                       href={`/listener/${listener.id}`}
-                      className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+                      className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       <span className="block font-medium">{primaryText}</span>
                       {hasNameOrSlug && (
-                        <span className="block text-xs text-slate-400">
+                        <span className="block text-xs text-slate-400 dark:text-slate-400">
                           {new Date(listener.createdAt).toLocaleString()}
                         </span>
                       )}
@@ -139,7 +139,7 @@ export function Home() {
           {creating ? 'Creating…' : 'Create new webhook listener'}
         </button>
         {error && (
-          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
             {error}
           </p>
         )}

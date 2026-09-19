@@ -19,6 +19,8 @@ import { RequestFilters } from '../components/RequestFilters'
 import { Logo } from '../components/Logo'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
+import { useSettings } from '../hooks/useSettings'
+import { WIDTH_CLASSES } from '../lib/settings'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
@@ -26,6 +28,7 @@ const MAX_CONSECUTIVE_NOT_FOUND = 2
 export function Listener() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { width } = useSettings()
   const [listener, setListener] = useState<ListenerModel | null>(null)
   const [requests, setRequests] = useState<CapturedRequest[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -218,10 +221,10 @@ export function Listener() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Logo className="h-6 w-6 text-slate-900" />
+          <Logo className="h-6 w-6 text-slate-900 dark:text-slate-100" />
           {editingLabel ? (
             <form
               onSubmit={(e) => {
@@ -236,12 +239,12 @@ export function Listener() {
                 onChange={(e) => setLabelDraft(e.target.value)}
                 maxLength={100}
                 placeholder="Listener"
-                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700"
               />
               <button type="submit" className="text-xs font-medium text-indigo-600">
                 Save
               </button>
-              <button type="button" onClick={() => setEditingLabel(false)} className="text-xs text-slate-500">
+              <button type="button" onClick={() => setEditingLabel(false)} className="text-xs text-slate-500 dark:text-slate-400">
                 Cancel
               </button>
             </form>
@@ -251,7 +254,7 @@ export function Listener() {
                 setLabelDraft(listener?.label ?? '')
                 setEditingLabel(true)
               }}
-              className="text-xl font-semibold text-slate-900 hover:underline"
+              className="text-xl font-semibold text-slate-900 hover:underline dark:text-slate-100"
               title="Click to rename"
             >
               {listener?.label || 'Listener'}
@@ -268,13 +271,13 @@ export function Listener() {
 
       {listener && !listener.slug && (
         <div className="mb-6">
-          <p className="mb-1 text-xs font-medium text-slate-500">Webhook URL</p>
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <code className="flex-1 truncate text-sm text-slate-700">{listener.hookUrl}</code>
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Webhook URL</p>
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{listener.hookUrl}</code>
             <button
               onClick={handleCopy}
               aria-label="Copy webhook URL"
-              className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+              className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               {copied ? 'Copied!' : 'Copy'}
             </button>
@@ -284,15 +287,15 @@ export function Listener() {
 
       {listener && (
         <div className="mb-6">
-          <p className="mb-1 text-xs font-medium text-slate-500">Custom slug</p>
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Custom slug</p>
           {listener.slug ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <code className="flex-1 truncate text-sm text-slate-700">{listener.hookUrl}</code>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{listener.hookUrl}</code>
                 <button
                   onClick={handleCopy}
                   aria-label="Copy webhook URL"
-                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
@@ -308,12 +311,12 @@ export function Listener() {
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">Token hidden — rotate it to get a fresh one to copy.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Token hidden — rotate it to get a fresh one to copy.</p>
               )}
               <div className="flex gap-2">
                 <button
                   onClick={handleRotateToken}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
                   Rotate token
                 </button>
@@ -331,11 +334,11 @@ export function Listener() {
                 value={slugDraft}
                 onChange={(e) => setSlugDraft(e.target.value)}
                 placeholder="my-stripe-hook"
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               />
               <button
                 type="submit"
-                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Set slug
               </button>
@@ -346,15 +349,15 @@ export function Listener() {
 
       {listener && (
         <div className="mb-6">
-          {listener.shareUrl && <p className="mb-1 text-xs font-medium text-slate-500">Share link (read-only)</p>}
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          {listener.shareUrl && <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Share link (read-only)</p>}
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             {listener.shareUrl ? (
               <>
-                <code className="flex-1 truncate text-sm text-slate-700">{listener.shareUrl}</code>
+                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{listener.shareUrl}</code>
                 <button
                   onClick={handleCopyShare}
                   aria-label="Copy share link"
-                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
                   {shareCopied ? 'Copied!' : 'Copy'}
                 </button>
@@ -368,7 +371,7 @@ export function Listener() {
             ) : (
               <button
                 onClick={handleShare}
-                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Get share link
               </button>
@@ -378,7 +381,7 @@ export function Listener() {
       )}
 
       {error && (
-        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
           {error}
         </p>
       )}
@@ -392,7 +395,7 @@ export function Listener() {
       )}
 
       {listener && requests.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           No requests yet — send a payload to the URL above.
         </div>
       )}
@@ -409,13 +412,13 @@ export function Listener() {
             <div className="mb-4 flex shrink-0 gap-2">
               <button
                 onClick={handleExportJson}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Export JSON
               </button>
               <button
                 onClick={handleExportHar}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Export HAR
               </button>
@@ -423,7 +426,7 @@ export function Listener() {
           </div>
 
           {filteredRequests.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+            <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               No requests match your filters.
             </div>
           ) : (

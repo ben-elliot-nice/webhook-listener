@@ -72,7 +72,7 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
   }
 
   return (
-    <li className="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <li className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <button
         onClick={() => setExpanded((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -80,11 +80,11 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
         <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${methodStyle}`}>
           {request.method}
         </span>
-        <span className="flex-1 truncate text-sm text-slate-600">
+        <span className="flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
           {request.contentType ?? 'no content-type'}
         </span>
-        <span className="shrink-0 text-xs text-slate-400">{formatTimestamp(request.receivedAt)}</span>
-        <span className="shrink-0 text-slate-400">{expanded ? '−' : '+'}</span>
+        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{formatTimestamp(request.receivedAt)}</span>
+        <span className="shrink-0 text-slate-400 dark:text-slate-500">{expanded ? '−' : '+'}</span>
       </button>
       {expanded && (
         <div className="rounded-b-lg border-t border-slate-200 bg-slate-900">
