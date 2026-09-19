@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -8,7 +8,11 @@ import {
   getListener,
   getOrCreateShareLink,
   getRequests,
+  removeSlug,
   revokeShareLink,
+  rotateWebhookToken,
+  setLabel,
+  setSlug,
 } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
@@ -28,6 +32,11 @@ export function Listener() {
   const [copied, setCopied] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
+  const [labelDraft, setLabelDraft] = useState('')
+  const [editingLabel, setEditingLabel] = useState(false)
+  const [slugDraft, setSlugDraft] = useState('')
+  const [webhookToken, setWebhookToken] = useState<string | null>(null)
+  const [headerCopied, setHeaderCopied] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
   const previousByRequestId = useMemo(() => {
@@ -144,12 +153,110 @@ export function Listener() {
     downloadFile(`webhook-${id}.har`, toHarExport(filteredRequests, listener.hookUrl), 'application/json')
   }
 
+  async function handleSaveLabel() {
+    if (!id) return
+    try {
+      await setLabel(id, labelDraft)
+      setEditingLabel(false)
+      await refresh()
+    } catch {
+      setError('Failed to save label.')
+    }
+  }
+
+  async function handleSetSlug(e: FormEvent) {
+    e.preventDefault()
+    if (!id) return
+    try {
+      const result = await setSlug(id, slugDraft)
+      setWebhookToken(result.webhookToken)
+      setSlugDraft('')
+      await refresh()
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setError('That slug is already in use.')
+      } else if (err instanceof ApiError && err.status === 400) {
+        setError('Slug must be 3-63 characters after removing invalid characters.')
+      } else {
+        setError('Failed to set slug.')
+      }
+    }
+  }
+
+  async function handleRotateToken() {
+    if (!id) return
+    if (!window.confirm('Rotate the webhook token? The old token will stop working immediately.')) return
+    try {
+      const result = await rotateWebhookToken(id)
+      setWebhookToken(result.webhookToken)
+    } catch {
+      setError('Failed to rotate token.')
+    }
+  }
+
+  async function handleRemoveSlug() {
+    if (!id) return
+    if (!window.confirm('Remove this slug? The listener will revert to its original UUID hook URL.')) return
+    try {
+      await removeSlug(id)
+      setWebhookToken(null)
+      await refresh()
+    } catch {
+      setError('Failed to remove slug.')
+    }
+  }
+
+  async function handleCopyHeaderJson() {
+    if (!webhookToken) return
+    try {
+      await navigator.clipboard.writeText(JSON.stringify({ 'X-Webhook-Token': webhookToken }, null, 2))
+      setHeaderCopied(true)
+      setTimeout(() => setHeaderCopied(false), 1500)
+    } catch {
+      setError('Failed to copy to clipboard.')
+    }
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Logo className="h-6 w-6 text-slate-900" />
-          <h1 className="text-xl font-semibold text-slate-900">Listener</h1>
+          {editingLabel ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleSaveLabel()
+              }}
+              className="flex items-center gap-2"
+            >
+              <input
+                autoFocus
+                value={labelDraft}
+                onChange={(e) => setLabelDraft(e.target.value)}
+                maxLength={100}
+                placeholder="Listener"
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+              />
+              <button type="submit" className="text-xs font-medium text-indigo-600">
+                Save
+              </button>
+              <button type="button" onClick={() => setEditingLabel(false)} className="text-xs text-slate-500">
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                setLabelDraft(listener?.label ?? '')
+                setEditingLabel(true)
+              }}
+              className="text-xl font-semibold text-slate-900 hover:underline"
+              title="Click to rename"
+            >
+              {listener?.label || 'Listener'}
+            </button>
+          )}
         </div>
         <button
           onClick={handleDelete}
@@ -159,7 +266,7 @@ export function Listener() {
         </button>
       </div>
 
-      {listener && (
+      {listener && !listener.slug && (
         <div className="mb-6">
           <p className="mb-1 text-xs font-medium text-slate-500">Webhook URL</p>
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -172,6 +279,68 @@ export function Listener() {
               {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
+        </div>
+      )}
+
+      {listener && (
+        <div className="mb-6">
+          <p className="mb-1 text-xs font-medium text-slate-500">Custom slug</p>
+          {listener.slug ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <code className="flex-1 truncate text-sm text-slate-700">{listener.hookUrl}</code>
+                <button
+                  onClick={handleCopy}
+                  aria-label="Copy webhook URL"
+                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              {webhookToken ? (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <code className="flex-1 truncate text-xs text-amber-900">{`{ "X-Webhook-Token": "${webhookToken}" }`}</code>
+                  <button
+                    onClick={handleCopyHeaderJson}
+                    className="shrink-0 rounded-md bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-200"
+                  >
+                    {headerCopied ? 'Copied!' : 'Copy header JSON'}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">Token hidden — rotate it to get a fresh one to copy.</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRotateToken}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Rotate token
+                </button>
+                <button
+                  onClick={handleRemoveSlug}
+                  className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                >
+                  Remove slug
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSetSlug} className="flex items-center gap-2">
+              <input
+                value={slugDraft}
+                onChange={(e) => setSlugDraft(e.target.value)}
+                placeholder="my-stripe-hook"
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+              >
+                Set slug
+              </button>
+            </form>
+          )}
         </div>
       )}
 
