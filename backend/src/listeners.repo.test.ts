@@ -9,6 +9,16 @@ import {
   getOrCreateShareToken,
   revokeShareToken,
   getListenerByShareToken,
+  normalizeSlug,
+  setListenerSlug,
+  getListenerBySlug,
+  SlugValidationError,
+  SlugConflictError,
+  rotateWebhookToken,
+  removeListenerSlug,
+  setListenerLabel,
+  LabelValidationError,
+  resolveListenerForHook,
 } from './listeners.repo'
 
 describe('listeners repo', () => {
@@ -20,6 +30,11 @@ describe('listeners repo', () => {
       createdAt: '2024-01-01T00:00:00.000Z',
       shareToken: null,
       ownerSession: 'session-a',
+      slug: null,
+      webhookToken: null,
+      label: null,
+      lastRequestAt: null,
+      sortPosition: null,
     })
   })
 
@@ -118,5 +133,145 @@ describe('getListenersForOwner', () => {
     const result = await getListenersForOwner(env.DB, 'session-z', 2)
     expect(result).toHaveLength(2)
     expect(result.map((l) => l.id)).toEqual(['listener-12', 'listener-11'])
+  })
+})
+
+describe('normalizeSlug', () => {
+  it('lowercases and hyphenates spaces/underscores', () => {
+    expect(normalizeSlug('Stripe_Prod')).toBe('stripe-prod')
+    expect(normalizeSlug('My Webhook 2')).toBe('my-webhook-2')
+  })
+
+  it('strips invalid characters and collapses/trims hyphens', () => {
+    expect(normalizeSlug('--My!!Webhook--')).toBe('mywebhook')
+    expect(normalizeSlug('a__b   c')).toBe('a-b-c')
+  })
+})
+
+describe('setListenerSlug', () => {
+  it('sets a normalized slug and generates a webhook token', async () => {
+    await createListener(env.DB, 'listener-slug-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    const result = await setListenerSlug(env.DB, 'listener-slug-1', 'Stripe_Prod')
+    expect(result.slug).toBe('stripe-prod')
+    expect(result.webhookToken).toBeTypeOf('string')
+
+    const found = await getListenerBySlug(env.DB, 'stripe-prod')
+    expect(found?.id).toBe('listener-slug-1')
+    expect(found?.webhookToken).toBe(result.webhookToken)
+  })
+
+  it('reuses the existing token when the slug value is changed', async () => {
+    await createListener(env.DB, 'listener-slug-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    const first = await setListenerSlug(env.DB, 'listener-slug-2', 'first-slug')
+    const second = await setListenerSlug(env.DB, 'listener-slug-2', 'second-slug')
+    expect(second.webhookToken).toBe(first.webhookToken)
+  })
+
+  it('rejects a slug that normalizes below the minimum length', async () => {
+    await createListener(env.DB, 'listener-slug-3', '2024-01-01T00:00:00.000Z', 'session-a')
+    await expect(setListenerSlug(env.DB, 'listener-slug-3', 'ab')).rejects.toThrow(SlugValidationError)
+  })
+
+  it('rejects an empty-after-normalization slug', async () => {
+    await createListener(env.DB, 'listener-slug-4', '2024-01-01T00:00:00.000Z', 'session-a')
+    await expect(setListenerSlug(env.DB, 'listener-slug-4', '!!!')).rejects.toThrow(SlugValidationError)
+  })
+
+  it('rejects a slug already used by another listener', async () => {
+    await createListener(env.DB, 'listener-slug-5', '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, 'listener-slug-6', '2024-01-01T00:00:00.000Z', 'session-b')
+    await setListenerSlug(env.DB, 'listener-slug-5', 'taken-slug')
+    await expect(setListenerSlug(env.DB, 'listener-slug-6', 'taken-slug')).rejects.toThrow(SlugConflictError)
+  })
+})
+
+describe('getListenerBySlug', () => {
+  it('returns undefined for an unknown slug', async () => {
+    expect(await getListenerBySlug(env.DB, 'no-such-slug')).toBeUndefined()
+  })
+})
+
+describe('rotateWebhookToken', () => {
+  it('generates a new token, replacing the old one', async () => {
+    await createListener(env.DB, 'listener-rotate-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { webhookToken: original } = await setListenerSlug(env.DB, 'listener-rotate-1', 'rotate-me')
+    const rotated = await rotateWebhookToken(env.DB, 'listener-rotate-1')
+    expect(rotated).toBeTypeOf('string')
+    expect(rotated).not.toBe(original)
+  })
+
+  it('returns undefined when the listener has no slug set', async () => {
+    await createListener(env.DB, 'listener-rotate-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    expect(await rotateWebhookToken(env.DB, 'listener-rotate-2')).toBeUndefined()
+  })
+})
+
+describe('removeListenerSlug', () => {
+  it('clears slug and token, reporting success', async () => {
+    await createListener(env.DB, 'listener-remove-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    await setListenerSlug(env.DB, 'listener-remove-1', 'remove-me')
+    expect(await removeListenerSlug(env.DB, 'listener-remove-1')).toBe(true)
+    const found = await getListener(env.DB, 'listener-remove-1')
+    expect(found?.slug).toBeNull()
+    expect(found?.webhookToken).toBeNull()
+  })
+
+  it('reports failure for an unknown listener', async () => {
+    expect(await removeListenerSlug(env.DB, 'does-not-exist')).toBe(false)
+  })
+})
+
+describe('setListenerLabel', () => {
+  it('sets a trimmed label', async () => {
+    await createListener(env.DB, 'listener-label-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    expect(await setListenerLabel(env.DB, 'listener-label-1', '  Stripe prod  ')).toBe('Stripe prod')
+  })
+
+  it('clears the label when given an empty string', async () => {
+    await createListener(env.DB, 'listener-label-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    await setListenerLabel(env.DB, 'listener-label-2', 'Something')
+    expect(await setListenerLabel(env.DB, 'listener-label-2', '')).toBeNull()
+  })
+
+  it('rejects a label over 100 characters', async () => {
+    await createListener(env.DB, 'listener-label-3', '2024-01-01T00:00:00.000Z', 'session-a')
+    await expect(setListenerLabel(env.DB, 'listener-label-3', 'x'.repeat(101))).rejects.toThrow(LabelValidationError)
+  })
+})
+
+describe('resolveListenerForHook', () => {
+  it('resolves by UUID when no slug is set, no token required', async () => {
+    await createListener(env.DB, 'listener-hook-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    const found = await resolveListenerForHook(env.DB, 'listener-hook-1', undefined)
+    expect(found?.id).toBe('listener-hook-1')
+  })
+
+  it('resolves by slug when the correct token is provided', async () => {
+    await createListener(env.DB, 'listener-hook-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { slug, webhookToken } = await setListenerSlug(env.DB, 'listener-hook-2', 'hook-slug')
+    const found = await resolveListenerForHook(env.DB, slug, webhookToken)
+    expect(found?.id).toBe('listener-hook-2')
+  })
+
+  it('rejects a slug lookup with a missing token', async () => {
+    await createListener(env.DB, 'listener-hook-3', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { slug } = await setListenerSlug(env.DB, 'listener-hook-3', 'hook-slug-2')
+    expect(await resolveListenerForHook(env.DB, slug, undefined)).toBeUndefined()
+  })
+
+  it('rejects a slug lookup with a wrong token', async () => {
+    await createListener(env.DB, 'listener-hook-4', '2024-01-01T00:00:00.000Z', 'session-a')
+    const { slug } = await setListenerSlug(env.DB, 'listener-hook-4', 'hook-slug-3')
+    expect(await resolveListenerForHook(env.DB, slug, 'wrong-token')).toBeUndefined()
+  })
+
+  it('rejects UUID lookup once a slug has been set on that listener', async () => {
+    await createListener(env.DB, 'listener-hook-5', '2024-01-01T00:00:00.000Z', 'session-a')
+    await setListenerSlug(env.DB, 'listener-hook-5', 'hook-slug-4')
+    expect(await resolveListenerForHook(env.DB, 'listener-hook-5', undefined)).toBeUndefined()
+  })
+
+  it('returns undefined for a path param matching neither slug nor id', async () => {
+    expect(await resolveListenerForHook(env.DB, 'nothing-matches', undefined)).toBeUndefined()
   })
 })

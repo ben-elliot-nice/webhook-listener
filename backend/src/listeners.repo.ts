@@ -5,9 +5,16 @@ export interface ListenerRecord {
   createdAt: string
   shareToken: string | null
   ownerSession: string | null
+  slug: string | null
+  webhookToken: string | null
+  label: string | null
+  lastRequestAt: string | null
+  sortPosition: number | null
 }
 
-const SELECT_COLUMNS = 'id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession'
+const SELECT_COLUMNS =
+  'id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession, ' +
+  'slug, webhook_token AS webhookToken, label, last_request_at AS lastRequestAt, sort_position AS sortPosition'
 
 export async function createListener(
   db: Env['DB'],
@@ -19,7 +26,7 @@ export async function createListener(
     .prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
     .bind(id, createdAt, ownerSession)
     .run()
-  return { id, createdAt, shareToken: null, ownerSession }
+  return { id, createdAt, shareToken: null, ownerSession, slug: null, webhookToken: null, label: null, lastRequestAt: null, sortPosition: null }
 }
 
 export async function getListener(db: Env['DB'], id: string): Promise<ListenerRecord | undefined> {
@@ -87,4 +94,104 @@ export async function getListenerByShareToken(db: Env['DB'], token: string): Pro
     .bind(token)
     .first<ListenerRecord>()
   return row ?? undefined
+}
+
+const MIN_SLUG_LENGTH = 3
+const MAX_SLUG_LENGTH = 63
+
+export function normalizeSlug(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+export class SlugValidationError extends Error {}
+export class SlugConflictError extends Error {}
+
+function assertValidSlug(slug: string): void {
+  if (slug.length < MIN_SLUG_LENGTH || slug.length > MAX_SLUG_LENGTH) {
+    throw new SlugValidationError(
+      `slug must be between ${MIN_SLUG_LENGTH} and ${MAX_SLUG_LENGTH} characters after normalization`
+    )
+  }
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('UNIQUE constraint failed')
+}
+
+export async function setListenerSlug(
+  db: Env['DB'],
+  id: string,
+  rawSlug: string
+): Promise<{ slug: string; webhookToken: string }> {
+  const slug = normalizeSlug(rawSlug)
+  assertValidSlug(slug)
+
+  const listener = await getListener(db, id)
+  const webhookToken = listener?.webhookToken ?? crypto.randomUUID()
+
+  try {
+    await db.prepare('UPDATE listeners SET slug = ?, webhook_token = ? WHERE id = ?').bind(slug, webhookToken, id).run()
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      throw new SlugConflictError(`slug "${slug}" is already in use`)
+    }
+    throw err
+  }
+
+  return { slug, webhookToken }
+}
+
+export async function getListenerBySlug(db: Env['DB'], slug: string): Promise<ListenerRecord | undefined> {
+  const row = await db.prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE slug = ?`).bind(slug).first<ListenerRecord>()
+  return row ?? undefined
+}
+
+export async function rotateWebhookToken(db: Env['DB'], id: string): Promise<string | undefined> {
+  const listener = await getListener(db, id)
+  if (!listener?.slug) return undefined
+  const token = crypto.randomUUID()
+  await db.prepare('UPDATE listeners SET webhook_token = ? WHERE id = ?').bind(token, id).run()
+  return token
+}
+
+export async function removeListenerSlug(db: Env['DB'], id: string): Promise<boolean> {
+  const result = await db.prepare('UPDATE listeners SET slug = NULL, webhook_token = NULL WHERE id = ?').bind(id).run()
+  return (result.meta.changes ?? 0) > 0
+}
+
+const MAX_LABEL_LENGTH = 100
+
+export class LabelValidationError extends Error {}
+
+export async function setListenerLabel(db: Env['DB'], id: string, rawLabel: string): Promise<string | null> {
+  const trimmed = rawLabel.trim()
+  if (trimmed.length > MAX_LABEL_LENGTH) {
+    throw new LabelValidationError(`label must be ${MAX_LABEL_LENGTH} characters or fewer`)
+  }
+  const value = trimmed.length > 0 ? trimmed : null
+  await db.prepare('UPDATE listeners SET label = ? WHERE id = ?').bind(value, id).run()
+  return value
+}
+
+export async function resolveListenerForHook(
+  db: Env['DB'],
+  pathParam: string,
+  providedToken: string | undefined
+): Promise<ListenerRecord | undefined> {
+  const bySlug = await getListenerBySlug(db, pathParam)
+  if (bySlug) {
+    if (!bySlug.webhookToken || providedToken !== bySlug.webhookToken) return undefined
+    return bySlug
+  }
+
+  const byId = await getListener(db, pathParam)
+  if (byId && !byId.slug) return byId
+
+  return undefined
 }
