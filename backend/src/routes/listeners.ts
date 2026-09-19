@@ -8,11 +8,30 @@ import {
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
+  setListenerSlug,
+  rotateWebhookToken,
+  removeListenerSlug,
+  setListenerLabel,
+  SlugValidationError,
+  SlugConflictError,
+  LabelValidationError,
+  type ListenerRecord,
 } from '../listeners.repo'
 import { getRequests } from '../requests.repo'
 
 function shareUrlFor(appBaseUrl: string, shareToken: string | null): string | null {
   return shareToken ? `${appBaseUrl}/shared/${shareToken}` : null
+}
+
+function serializeListener(env: Env, listener: ListenerRecord) {
+  return {
+    id: listener.id,
+    createdAt: listener.createdAt,
+    hookUrl: `${env.HOOK_BASE_URL}/hook/${listener.slug ?? listener.id}`,
+    shareUrl: shareUrlFor(env.APP_BASE_URL, listener.shareToken),
+    slug: listener.slug,
+    label: listener.label,
+  }
 }
 
 const LIST_LIMIT = 100
@@ -21,29 +40,14 @@ export const listenerRoutes = new Hono<{ Bindings: Env; Variables: Variables }>(
 
 listenerRoutes.get('/api/listeners', async (c) => {
   const listeners = await getListenersForOwner(c.env.DB, c.get('sessionId'), LIST_LIMIT)
-  return c.json(
-    listeners.map((listener) => ({
-      id: listener.id,
-      createdAt: listener.createdAt,
-      hookUrl: `${c.env.HOOK_BASE_URL}/hook/${listener.id}`,
-      shareUrl: shareUrlFor(c.env.APP_BASE_URL, listener.shareToken),
-    }))
-  )
+  return c.json(listeners.map((listener) => serializeListener(c.env, listener)))
 })
 
 listenerRoutes.post('/api/listeners', async (c) => {
   const id = crypto.randomUUID()
   const createdAt = new Date().toISOString()
   const listener = await createListener(c.env.DB, id, createdAt, c.get('sessionId'))
-  return c.json(
-    {
-      id: listener.id,
-      createdAt: listener.createdAt,
-      hookUrl: `${c.env.HOOK_BASE_URL}/hook/${listener.id}`,
-      shareUrl: shareUrlFor(c.env.APP_BASE_URL, listener.shareToken),
-    },
-    201
-  )
+  return c.json(serializeListener(c.env, listener), 201)
 })
 
 listenerRoutes.get('/api/listeners/:id', async (c) => {
@@ -51,12 +55,7 @@ listenerRoutes.get('/api/listeners/:id', async (c) => {
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
-  return c.json({
-    id: listener.id,
-    createdAt: listener.createdAt,
-    hookUrl: `${c.env.HOOK_BASE_URL}/hook/${listener.id}`,
-    shareUrl: shareUrlFor(c.env.APP_BASE_URL, listener.shareToken),
-  })
+  return c.json(serializeListener(c.env, listener))
 })
 
 listenerRoutes.get('/api/listeners/:id/requests', async (c) => {
@@ -99,4 +98,74 @@ listenerRoutes.delete('/api/listeners/:id/share', async (c) => {
   }
   await revokeShareToken(c.env.DB, listener.id)
   return c.body(null, 204)
+})
+
+listenerRoutes.put('/api/listeners/:id/slug', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+
+  const body = await c.req.json<{ slug?: unknown }>().catch(() => ({}) as { slug?: unknown })
+  if (typeof body.slug !== 'string') {
+    return c.json({ error: 'slug is required' }, 400)
+  }
+
+  try {
+    const { slug, webhookToken } = await setListenerSlug(c.env.DB, listener.id, body.slug)
+    return c.json({ slug, webhookToken, hookUrl: `${c.env.HOOK_BASE_URL}/hook/${slug}` })
+  } catch (err) {
+    if (err instanceof SlugValidationError) {
+      return c.json({ error: err.message }, 400)
+    }
+    if (err instanceof SlugConflictError) {
+      return c.json({ error: err.message }, 409)
+    }
+    throw err
+  }
+})
+
+listenerRoutes.post('/api/listeners/:id/slug/rotate-token', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+
+  const token = await rotateWebhookToken(c.env.DB, listener.id)
+  if (!token) {
+    return c.json({ error: 'listener has no slug set' }, 400)
+  }
+  return c.json({ webhookToken: token })
+})
+
+listenerRoutes.delete('/api/listeners/:id/slug', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+
+  await removeListenerSlug(c.env.DB, listener.id)
+  return c.body(null, 204)
+})
+
+listenerRoutes.patch('/api/listeners/:id/label', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+
+  const body = await c.req.json<{ label?: unknown }>().catch(() => ({}) as { label?: unknown })
+  if (typeof body.label !== 'string') {
+    return c.json({ error: 'label is required (use an empty string to clear it)' }, 400)
+  }
+
+  try {
+    const label = await setListenerLabel(c.env.DB, listener.id, body.label)
+    return c.json({ label })
+  } catch (err) {
+    if (err instanceof LabelValidationError) {
+      return c.json({ error: err.message }, 400)
+    }
+    throw err
+  }
 })
