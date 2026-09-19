@@ -41,7 +41,7 @@ export function RequestFilters({ filter, onChange, methodOptions, contentTypeOpt
         value={filter.search}
         onChange={(e) => onChange({ ...filter, search: e.target.value })}
         placeholder="Search body, headers, query params…"
-        className="min-w-[240px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:placeholder:text-slate-500"
+        className="min-w-[240px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:placeholder:text-slate-400"
       />
     </div>
   )
