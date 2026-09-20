@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { diffLines } from 'diff'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
-import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark'
 import type { RequestDetail } from '../api'
 import { prettyPrintBody } from '../lib/prettyPrint'
+import { useSettings } from '../hooks/useSettings'
+import { useHighlightTheme } from '../hooks/useHighlightTheme'
+import { getThemeBackground } from '../lib/highlightThemes'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -45,22 +47,24 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
   const [showDiff, setShowDiff] = useState(false)
   const [copied, setCopied] = useState(false)
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
+  const { highlightTheme, indentWidth, compact, lineNumbers } = useSettings()
+  const loadedTheme = useHighlightTheme(highlightTheme)
+  const panelBackground = loadedTheme ? getThemeBackground(loadedTheme) : 'transparent'
 
-  const detailJson = JSON.stringify(
-    {
-      headers: request.headers,
-      queryParams: request.queryParams,
-      sourceIp: request.sourceIp,
-      body: safeParse(request.body),
-    },
-    null,
-    2
-  )
+  const detailObject = {
+    headers: request.headers,
+    queryParams: request.queryParams,
+    sourceIp: request.sourceIp,
+    body: safeParse(request.body),
+  }
+  const detailJson = compact
+    ? JSON.stringify(detailObject)
+    : JSON.stringify(detailObject, null, indentWidth)
 
   const diffParts = previousRequest
     ? diffLines(
-        prettyPrintBody(previousRequest.body, { indentWidth: 2, compact: false }),
-        prettyPrintBody(request.body, { indentWidth: 2, compact: false })
+        prettyPrintBody(previousRequest.body, { indentWidth, compact }),
+        prettyPrintBody(request.body, { indentWidth, compact })
       )
     : null
 
@@ -90,7 +94,7 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
         <span className="shrink-0 text-slate-400 dark:text-slate-500">{expanded ? '−' : '+'}</span>
       </button>
       {expanded && (
-        <div className="rounded-b-lg border-t border-slate-200 bg-slate-900">
+        <div className="rounded-b-lg border-t border-slate-200 dark:border-slate-700" style={{ background: panelBackground }}>
           <div className="flex justify-end gap-2 px-2 pt-2">
             {previousRequest && (
               <button
@@ -125,13 +129,17 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
               ))}
             </pre>
           ) : (
-            <SyntaxHighlighter
-              language="json"
-              style={oneDark}
-              customStyle={{ background: 'transparent', margin: 0, padding: '1rem' }}
-            >
-              {detailJson}
-            </SyntaxHighlighter>
+            loadedTheme && (
+              <SyntaxHighlighter
+                language="json"
+                style={loadedTheme}
+                showLineNumbers={lineNumbers}
+                customStyle={{ background: 'transparent', margin: 0, padding: '1rem' }}
+                codeTagProps={{ style: { background: 'transparent' } }}
+              >
+                {detailJson}
+              </SyntaxHighlighter>
+            )
           )}
         </div>
       )}
