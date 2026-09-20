@@ -11,14 +11,14 @@ import { buildDiffBlob, diffLineClassName } from '../lib/diffHighlight'
 SyntaxHighlighter.registerLanguage('json', json)
 
 const METHOD_STYLES: Record<string, string> = {
-  GET: 'bg-emerald-100 text-emerald-700',
-  POST: 'bg-blue-100 text-blue-700',
-  PUT: 'bg-amber-100 text-amber-700',
-  PATCH: 'bg-amber-100 text-amber-700',
-  DELETE: 'bg-rose-100 text-rose-700',
+  GET: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  POST: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+  PUT: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  PATCH: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  DELETE: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
 }
 
-const DEFAULT_METHOD_STYLE = 'bg-slate-100 text-slate-700'
+const DEFAULT_METHOD_STYLE = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
 
 function safeParse(body: string | null): unknown {
   if (!body) return body

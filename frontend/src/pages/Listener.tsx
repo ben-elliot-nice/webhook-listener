@@ -264,7 +264,7 @@ export function Listener() {
         </div>
         <button
           onClick={handleDelete}
-          className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+          className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
         >
           Delete listener
         </button>
@@ -302,11 +302,11 @@ export function Listener() {
                 </button>
               </div>
               {webhookToken ? (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                  <code className="flex-1 truncate text-xs text-amber-900">{`{ "X-Webhook-Token": "${webhookToken}" }`}</code>
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950">
+                  <code className="flex-1 truncate text-xs text-amber-900 dark:text-amber-300">{`{ "X-Webhook-Token": "${webhookToken}" }`}</code>
                   <button
                     onClick={handleCopyHeaderJson}
-                    className="shrink-0 rounded-md bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-200"
+                    className="shrink-0 rounded-md bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-300 dark:hover:bg-amber-800"
                   >
                     {headerCopied ? 'Copied!' : 'Copy header JSON'}
                   </button>
@@ -323,7 +323,7 @@ export function Listener() {
                 </button>
                 <button
                   onClick={handleRemoveSlug}
-                  className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
                 >
                   Remove slug
                 </button>
@@ -364,7 +364,7 @@ export function Listener() {
                 </button>
                 <button
                   onClick={handleRevokeShare}
-                  className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
                 >
                   Revoke share link
                 </button>
