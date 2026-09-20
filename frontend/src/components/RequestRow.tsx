@@ -58,7 +58,10 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
   )
 
   const diffParts = previousRequest
-    ? diffLines(prettyPrintBody(previousRequest.body), prettyPrintBody(request.body))
+    ? diffLines(
+        prettyPrintBody(previousRequest.body, { indentWidth: 2, compact: false }),
+        prettyPrintBody(request.body, { indentWidth: 2, compact: false })
+      )
     : null
 
   async function handleCopy() {

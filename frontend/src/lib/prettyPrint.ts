@@ -1,7 +1,13 @@
-export function prettyPrintBody(body: string | null): string {
+export interface PrettyPrintOptions {
+  indentWidth: number
+  compact: boolean
+}
+
+export function prettyPrintBody(body: string | null, opts: PrettyPrintOptions): string {
   if (!body) return ''
   try {
-    return JSON.stringify(JSON.parse(body), null, 2)
+    const parsed = JSON.parse(body)
+    return opts.compact ? JSON.stringify(parsed) : JSON.stringify(parsed, null, opts.indentWidth)
   } catch {
     return body
   }

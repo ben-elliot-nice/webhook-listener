@@ -51,7 +51,7 @@ export function toHarExport(requests: RequestDetail[], hookUrl: string = 'http:/
           headers: toHeaderEntries(req.headers),
           queryString: toQueryEntries(req.queryParams),
           postData: req.body
-            ? { mimeType: req.contentType ?? 'application/octet-stream', text: prettyPrintBody(req.body) }
+            ? { mimeType: req.contentType ?? 'application/octet-stream', text: prettyPrintBody(req.body, { indentWidth: 2, compact: false }) }
             : undefined,
           headersSize: -1,
           bodySize: req.body?.length ?? 0,
