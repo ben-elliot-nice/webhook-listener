@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { diffLines } from 'diff'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import type { RequestDetail } from '../api'
@@ -7,6 +6,7 @@ import { prettyPrintBody } from '../lib/prettyPrint'
 import { useSettings } from '../hooks/useSettings'
 import { useHighlightTheme } from '../hooks/useHighlightTheme'
 import { getThemeBackground } from '../lib/highlightThemes'
+import { buildDiffBlob, diffLineClassName } from '../lib/diffHighlight'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -61,8 +61,8 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
     ? JSON.stringify(detailObject)
     : JSON.stringify(detailObject, null, indentWidth)
 
-  const diffParts = previousRequest
-    ? diffLines(
+  const diffBlob = previousRequest
+    ? buildDiffBlob(
         prettyPrintBody(previousRequest.body, { indentWidth, compact }),
         prettyPrintBody(request.body, { indentWidth, compact })
       )
@@ -111,23 +111,20 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
               {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
-          {showDiff && diffParts ? (
-            <pre className="overflow-x-auto whitespace-pre-wrap px-4 pb-4 text-xs">
-              {diffParts.map((part, i) => (
-                <span
-                  key={i}
-                  className={
-                    part.added
-                      ? 'block bg-emerald-900/40 text-emerald-300'
-                      : part.removed
-                        ? 'block bg-rose-900/40 text-rose-300'
-                        : 'block text-slate-400'
-                  }
-                >
-                  {part.value}
-                </span>
-              ))}
-            </pre>
+          {showDiff && diffBlob && loadedTheme ? (
+            <SyntaxHighlighter
+              language="json"
+              style={loadedTheme}
+              showLineNumbers={lineNumbers}
+              wrapLines
+              lineProps={(lineNumber: number) => ({
+                className: diffLineClassName(diffBlob.lineTags[lineNumber - 1] ?? 'unchanged'),
+              })}
+              customStyle={{ background: 'transparent', margin: 0, padding: '1rem' }}
+              codeTagProps={{ style: { background: 'transparent' } }}
+            >
+              {diffBlob.text}
+            </SyntaxHighlighter>
           ) : (
             loadedTheme && (
               <SyntaxHighlighter

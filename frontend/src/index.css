@@ -5,3 +5,11 @@
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
 }
+
+.diff-line-added {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+.diff-line-removed {
+  background-color: rgba(244, 63, 94, 0.15);
+}
