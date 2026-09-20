@@ -19,6 +19,7 @@ export function SharedListener() {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
+  const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
   const previousByRequestId = useMemo(() => {
@@ -118,6 +119,16 @@ export function SharedListener() {
             />
             <div className="mb-4 flex shrink-0 gap-2">
               <button
+                onClick={() => setDiffOnly((v) => !v)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                  diffOnly
+                    ? 'border-indigo-600 bg-indigo-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                }`}
+              >
+                Diff only
+              </button>
+              <button
                 onClick={handleExportJson}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
@@ -139,7 +150,7 @@ export function SharedListener() {
           ) : (
             <ul className="space-y-2">
               {filteredRequests.map((req) => (
-                <RequestRow key={req.id} request={req} previousRequest={previousByRequestId.get(req.id)} />
+                <RequestRow key={req.id} request={req} previousRequest={previousByRequestId.get(req.id)} diffOnly={diffOnly} />
               ))}
             </ul>
           )}

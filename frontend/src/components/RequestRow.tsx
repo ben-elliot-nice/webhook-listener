@@ -40,9 +40,10 @@ function formatTimestamp(iso: string): string {
 interface RequestRowProps {
   request: RequestDetail
   previousRequest?: RequestDetail
+  diffOnly?: boolean
 }
 
-export function RequestRow({ request, previousRequest }: RequestRowProps) {
+export function RequestRow({ request, previousRequest, diffOnly = false }: RequestRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -81,7 +82,7 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
   return (
     <li className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <button
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => !diffOnly && setExpanded((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
       >
         <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${methodStyle}`}>
@@ -91,27 +92,29 @@ export function RequestRow({ request, previousRequest }: RequestRowProps) {
           {request.contentType ?? 'no content-type'}
         </span>
         <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{formatTimestamp(request.receivedAt)}</span>
-        <span className="shrink-0 text-slate-400 dark:text-slate-500">{expanded ? '−' : '+'}</span>
+        {!diffOnly && <span className="shrink-0 text-slate-400 dark:text-slate-500">{expanded ? '−' : '+'}</span>}
       </button>
-      {expanded && (
+      {(diffOnly || expanded) && (
         <div className="rounded-b-lg border-t border-slate-200 dark:border-slate-700" style={{ background: panelBackground }}>
-          <div className="flex justify-end gap-2 px-2 pt-2">
-            {previousRequest && (
+          {!diffOnly && (
+            <div className="flex justify-end gap-2 px-2 pt-2">
+              {previousRequest && (
+                <button
+                  onClick={() => setShowDiff((v) => !v)}
+                  className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+                >
+                  {showDiff ? 'Hide diff' : 'Diff vs previous'}
+                </button>
+              )}
               <button
-                onClick={() => setShowDiff((v) => !v)}
+                onClick={handleCopy}
                 className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
               >
-                {showDiff ? 'Hide diff' : 'Diff vs previous'}
+                {copied ? 'Copied!' : 'Copy'}
               </button>
-            )}
-            <button
-              onClick={handleCopy}
-              className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-          {showDiff && diffBlob && loadedTheme ? (
+            </div>
+          )}
+          {(diffOnly ? Boolean(previousRequest) : showDiff) && diffBlob && loadedTheme ? (
             <SyntaxHighlighter
               language="json"
               style={loadedTheme}
