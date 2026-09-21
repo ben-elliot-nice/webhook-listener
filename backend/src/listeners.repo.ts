@@ -187,7 +187,7 @@ export function assertValidSlug(slug: string): void {
   }
 }
 
-function isUniqueConstraintError(err: unknown): boolean {
+export function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Error && err.message.includes('UNIQUE constraint failed')
 }
 
@@ -203,9 +203,10 @@ export async function setListenerSlug(
 
   // A slug that happens to match another listener's UUID would let
   // resolveListenerForHook's slug lookup shadow that listener's id-based
-  // lookup, breaking its (token-less) hook URL. Only a concern for
-  // project-less listeners, since resolveListenerForHook only ever looks
-  // up by bare id on the /hook/:id path, never scoped to a project.
+  // lookup, breaking its (token-less) hook URL. getListenerBySlug is scoped
+  // to project_id IS NULL, so this is only a concern for project-less
+  // listeners — a project-scoped listener's slug can never shadow another
+  // listener's /hook/:id lookup.
   if (!listener?.projectId) {
     const idCollision = await db.prepare('SELECT id FROM listeners WHERE id = ? AND id != ?').bind(slug, id).first()
     if (idCollision) {
@@ -228,7 +229,10 @@ export async function setListenerSlug(
 }
 
 export async function getListenerBySlug(db: Env['DB'], slug: string): Promise<ListenerRecord | undefined> {
-  const row = await db.prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE slug = ?`).bind(slug).first<ListenerRecord>()
+  const row = await db
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE slug = ? AND project_id IS NULL`)
+    .bind(slug)
+    .first<ListenerRecord>()
   return row ?? undefined
 }
 

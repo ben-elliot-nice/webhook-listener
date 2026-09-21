@@ -74,6 +74,24 @@ describe('hook capture route', () => {
     )
     expect(response.status).toBe(413)
   })
+
+  it('a project-scoped listener whose slug collides with another listener\'s UUID does not shadow that listener\'s /hook/:id capture', async () => {
+    const victimId = crypto.randomUUID()
+    await createListener(env.DB, victimId, '2024-01-01T00:00:00.000Z', 'session-a')
+
+    const projectResponse = await app.request('/api/projects', { method: 'POST' }, env)
+    const projectId = ((await projectResponse.json()) as { id: string }).id
+
+    // Attacker creates a project-scoped listener whose identifier equals the victim's UUID.
+    await app.request(`/hook/${projectId}/${victimId}`, { method: 'POST' }, env)
+
+    // The victim's bare-id hook URL must still resolve and capture — not 404.
+    const response = await app.request(`/hook/${victimId}`, { method: 'POST', body: 'still-alive' }, env)
+    expect(response.status).toBe(200)
+
+    const [captured] = await getRequests(env.DB, victimId)
+    expect(captured.body).toBe('still-alive')
+  })
 })
 
 describe('hook capture route — slug + token', () => {
