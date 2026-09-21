@@ -17,6 +17,7 @@ import {
 } from '../api'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
+import { setTransparentDragImage } from '../lib/dragImage'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
@@ -392,6 +393,7 @@ export function ProjectDetail() {
                 draggable={sort === 'custom'}
                 onDragStart={(e) => {
                   e.dataTransfer.setData('text/plain', listener.id)
+                  setTransparentDragImage(e)
                   setDragKey(listener.id)
                 }}
                 onDragEnd={() => {
@@ -407,13 +409,17 @@ export function ProjectDetail() {
                 }}
                 onDragLeave={() => setDropIndicator((current) => (current?.key === listener.id ? null : current))}
                 onDrop={() => handleDrop(listener.id)}
-                className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
-                  dropIndicator?.key === listener.id
-                    ? dropIndicator.before
-                      ? 'border-t-indigo-400 dark:border-t-indigo-500'
-                      : 'border-b-indigo-400 dark:border-b-indigo-500'
-                    : ''
-                }`}
+                className={
+                  dragKey === listener.id
+                    ? 'flex items-center gap-2 rounded-lg border-2 border-dotted border-slate-300 opacity-40 dark:border-slate-600'
+                    : `flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                        dropIndicator?.key === listener.id
+                          ? dropIndicator.before
+                            ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                            : 'border-b-indigo-400 dark:border-b-indigo-500'
+                          : ''
+                      }`
+                }
               >
                 {sort === 'custom' && (
                   <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">

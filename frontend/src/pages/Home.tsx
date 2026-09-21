@@ -20,6 +20,7 @@ import {
 } from '../lib/mergeHomeItems'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
+import { setTransparentDragImage } from '../lib/dragImage'
 
 const SORT_STORAGE_KEY = 'wl_home_sort'
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -216,6 +217,7 @@ export function Home() {
                     draggable={sort === 'custom'}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', key)
+                      setTransparentDragImage(e)
                       setDragKey(key)
                     }}
                     onDragEnd={() => {
@@ -231,13 +233,17 @@ export function Home() {
                     }}
                     onDragLeave={() => setDropIndicator((current) => (current?.key === key ? null : current))}
                     onDrop={() => handleDrop(key)}
-                    className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
-                      dropIndicator?.key === key
-                        ? dropIndicator.before
-                          ? 'border-t-indigo-400 dark:border-t-indigo-500'
-                          : 'border-b-indigo-400 dark:border-b-indigo-500'
-                        : ''
-                    }`}
+                    className={
+                      dragKey === key
+                        ? 'flex items-center gap-2 rounded-lg border-2 border-dotted border-slate-300 opacity-40 dark:border-slate-600'
+                        : `flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                            dropIndicator?.key === key
+                              ? dropIndicator.before
+                                ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                                : 'border-b-indigo-400 dark:border-b-indigo-500'
+                              : ''
+                          }`
+                    }
                   >
                     {sort === 'custom' && (
                       <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
@@ -270,6 +276,7 @@ export function Home() {
                   draggable={sort === 'custom'}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', key)
+                    setTransparentDragImage(e)
                     setDragKey(key)
                   }}
                   onDragEnd={() => {
@@ -285,13 +292,17 @@ export function Home() {
                   }}
                   onDragLeave={() => setDropIndicator((current) => (current?.key === key ? null : current))}
                   onDrop={() => handleDrop(key)}
-                  className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
-                    dropIndicator?.key === key
-                      ? dropIndicator.before
-                        ? 'border-t-indigo-400 dark:border-t-indigo-500'
-                        : 'border-b-indigo-400 dark:border-b-indigo-500'
-                      : ''
-                  }`}
+                  className={
+                    dragKey === key
+                      ? 'flex items-center gap-2 rounded-lg border-2 border-dotted border-slate-300 opacity-40 dark:border-slate-600'
+                      : `flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                          dropIndicator?.key === key
+                            ? dropIndicator.before
+                              ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                              : 'border-b-indigo-400 dark:border-b-indigo-500'
+                            : ''
+                        }`
+                  }
                 >
                   {sort === 'custom' && (
                     <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
