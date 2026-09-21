@@ -4,34 +4,12 @@ Open items: not-started features, deferred polish, and known limitations.
 For what's already live, see `STATUS.md`. For standing dev/deploy practice,
 see `CLAUDE.md`.
 
-## Top priority — security gap from going public
-
-**The app has no authentication and is publicly deployed.** The current
-access model (anonymous `wl_session_id` cookie) was designed for a
-single-user local tool (`CLAUDE.md` → Access model). That assumption broke
-the moment this shipped to `webhook.fde.nice-agentic.com` on the open
-internet, and it has not been revisited since. Right now, anyone who
-discovers the URL can create listeners and see/manage whatever they create,
-indistinguishable from the intended owner.
-
-- **Spec exists, not implemented, no plan written yet:**
-  `docs/superpowers/specs/2026-09-20-email-access-gate-design.md`.
-- Adds a magic-link email gate (allow-listed to `nice.com`/`cognigy.com`)
-  in front of the entire UI, and upgrades listener ownership from
-  "browser session" to "verified email" so the same person can reach their
-  listeners from any device.
-- Supersedes the identity portion of the session-scoped-ownership spec;
-  keeps that spec's cookie-plumbing *pattern* as a template.
-- Next step if picked up: brainstorm → confirm scope → write the
-  implementation plan → build. Don't skip straight to code — this touches
-  every route.
-
 ## Not started — list view actions on the home page
 
 **No spec, no plan, never built** — ideated in the 2026-09-19 brainstorming
 session (recorded in the now-deleted `HANDOFF.md`) alongside the slug/label/
-ordering feature (shipped) and the email access gate (above). This third
-item was never picked up:
+ordering feature and the email access gate (both shipped — see `STATUS.md`).
+This third item was never picked up:
 
 - Delete-with-confirm, share-with-confirm, copy share link, and copy hook
   target URL, as affordances directly on the home page listener list.
@@ -74,8 +52,8 @@ non-trivial work, not a hard requirement for everything). The one loose end:
 - `.DS_Store` and `frontend/.DS_Store` are currently untracked in the
   working tree — add `.DS_Store` to `.gitignore` rather than letting them
   get committed by accident.
-- `backend/migrations/0005_projects.sql` is now in use (projects feature,
-  shipped 2026-09-21) — the next migration number to use is `0006`.
+- `backend/migrations/0009_magic_links.sql` is now in use (email access
+  gate, shipped 2026-09-22) — the next migration number to use is `0010`.
 
 ## Outstanding manual check
 

@@ -12,32 +12,29 @@ before trusting it.
   (200).
 - Backend API: `https://webhook-api.fde.nice-agentic.com` — confirmed
   responding (200).
-- **This is not a local-only personal tool anymore.** It is deployed on the
-  open internet with **no authentication in front of it** — the access
-  model (`CLAUDE.md`) is still the anonymous-session-cookie design built for
-  a single local user. Anyone who finds the URL can create listeners and
-  receive webhook traffic under this deployment. The email-access-gate
-  feature designed to close this gap has **not been implemented** — see
-  `BACKLOG.md`. Treat this as the top-priority open item, not routine
-  backlog.
+- **This is not a local-only personal tool anymore**, but it is no longer
+  unauthenticated either. The email access gate is live: every UI route
+  requires a verified, allow-listed email (`nice.com`, `cognigy.com`) via a
+  magic-link flow, backed by `migrations/0008_owner_email.sql` (adds
+  `owner_email` to `listeners`/`projects`) and
+  `migrations/0009_magic_links.sql` (one-time verification tokens). See
+  `docs/superpowers/specs/2026-09-20-email-access-gate-design.md` and
+  "Features shipped and live" below for the full behaviour.
 
 ## Build / test health
 
-- Backend: `cd backend && npm test` → **194/195 passing** (21 test files); the
-  one failure (`app.session.test.ts`'s `Domain=` cookie assertion) is
-  pre-existing and unrelated to this round — it only fails because
-  `SESSION_COOKIE_DOMAIN` is unset when running locally without a
-  `.dev.vars` override (see "Running it locally" in `CLAUDE.md`).
+- Backend: `cd backend && npm test` → **226/226 passing** (27 test files).
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors.
-- D1 migrations applied: `0001_init.sql` → `0007_projects_label_share.sql`
-  (includes `0006_projects_sort_position.sql` and
-  `0007_projects_label_share.sql` from this and the prior round).
+- D1 migrations applied: `0001_init.sql` → `0009_magic_links.sql` (includes
+  `0008_owner_email.sql` and `0009_magic_links.sql` from the email
+  access gate round).
 - **Before deploying the updated backend Worker**, apply
-  `0007_projects_label_share.sql` to the remote D1 database with
-  `cd backend && npm run db:migrate:remote`. Both the backend and frontend
-  Workers changed this round and should each be redeployed (`cd backend &&
-  npm run deploy`; `cd frontend && npm run build && npx wrangler deploy`) —
-  see "Deploying" in `CLAUDE.md` for the exact commands.
+  `0008_owner_email.sql` and `0009_magic_links.sql` to the remote D1
+  database with `cd backend && npm run db:migrate:remote`. Both the
+  backend and frontend Workers changed this round and should each be
+  redeployed (`cd backend && npm run deploy`; `cd frontend && npm run
+  build && npx wrangler deploy`) — see "Deploying" in `CLAUDE.md` for the
+  exact commands.
 
 ## Recent rebrand (deployed, not yet committed)
 
@@ -106,6 +103,19 @@ In build order — each has a full design spec + implementation plan under
    never two listeners); and a sort-mode/drag-reorder view for a project's
    child listeners, mirroring the Home page's existing reorder UX (design:
    `docs/superpowers/specs/2026-09-21-projects-management-design.md`).
+10. **Email access gate** — a magic-link email flow now sits in front of
+    every UI route, restricted to allow-listed domains (`nice.com`,
+    `cognigy.com`); replaces the anonymous-session model as the source of
+    truth for listener/project ownership. Listeners and projects created
+    under the old `owner_session` cookie are merged into the verified
+    email automatically, one time, the first browser that completes
+    `GET /auth/verify` for that cookie — `owner_session` is nulled on
+    claim so a row can never be swept into a different email later
+    (a second device/browser holding a different old session is not
+    reconciled; accepted limitation, see the spec). `/hook/:id` and
+    `/hook/:projectId/:identifier` remain fully open, no session or email
+    check, by design (design:
+    `docs/superpowers/specs/2026-09-20-email-access-gate-design.md`).
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
