@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { Logo } from './Logo'
 import { SettingsModal } from './SettingsModal'
 
 export function AppLayout() {
@@ -7,7 +8,8 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen">
-      <div className="flex items-center justify-end px-4 py-2">
+      <div className="flex items-center justify-between px-4 py-2">
+        <Logo className="h-6" />
         <button
           onClick={() => setSettingsOpen(true)}
           aria-label="Open settings"

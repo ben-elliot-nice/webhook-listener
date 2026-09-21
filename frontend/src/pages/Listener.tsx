@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
   type CapturedRequest,
@@ -16,7 +16,6 @@ import {
 } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
-import { Logo } from '../components/Logo'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 import { useSettings } from '../hooks/useSettings'
@@ -223,9 +222,14 @@ export function Listener() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+      <Link
+        to="/"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+      >
+        ← Back to listeners
+      </Link>
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Logo className="h-6 w-6 text-slate-900 dark:text-slate-100" />
           {editingLabel ? (
             <form
               onSubmit={(e) => {

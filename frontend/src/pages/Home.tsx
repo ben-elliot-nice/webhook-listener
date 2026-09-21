@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createListener, listListeners, reorderListeners, type Listener, type SortMode } from '../api'
-import { Logo } from '../components/Logo'
 
 const SORT_STORAGE_KEY = 'wl_home_sort'
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -69,10 +68,7 @@ export function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
-        <div className="flex items-center justify-center gap-2">
-          <Logo className="h-7 w-7 text-slate-900 dark:text-slate-100" />
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Webhook Listener</h1>
-        </div>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Webhook Listener</h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Create a unique URL, send it webhook payloads, and watch them arrive here.
         </p>
