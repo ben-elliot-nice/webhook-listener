@@ -45,6 +45,14 @@ than one-shotting features directly into code.
    then review the whole change once complete.
 5. Fix anything Critical/Important found in review before calling it done.
 
+**Model selection for superpowers stages:** when running brainstorming,
+writing-plans, executing-plans, or any review step within that workflow
+(including subagent-driven-development task reviews and the final
+whole-change review), never use Opus or Fable — for any stage, including
+reviews. Use Sonnet as the model for whatever step calls for the "highest"
+or "most capable" model; there is no escalation above Sonnet in this repo's
+workflow.
+
 **Git:** work happens on a feature branch in its own worktree, opened as a
 PR, and merged into `main` — no more committing straight to `main`. This
 supersedes the earlier direct-to-main practice; if you see that described
