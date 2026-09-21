@@ -52,6 +52,7 @@ export function ProjectDetail() {
   const [createDraft, setCreateDraft] = useState('')
   const [sort, setSort] = useState<SortMode>('date')
   const [dragKey, setDragKey] = useState<string | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const consecutiveNotFoundRef = useRef(0)
 
   useEffect(() => {
@@ -183,6 +184,7 @@ export function ProjectDetail() {
     const [moved] = current.splice(fromIndex, 1)
     current.splice(toIndex, 0, moved)
     setDragKey(null)
+    setDragOverKey(null)
     setChildren(current)
 
     const orderedItems: ReorderItem[] = current.map((l) => ({ type: 'listener', id: l.id }))
@@ -387,9 +389,19 @@ export function ProjectDetail() {
                   e.dataTransfer.setData('text/plain', listener.id)
                   setDragKey(listener.id)
                 }}
-                onDragOver={(e) => e.preventDefault()}
+                onDragEnd={() => {
+                  setDragKey(null)
+                  setDragOverKey(null)
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  if (dragKey && dragKey !== listener.id) setDragOverKey(listener.id)
+                }}
+                onDragLeave={() => setDragOverKey((current) => (current === listener.id ? null : current))}
                 onDrop={() => handleDrop(listener.id)}
-                className="flex items-center gap-2"
+                className={`flex items-center gap-2 rounded-lg transition ${
+                  dragOverKey === listener.id ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : ''
+                }`}
               >
                 {sort === 'custom' && (
                   <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">

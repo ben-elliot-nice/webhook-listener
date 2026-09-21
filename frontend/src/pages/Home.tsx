@@ -62,6 +62,7 @@ export function Home() {
   const [projects, setProjects] = useState<Project[]>([])
   const [sort, setSort] = useState<SortMode>(loadStoredSort)
   const [dragKey, setDragKey] = useState<string | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([listListeners(sort), listProjects()])
@@ -114,6 +115,7 @@ export function Home() {
     const [moved] = current.splice(fromIndex, 1)
     current.splice(toIndex, 0, moved)
     setDragKey(null)
+    setDragOverKey(null)
 
     const previousListeners = listeners
     const previousProjects = projects
@@ -211,9 +213,19 @@ export function Home() {
                       e.dataTransfer.setData('text/plain', key)
                       setDragKey(key)
                     }}
-                    onDragOver={(e) => e.preventDefault()}
+                    onDragEnd={() => {
+                      setDragKey(null)
+                      setDragOverKey(null)
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      if (dragKey && dragKey !== key) setDragOverKey(key)
+                    }}
+                    onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
                     onDrop={() => handleDrop(key)}
-                    className="flex items-center gap-2"
+                    className={`flex items-center gap-2 rounded-lg transition ${
+                      dragOverKey === key ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : ''
+                    }`}
                   >
                     {sort === 'custom' && (
                       <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
@@ -248,9 +260,19 @@ export function Home() {
                     e.dataTransfer.setData('text/plain', key)
                     setDragKey(key)
                   }}
-                  onDragOver={(e) => e.preventDefault()}
+                  onDragEnd={() => {
+                    setDragKey(null)
+                    setDragOverKey(null)
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    if (dragKey && dragKey !== key) setDragOverKey(key)
+                  }}
+                  onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
                   onDrop={() => handleDrop(key)}
-                  className="flex items-center gap-2"
+                  className={`flex items-center gap-2 rounded-lg transition ${
+                    dragOverKey === key ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : ''
+                  }`}
                 >
                   {sort === 'custom' && (
                     <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
