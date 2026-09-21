@@ -10,14 +10,18 @@ function base64UrlDecode(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }
 
-async function hmacSha256(secret: string, message: string): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
+async function importHmacKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign', 'verify']
   )
+}
+
+async function hmacSha256(secret: string, message: string): Promise<Uint8Array> {
+  const key = await importHmacKey(secret)
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message))
   return new Uint8Array(signature)
 }
@@ -39,8 +43,14 @@ export async function verifyEmailSession(secret: string, cookieValue: string): P
   if (parts.length !== 2) return null
   const [payloadEncoded, signatureEncoded] = parts
 
-  const expectedSignature = base64UrlEncode(await hmacSha256(secret, payloadEncoded))
-  if (expectedSignature !== signatureEncoded) return null
+  const key = await importHmacKey(secret)
+  const signatureValid = await crypto.subtle.verify(
+    'HMAC',
+    key,
+    base64UrlDecode(signatureEncoded),
+    new TextEncoder().encode(payloadEncoded)
+  )
+  if (!signatureValid) return null
 
   let payload: EmailSessionPayload
   try {
@@ -50,7 +60,8 @@ export async function verifyEmailSession(secret: string, cookieValue: string): P
   }
 
   if (typeof payload.email !== 'string' || typeof payload.expiresAt !== 'string') return null
-  if (new Date(payload.expiresAt).getTime() < Date.now()) return null
+  const expiresAtMs = new Date(payload.expiresAt).getTime()
+  if (Number.isNaN(expiresAtMs) || expiresAtMs < Date.now()) return null
 
   return payload.email
 }
