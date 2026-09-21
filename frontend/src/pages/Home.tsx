@@ -62,7 +62,7 @@ export function Home() {
   const [projects, setProjects] = useState<Project[]>([])
   const [sort, setSort] = useState<SortMode>(loadStoredSort)
   const [dragKey, setDragKey] = useState<string | null>(null)
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const [dropIndicator, setDropIndicator] = useState<{ key: string; before: boolean } | null>(null)
 
   useEffect(() => {
     Promise.all([listListeners(sort), listProjects()])
@@ -108,14 +108,19 @@ export function Home() {
 
   function handleDrop(targetKey: string) {
     if (!dragKey || dragKey === targetKey) return
+    const before = dropIndicator?.key === targetKey ? dropIndicator.before : true
     const current = [...items]
     const fromIndex = current.findIndex((item) => itemKey(item) === dragKey)
-    const toIndex = current.findIndex((item) => itemKey(item) === targetKey)
-    if (fromIndex === -1 || toIndex === -1) return
+    if (fromIndex === -1) return
     const [moved] = current.splice(fromIndex, 1)
-    current.splice(toIndex, 0, moved)
+    // Recompute the target's index after removal — removing an earlier item
+    // shifts every later index down by one, so the target's pre-removal
+    // index would silently misplace the drop by one slot.
+    const targetIndex = current.findIndex((item) => itemKey(item) === targetKey)
+    if (targetIndex === -1) return
+    current.splice(before ? targetIndex : targetIndex + 1, 0, moved)
     setDragKey(null)
-    setDragOverKey(null)
+    setDropIndicator(null)
 
     const previousListeners = listeners
     const previousProjects = projects
@@ -215,16 +220,23 @@ export function Home() {
                     }}
                     onDragEnd={() => {
                       setDragKey(null)
-                      setDragOverKey(null)
+                      setDropIndicator(null)
                     }}
                     onDragOver={(e) => {
                       e.preventDefault()
-                      if (dragKey && dragKey !== key) setDragOverKey(key)
+                      if (!dragKey || dragKey === key) return
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const before = e.clientY < rect.top + rect.height / 2
+                      setDropIndicator({ key, before })
                     }}
-                    onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
+                    onDragLeave={() => setDropIndicator((current) => (current?.key === key ? null : current))}
                     onDrop={() => handleDrop(key)}
-                    className={`flex items-center gap-2 rounded-lg transition ${
-                      dragOverKey === key ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : ''
+                    className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                      dropIndicator?.key === key
+                        ? dropIndicator.before
+                          ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                          : 'border-b-indigo-400 dark:border-b-indigo-500'
+                        : ''
                     }`}
                   >
                     {sort === 'custom' && (
@@ -262,16 +274,23 @@ export function Home() {
                   }}
                   onDragEnd={() => {
                     setDragKey(null)
-                    setDragOverKey(null)
+                    setDropIndicator(null)
                   }}
                   onDragOver={(e) => {
                     e.preventDefault()
-                    if (dragKey && dragKey !== key) setDragOverKey(key)
+                    if (!dragKey || dragKey === key) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const before = e.clientY < rect.top + rect.height / 2
+                    setDropIndicator({ key, before })
                   }}
-                  onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
+                  onDragLeave={() => setDropIndicator((current) => (current?.key === key ? null : current))}
                   onDrop={() => handleDrop(key)}
-                  className={`flex items-center gap-2 rounded-lg transition ${
-                    dragOverKey === key ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : ''
+                  className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                    dropIndicator?.key === key
+                      ? dropIndicator.before
+                        ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                        : 'border-b-indigo-400 dark:border-b-indigo-500'
+                      : ''
                   }`}
                 >
                   {sort === 'custom' && (

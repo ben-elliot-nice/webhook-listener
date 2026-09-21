@@ -52,7 +52,7 @@ export function ProjectDetail() {
   const [createDraft, setCreateDraft] = useState('')
   const [sort, setSort] = useState<SortMode>('date')
   const [dragKey, setDragKey] = useState<string | null>(null)
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const [dropIndicator, setDropIndicator] = useState<{ key: string; before: boolean } | null>(null)
   const consecutiveNotFoundRef = useRef(0)
 
   useEffect(() => {
@@ -176,15 +176,20 @@ export function ProjectDetail() {
 
   function handleDrop(targetId: string) {
     if (!dragKey || dragKey === targetId) return
+    const before = dropIndicator?.key === targetId ? dropIndicator.before : true
     const previousChildren = children
     const current = [...children]
     const fromIndex = current.findIndex((l) => l.id === dragKey)
-    const toIndex = current.findIndex((l) => l.id === targetId)
-    if (fromIndex === -1 || toIndex === -1) return
+    if (fromIndex === -1) return
     const [moved] = current.splice(fromIndex, 1)
-    current.splice(toIndex, 0, moved)
+    // Recompute the target's index after removal — removing an earlier item
+    // shifts every later index down by one, so the target's pre-removal
+    // index would silently misplace the drop by one slot.
+    const targetIndex = current.findIndex((l) => l.id === targetId)
+    if (targetIndex === -1) return
+    current.splice(before ? targetIndex : targetIndex + 1, 0, moved)
     setDragKey(null)
-    setDragOverKey(null)
+    setDropIndicator(null)
     setChildren(current)
 
     const orderedItems: ReorderItem[] = current.map((l) => ({ type: 'listener', id: l.id }))
@@ -391,16 +396,23 @@ export function ProjectDetail() {
                 }}
                 onDragEnd={() => {
                   setDragKey(null)
-                  setDragOverKey(null)
+                  setDropIndicator(null)
                 }}
                 onDragOver={(e) => {
                   e.preventDefault()
-                  if (dragKey && dragKey !== listener.id) setDragOverKey(listener.id)
+                  if (!dragKey || dragKey === listener.id) return
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const before = e.clientY < rect.top + rect.height / 2
+                  setDropIndicator({ key: listener.id, before })
                 }}
-                onDragLeave={() => setDragOverKey((current) => (current === listener.id ? null : current))}
+                onDragLeave={() => setDropIndicator((current) => (current?.key === listener.id ? null : current))}
                 onDrop={() => handleDrop(listener.id)}
-                className={`flex items-center gap-2 rounded-lg transition ${
-                  dragOverKey === listener.id ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : ''
+                className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                  dropIndicator?.key === listener.id
+                    ? dropIndicator.before
+                      ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                      : 'border-b-indigo-400 dark:border-b-indigo-500'
+                    : ''
                 }`}
               >
                 {sort === 'custom' && (
