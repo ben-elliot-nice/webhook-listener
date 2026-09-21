@@ -17,12 +17,22 @@ This feature adds a magic-link email gate restricted to allow-listed
 domains (`nice.com`, `cognigy.com` by default) in front of the entire
 app UI, and — because the user wants a magic link to return them to
 their own listeners from *any* browser or device — upgrades listener
-ownership from "the browser session that created it" to "the verified
-email that created it." This supersedes the identity portion of the
-session-scoped-ownership spec (session cookies no longer determine
-ownership) while leaving that spec's *mechanics* section (cookie
-plumbing pattern, "one query, one code path for not-found-or-not-
-yours") as the template this feature follows for its own gating logic.
+*and project* ownership from "the browser session that created it" to
+"the verified email that created it." This supersedes the identity
+portion of the session-scoped-ownership spec (session cookies no
+longer determine ownership) while leaving that spec's *mechanics*
+section (cookie plumbing pattern, "one query, one code path for
+not-found-or-not-yours") as the template this feature follows for its
+own gating logic.
+
+**Update (post-review):** the projects & create-and-send feature
+(`docs/superpowers/specs/2026-09-20-projects-create-and-send-design.md`,
+plus its `2026-09-21` frontend/management follow-ups) shipped and is
+live in production *before* this feature was implemented. `projects`
+therefore carries the same pre-gate legacy problem as `listeners` —
+real `owner_session`-only rows exist — so this spec treats both
+tables identically throughout, rather than assuming `projects` could
+launch clean on `owner_email` alone.
 
 ## Access model (supersedes the three-tier model for identity purposes)
 
@@ -32,8 +42,10 @@ other three:
 0. **Verified identity** (new) — a signed `wl_email_session` cookie
    proving this browser completed a magic-link challenge for an
    allow-listed email address. Required to reach **any** UI route:
-   home (`/`), owner view (`/listener/:id`), and read-only share view
-   (`/shared/:token`) all require it. Without a valid cookie, the
+   home (`/`), owner views (`/listener/:id`, `/projects/:projectId`),
+   and read-only share views (`/shared/:token`,
+   `/shared/projects/:token`, `/shared/projects/:token/:listenerId`)
+   all require it. Without a valid cookie, the
    frontend shows an email-entry gate screen instead of the requested
    route — this applies uniformly, including to share links opened by
    someone outside the allow-listed domains. That is intentional, not
@@ -41,46 +53,98 @@ other three:
    allow-listed domains is the explicit point of this feature, so a
    share link is not a bypass.
 1. **Owner access** (changed) — no longer keyed by browser session.
-   A listener's owner is the verified email that created it
-   (`listeners.owner_email`). The same person can view/manage the same
-   listeners from a different browser or device once they've verified
-   there too. `wl_session_id` (the old anonymous session cookie) is no
-   longer used for ownership and can be removed once this ships — the
-   new email session cookie is the only identity mechanism going
-   forward.
+   A listener's or project's owner is the verified email that created
+   it (`listeners.owner_email`, `projects.owner_email`). The same
+   person can view/manage the same listeners and projects from a
+   different browser or device once they've verified there too.
+   `wl_session_id` (the old anonymous session cookie) is no longer
+   used for ownership *checks* going forward, but it is not removed —
+   see "Existing listeners and projects" below, it stays in the
+   schema as the one-time key for merging pre-gate data into a
+   verified email.
 2. **Read-only share access** (unchanged in mechanism, changed in
    reachability) — `/shared/:token` remains a pure bearer token, not
    tied to the viewer's specific email. Any verified (allow-listed
    domain) session can use any share token it has, exactly as today.
    The only change is tier 0 gating who can reach it at all.
-3. **Webhook capture** (unchanged) — `ALL /hook/:id` remains fully
-   open: no session cookie, no email verification, no domain check.
-   Webhook senders are not browsers and must be able to post
-   regardless of who's currently logged in where. This route is
-   explicitly exempt from every check this feature adds.
+3. **Webhook capture** (unchanged) — `ALL /hook/:id` and
+   `ALL /hook/:projectId/:identifier` remain fully open: no session
+   cookie, no email verification, no domain check. Webhook senders
+   are not browsers and must be able to post regardless of who's
+   currently logged in where. Both routes are explicitly exempt from
+   every check this feature adds.
 
-## Existing listeners
+## Existing listeners and projects — merged into the verified email on first login
 
-Listeners created under the old `owner_session` model become
-permanently inaccessible once this ships — same precedent as the
-session-scoped-ownership spec's own treatment of pre-migration rows.
-No claiming mechanism, no migration. This is an explicit, accepted
-decision: the tool has no meaningful production data volume yet and a
-claiming flow is not worth the complexity it would add.
+Unlike the session-scoped-ownership spec's own treatment of its
+pre-migration rows, listeners and projects created under the old
+`owner_session` model are **not** abandoned. Both `listeners` and
+`projects` are live tables with real data (projects shipped and has
+been in production use since before this feature existed), so this
+spec adds an automatic, one-time claim instead:
+
+- The first time a browser that holds an old `wl_session_id` cookie
+  successfully completes `GET /auth/verify` for some email, every
+  `listeners` row and every `projects` row whose `owner_session`
+  matches that cookie's value is reassigned to that email
+  (`owner_email = <verified email>`) and its `owner_session` is set to
+  `NULL` in the same step.
+- Nulling `owner_session` on claim makes this naturally idempotent and
+  single-claim: a row can never later be swept into a *different*
+  email, because once claimed its `owner_session` no longer matches
+  anything.
+- **Accepted limitation:** this only reconciles the one session
+  present in the browser that completes verification. If the same
+  person used the app anonymously from a second browser or device (a
+  different `wl_session_id`), that session's rows stay orphaned
+  forever unless *that* browser also later completes its own
+  verification. There is no cross-session/cross-device claiming
+  fallback — sessions aren't linked to each other before an email
+  exists, so there's nothing to sweep them with. Confirmed acceptable;
+  see "Out of scope."
 
 ## Data model changes
 
+Migration numbering: `projects` claimed `0005`–`0007`
+(`0005_projects.sql`, `0006_projects_sort_position.sql`,
+`0007_projects_label_share.sql`) before this feature was implemented.
+The next free slot is `0008`.
+
 ```sql
--- New migration, e.g. 0004_owner_email.sql
+-- 0008_owner_email.sql
 ALTER TABLE listeners ADD COLUMN owner_email TEXT;
--- owner_session is no longer read by any code path after this ships;
--- dropped in the same migration since D1's SQLite version supports
--- DROP COLUMN and there's no reason to carry a dead column.
-ALTER TABLE listeners DROP COLUMN owner_session;
+-- owner_session is kept, nullable, as the one-time merge key — see
+-- "Existing listeners and projects" above. It is not dropped.
+
+-- projects.owner_session is currently NOT NULL (0005_projects.sql).
+-- Merged rows need it set to NULL, so the NOT NULL constraint must be
+-- relaxed. SQLite/D1 has no ALTER COLUMN for constraints, so this
+-- requires the standard rebuild recipe rather than a plain ALTER
+-- TABLE:
+ALTER TABLE projects RENAME TO projects_old;
+
+CREATE TABLE projects (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  owner_session TEXT,               -- now nullable
+  owner_email TEXT,                 -- new
+  sort_position INTEGER,
+  label TEXT,
+  share_token TEXT
+);
+
+INSERT INTO projects (id, created_at, owner_session, owner_email, sort_position, label, share_token)
+  SELECT id, created_at, owner_session, NULL, sort_position, label, share_token FROM projects_old;
+
+DROP TABLE projects_old;
+
+CREATE UNIQUE INDEX idx_projects_share_token
+  ON projects(share_token)
+  WHERE share_token IS NOT NULL;
 ```
 
 ```sql
--- New migration, e.g. 0005_magic_links.sql
+-- 0009_magic_links.sql
 CREATE TABLE magic_links (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   token_hash TEXT NOT NULL UNIQUE,  -- SHA-256 of the raw token; raw token is never stored
@@ -94,12 +158,14 @@ CREATE INDEX idx_magic_links_email ON magic_links(email);
 ```
 
 `getListenerForOwner(db, id, email)` and `getListenersForOwner(db,
-email)` (the plural function added for the home-page listener list)
+email)` (the plural function added for the home-page listener list),
+plus the equivalent by-owner functions in `projects.repo.ts`
+(`getProjectsForOwner` and the owner-matched single-project lookup),
 are updated to match on `owner_email` instead of `owner_session`. Same
 one-query, one-code-path shape as before — a wrong email and a
-nonexistent listener id both resolve to nothing, so the identical 404
-response stays a structural guarantee, not something each route has to
-remember.
+nonexistent listener/project id both resolve to nothing, so the
+identical 404 response stays a structural guarantee, not something
+each route has to remember.
 
 ## Session mechanism
 
@@ -157,9 +223,19 @@ remember.
    the frontend shows an inline message prompting the user to request
    a new one.
 3. Found and valid → set `used_at = now` (single-use, enforced at
-   consumption time so a raced double-click can't verify twice), issue
-   the `wl_email_session` cookie for that email, `302` redirect to
-   `https://webhook.fde.nice-agentic.com/`.
+   consumption time so a raced double-click can't verify twice).
+4. **Merge step:** if the request carries a `wl_session_id` cookie,
+   run both claim updates (see "Existing listeners and projects"
+   above) against that cookie's value and the email being verified,
+   before issuing the new cookie:
+   ```sql
+   UPDATE listeners SET owner_email = ?, owner_session = NULL WHERE owner_session = ? AND owner_email IS NULL;
+   UPDATE projects  SET owner_email = ?, owner_session = NULL WHERE owner_session = ? AND owner_email IS NULL;
+   ```
+   No `wl_session_id` cookie present → skip silently, nothing to
+   merge.
+5. Issue the `wl_email_session` cookie for that email, `302` redirect
+   to `https://webhook.fde.nice-agentic.com/`.
 
 **Checking / clearing the session:**
 - `GET /auth/me` → `{ email }` if the cookie is present and valid,
@@ -207,8 +283,18 @@ rather than an implementation step.
 | `DELETE /api/listeners/:id` | Gated by tier-0 **and** owner match. |
 | `POST /api/listeners/:id/share` | Gated by tier-0 **and** owner match. |
 | `DELETE /api/listeners/:id/share` | Gated by tier-0 **and** owner match. |
+| `POST /api/projects` | Gated by tier-0. Records the verified email as `owner_email`. |
+| `GET /api/projects` | Gated by tier-0. Filters by `owner_email` instead of `owner_session`. |
+| `PATCH /api/projects/:id/label` | Gated by tier-0 **and** owner match. |
+| `POST /api/projects/:id/share` | Gated by tier-0 **and** owner match. |
+| `DELETE /api/projects/:id/share` | Gated by tier-0 **and** owner match. |
+| `DELETE /api/projects/:id` | Gated by tier-0 **and** owner match. |
+| `POST /api/projects/:projectId/listeners` | Gated by tier-0 **and** owner match on the project. |
 | `GET /api/shared/:token/requests` | Gated by tier-0 only (any valid verified session, not owner-matched — bearer token semantics unchanged). |
+| `GET /api/shared/projects/:token` | Gated by tier-0 only, same bearer-token semantics as above. |
+| `GET /api/shared/projects/:token/listeners/:listenerId/requests` | Gated by tier-0 only, same bearer-token semantics as above. |
 | `ALL /hook/:id` | **Unchanged, exempt from every check added here.** |
+| `ALL /hook/:projectId/:identifier` | **Unchanged, exempt from every check added here** — same rationale as `/hook/:id`: webhook senders aren't browsers and must be able to post regardless of who's signed in where. |
 
 The tier-0 check is implemented once, as Hono middleware applied to
 every route group above except `/auth/*` and `/hook/:id` — not
@@ -218,7 +304,9 @@ repeated per-handler — following the same "one code path" principle
 ## Frontend changes
 
 - A gate component wraps the router (above `AppLayout`, so it applies
-  to all three routes uniformly): calls `GET /auth/me` on mount. While
+  uniformly to every route — including `ProjectDetail`, `SharedProject`,
+  and `SharedProjectListener`, which shipped with the projects feature
+  after this spec was first written): calls `GET /auth/me` on mount. While
   pending, show nothing/a spinner. If unauthenticated, render an
   email-entry form (`POST /auth/request-link`) and, after submission, a
   "check your email" state — no route content renders underneath.
@@ -264,18 +352,28 @@ repeated per-handler — following the same "one code path" principle
   email A is invisible (404) under email B's session, and visible again
   under a *new* session independently re-verified for email A (proving
   cross-device access is genuinely email-keyed, not accidentally still
-  session-keyed); `/hook/:id` remains fully reachable with zero
-  cookies of any kind present; `/shared/:token` requires *a* valid
-  verified session but not a matching owner.
+  session-keyed); `/hook/:id` and `/hook/:projectId/:identifier` both
+  remain fully reachable with zero cookies of any kind present;
+  `/shared/:token` and `/api/shared/projects/:token` each require *a*
+  valid verified session but not a matching owner; **the merge step**
+  — create a listener and a project under an anonymous
+  `wl_session_id`, then verify an email while presenting that cookie,
+  and confirm both rows are now owned by that email with
+  `owner_session` nulled; verify again with the same (now-orphan-free)
+  cookie and confirm it's a no-op (idempotence/single-claim); create a
+  second, unrelated session's listener/project and confirm verifying a
+  *different* session under the same email never touches rows that
+  belong to a session it was never presented with.
 - **Frontend**: no automated tests (established project scope).
   Manual verification: request a link for an allow-listed address,
   click it, confirm landing on the home page signed in; request one
   for a non-allow-listed address, confirm the `400` message; open the
   app in a second browser profile, verify the same email, confirm the
-  same listeners appear; sign out, confirm the gate reappears; open a
-  share link with no session cookie, confirm the gate appears instead
-  of the shared view; open a share link after verifying, confirm it
-  works regardless of whose listener it is.
+  same listeners and projects appear; sign out, confirm the gate
+  reappears; open a share link (listener or project) with no session
+  cookie, confirm the gate appears instead of the shared view; open a
+  share link after verifying, confirm it works regardless of whose
+  listener/project it is.
 
 ## Out of scope
 
@@ -285,9 +383,14 @@ repeated per-handler — following the same "one code path" principle
 - Per-device/per-session revocation — the stateless signing trade-off
   means "log out everywhere" only exists in the form of rotating
   `WL_SESSION_SECRET`.
-- Any migration/claiming path for listeners owned under the old
-  `owner_session` model.
-- Any change to `/hook/:id`'s behavior, contract, or auth status.
+- A cross-device/cross-session claiming fallback beyond the automatic
+  single-browser merge described above. If someone used the app
+  anonymously from more than one browser or device pre-gate, only the
+  one that completes the magic-link verify gets merged; the others
+  stay orphaned permanently, with no manual "claim by session id" UI
+  or admin tool to reconcile them. Confirmed acceptable.
+- Any change to `/hook/:id`'s or `/hook/:projectId/:identifier`'s
+  behavior, contract, or auth status.
 - Any interaction with the in-progress settings/formatter plan
   (`docs/superpowers/plans/2026-09-20-settings-and-formatter.md`) —
   fully orthogonal, no shared files.
