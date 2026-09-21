@@ -107,7 +107,6 @@ export function Home() {
 
   function handleDrop(targetKey: string) {
     if (!dragKey || dragKey === targetKey) return
-    const previousItems = items
     const current = [...items]
     const fromIndex = current.findIndex((item) => itemKey(item) === dragKey)
     const toIndex = current.findIndex((item) => itemKey(item) === targetKey)
@@ -116,27 +115,41 @@ export function Home() {
     current.splice(toIndex, 0, moved)
     setDragKey(null)
 
-    // Optimistically reflect the drop by rebuilding local state from the
-    // reordered items, since `items` itself is derived, not stored directly.
-    // `items`/`current` only ever contain standalone (project-less) listeners
-    // in Custom mode — mergeHomeItemsByCustom filters project-scoped ones out
-    // before merging — so reconstructing `listeners` state purely from
-    // `current` would silently drop every project-scoped listener from state.
-    // Preserve them by concatenating the reordered standalone listeners with
-    // whatever project-scoped listeners already exist in state, unchanged.
     const previousListeners = listeners
-    const reorderedStandalone = current
-      .filter((item): item is { kind: 'listener'; listener: Listener } => item.kind === 'listener')
-      .map((item) => item.listener)
+    const previousProjects = projects
+
+    // Custom mode re-sorts by each item's own sortPosition field on every
+    // render (see mergeHomeItemsByCustom) — it does not trust plain array
+    // order. Reordering `current` alone is therefore invisible: the very
+    // next render re-sorts everything back using each item's still-stale
+    // sortPosition. Stamp every item's sortPosition to its new index in the
+    // combined list — the same index reorderItems below persists server-side
+    // — so the optimistic update actually reflects the drop instead of being
+    // silently re-sorted away.
+    //
+    // `items`/`current` only ever contain standalone (project-less)
+    // listeners in Custom mode — mergeHomeItemsByCustom filters
+    // project-scoped ones out before merging — so reconstructing `listeners`
+    // state purely from `current` would silently drop every project-scoped
+    // listener from state. Preserve them by concatenating the reordered
+    // standalone listeners with whatever project-scoped listeners already
+    // exist in state, unchanged.
     const projectScopedListeners = listeners.filter((l) => l.projectId !== null)
+    const reorderedStandalone: Listener[] = []
+    const reorderedProjects: Project[] = []
+    current.forEach((item, position) => {
+      if (item.kind === 'listener') {
+        reorderedStandalone.push({ ...item.listener, sortPosition: position })
+      } else {
+        reorderedProjects.push({ ...item.project, sortPosition: position })
+      }
+    })
     setListeners([...reorderedStandalone, ...projectScopedListeners])
-    setProjects(
-      current.filter((item): item is { kind: 'project'; project: Project } => item.kind === 'project').map((item) => item.project)
-    )
+    setProjects(reorderedProjects)
 
     reorderItems(current.map(toReorderItem)).catch(() => {
       setListeners(previousListeners)
-      setProjects(previousItems.filter((item): item is { kind: 'project'; project: Project } => item.kind === 'project').map((item) => item.project))
+      setProjects(previousProjects)
       setError('Failed to save the new order.')
     })
   }
