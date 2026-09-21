@@ -409,17 +409,13 @@ export function ProjectDetail() {
                 }}
                 onDragLeave={() => setDropIndicator((current) => (current?.key === listener.id ? null : current))}
                 onDrop={() => handleDrop(listener.id)}
-                className={
-                  dragKey === listener.id
-                    ? 'flex items-center gap-2 rounded-lg border-2 border-dotted border-slate-300 opacity-40 dark:border-slate-600'
-                    : `flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
-                        dropIndicator?.key === listener.id
-                          ? dropIndicator.before
-                            ? 'border-t-indigo-400 dark:border-t-indigo-500'
-                            : 'border-b-indigo-400 dark:border-b-indigo-500'
-                          : ''
-                      }`
-                }
+                className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+                  dropIndicator?.key === listener.id
+                    ? dropIndicator.before
+                      ? 'border-t-indigo-400 dark:border-t-indigo-500'
+                      : 'border-b-indigo-400 dark:border-b-indigo-500'
+                    : ''
+                }`}
               >
                 {sort === 'custom' && (
                   <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
@@ -429,7 +425,11 @@ export function ProjectDetail() {
                 <a
                   href={`/listener/${listener.id}`}
                   draggable={false}
-                  className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  className={
+                    dragKey === listener.id
+                      ? 'block flex-1 rounded-lg border-2 border-dotted border-slate-300 px-3 py-2 text-sm opacity-40 dark:border-slate-600'
+                      : 'block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                  }
                 >
                   <span className="flex items-center gap-2 font-medium">
                     <img src="/favicon.png" alt="" aria-hidden="true" draggable={false} className="h-4 w-4" />

@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react'
 
-const DEFAULT_OPACITY = 0.25
+const DEFAULT_OPACITY = 0.12
 
 // Browsers auto-generate a drag-ghost snapshot of the dragged element at
 // roughly 50% opacity, with no way to tune that directly. To make it more
