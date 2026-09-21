@@ -7,7 +7,6 @@ import {
   getListenerForOwner,
   getListenersForOwner,
   getListenerByProjectAndSlug,
-  type SortMode,
   reorderListeners,
   deleteListener,
   getOrCreateShareToken,
@@ -398,9 +397,6 @@ describe('project-scoped listeners', () => {
     const projectB = await createProject(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-a')
     await createProjectListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-a', projectA.id, 'taken')
 
-    const otherInSameProject = await createListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-a')
-    // Simulate assigning otherInSameProject to projectA would require a project_id — this repo layer
-    // only exposes createProjectListener for that, so instead verify the cross-project case:
     const listenerInProjectB = await createProjectListener(
       env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-a', projectB.id, 'free-slug'
     )
