@@ -223,10 +223,10 @@ export function Listener() {
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
       <Link
-        to="/"
+        to={listener?.projectId ? `/projects/${listener.projectId}` : '/'}
         className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
       >
-        ← Back to listeners
+        ← {listener?.projectId ? 'Back to project' : 'Back to listeners'}
       </Link>
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
