@@ -1,5 +1,6 @@
 export type Theme = 'light' | 'dark'
 export type Width = 'narrow' | 'wide' | 'full'
+export type StripeIntensity = 'subtle' | 'medium' | 'strong'
 
 export interface Settings {
   theme: Theme
@@ -11,6 +12,7 @@ export interface Settings {
   render: boolean
   wrap: boolean
   stripedRows: boolean
+  stripeIntensity: StripeIntensity
 }
 
 export const WIDTH_CLASSES: Record<Width, string> = {
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   render: false,
   wrap: false,
   stripedRows: false,
+  stripeIntensity: 'subtle',
 }
 
 const STORAGE_KEY = 'wl_settings'

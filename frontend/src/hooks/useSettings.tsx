@@ -4,6 +4,7 @@ import {
   loadSettings,
   saveSettings,
   type Settings,
+  type StripeIntensity,
   type Theme,
   type Width,
 } from '../lib/settings'
@@ -18,6 +19,7 @@ interface SettingsContextValue extends Settings {
   setRender: (render: boolean) => void
   setWrap: (wrap: boolean) => void
   setStripedRows: (stripedRows: boolean) => void
+  setStripeIntensity: (stripeIntensity: StripeIntensity) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -41,6 +43,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setRender: (render) => setSettings((s) => ({ ...s, render })),
     setWrap: (wrap) => setSettings((s) => ({ ...s, wrap })),
     setStripedRows: (stripedRows) => setSettings((s) => ({ ...s, stripedRows })),
+    setStripeIntensity: (stripeIntensity) => setSettings((s) => ({ ...s, stripeIntensity })),
   }
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>

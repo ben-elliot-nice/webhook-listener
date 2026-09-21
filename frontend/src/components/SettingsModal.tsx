@@ -1,6 +1,6 @@
 import { useSettings } from '../hooks/useSettings'
 import { HIGHLIGHT_THEME_NAMES } from '../lib/highlightThemes'
-import type { Width } from '../lib/settings'
+import type { StripeIntensity, Width } from '../lib/settings'
 
 interface SettingsModalProps {
   onClose: () => void
@@ -10,6 +10,12 @@ const WIDTH_OPTIONS: { value: Width; label: string }[] = [
   { value: 'narrow', label: 'Narrow' },
   { value: 'wide', label: 'Wide' },
   { value: 'full', label: 'Full' },
+]
+
+const STRIPE_INTENSITY_OPTIONS: { value: StripeIntensity; label: string }[] = [
+  { value: 'subtle', label: 'Subtle' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'strong', label: 'Strong' },
 ]
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
@@ -23,6 +29,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     render,
     wrap,
     stripedRows,
+    stripeIntensity,
     setTheme,
     setWidth,
     setHighlightTheme,
@@ -32,6 +39,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setRender,
     setWrap,
     setStripedRows,
+    setStripeIntensity,
   } = useSettings()
 
   return (
@@ -146,10 +154,30 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <input type="checkbox" checked={wrap} onChange={(e) => setWrap(e.target.checked)} />
           </label>
 
-          <label className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
+          <label className="mb-2 flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
             Alternate row striping
             <input type="checkbox" checked={stripedRows} onChange={(e) => setStripedRows(e.target.checked)} />
           </label>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-700 dark:text-slate-300">Stripe intensity</span>
+            <div className="flex gap-2">
+              {STRIPE_INTENSITY_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  disabled={!stripedRows}
+                  onClick={() => setStripeIntensity(option.value)}
+                  className={`rounded-md px-3 py-1 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                    stripeIntensity === option.value
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
       </div>
     </div>

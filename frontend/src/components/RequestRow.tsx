@@ -51,7 +51,8 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
   const [copied, setCopied] = useState(false)
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
-  const { highlightTheme, indentWidth, compact, lineNumbers, render, wrap, stripedRows } = useSettings()
+  const { highlightTheme, indentWidth, compact, lineNumbers, render, wrap, stripedRows, stripeIntensity } =
+    useSettings()
   const loadedTheme = useHighlightTheme(highlightTheme)
   const panelBackground = loadedTheme ? getThemeBackground(loadedTheme) : 'transparent'
   const treeColors = useMemo(() => extractJsonTreeColors(loadedTheme), [loadedTheme])
@@ -61,6 +62,7 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
     render,
     wrap,
     stripedRows,
+    stripeIntensity,
   }
 
   const detailObject = {

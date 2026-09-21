@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { JsonTreeColors } from '../lib/jsonTreeColors'
+import type { StripeIntensity } from '../lib/settings'
 
 type PathSegment = string | number
 
@@ -9,6 +10,13 @@ export interface JsonTreeOptions {
   render: boolean
   wrap: boolean
   stripedRows: boolean
+  stripeIntensity: StripeIntensity
+}
+
+const STRIPE_CLASSES: Record<StripeIntensity, string> = {
+  subtle: 'bg-black/5 dark:bg-white/5',
+  medium: 'bg-black/10 dark:bg-white/10',
+  strong: 'bg-black/20 dark:bg-white/20',
 }
 
 interface JsonTreeProps {
@@ -95,7 +103,7 @@ function Line({ depth, options, nextLine, arrow, children }: LineProps) {
   const striped = options.stripedRows && lineNumber % 2 === 0
 
   return (
-    <div className={`flex items-start${striped ? ' bg-black/5 dark:bg-white/5' : ''}`}>
+    <div className={`flex items-start${striped ? ` ${STRIPE_CLASSES[options.stripeIntensity]}` : ''}`}>
       <span className="mr-1 inline-block w-4 shrink-0 select-none text-center text-slate-400">{arrow}</span>
       {options.showLineNumbers && (
         <span className="mr-3 min-w-[2.5em] shrink-0 select-none text-right text-slate-400 dark:text-slate-500">
