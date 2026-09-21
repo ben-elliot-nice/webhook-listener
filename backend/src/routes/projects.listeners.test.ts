@@ -56,6 +56,36 @@ describe('manual listener creation inside a project', () => {
       env
     )
     expect(hookResponse.status).toBe(200)
+
+    const row = await env.DB.prepare('SELECT webhook_token FROM listeners WHERE id = ?')
+      .bind(body.id)
+      .first<{ webhook_token: string | null }>()
+    expect(row?.webhook_token).toBeNull()
+  })
+
+  it('a forced race between two near-simultaneous creates resolves to exactly one listener and a 409 for the loser', async () => {
+    const slug = 'race-condition-create'
+    const fire = () =>
+      app.request(
+        `/api/projects/${projectId}/listeners`,
+        {
+          method: 'POST',
+          headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+          body: JSON.stringify({ slug }),
+        },
+        env
+      )
+
+    const [first, second] = await Promise.all([fire(), fire()])
+    const statuses = [first.status, second.status].sort()
+    expect(statuses).toEqual([201, 409])
+
+    const rows = await env.DB.prepare(
+      'SELECT id FROM listeners WHERE project_id = ? AND slug = ?'
+    )
+      .bind(projectId, slug)
+      .all()
+    expect(rows.results.length).toBe(1)
   })
 
   it('appears via a subsequent create-and-send hit, unchanged from auto-create behavior', async () => {
