@@ -31,4 +31,29 @@ describe('project-scoped listener serialization', () => {
     expect(listener.hookUrl).toBe(`${env.HOOK_BASE_URL}/hook/${listener.id}`)
     void sessionId
   })
+
+  it('serialized listener includes projectId (null for standalone, set for project-scoped)', async () => {
+    const standalone = await app.request('/api/listeners', { method: 'POST' }, env)
+    const standaloneBody = (await standalone.json()) as { projectId: string | null }
+    expect(standaloneBody.projectId).toBeNull()
+
+    const projectResponse = await app.request('/api/projects', { method: 'POST' }, env)
+    const sessionId = projectResponse.headers.get('set-cookie')?.match(/wl_session_id=([^;]+)/)?.[1]
+    const projectId = ((await projectResponse.json()) as { id: string }).id
+
+    await app.request(
+      `/hook/${projectId}/checkout-uat-2`,
+      { method: 'POST', headers: { cookie: `wl_session_id=${sessionId}` } },
+      env
+    )
+
+    const listResponse = await app.request(
+      '/api/listeners',
+      { headers: { cookie: `wl_session_id=${sessionId}` } },
+      env
+    )
+    const listeners = (await listResponse.json()) as { slug: string | null; projectId: string | null }[]
+    const projectListener = listeners.find((l) => l.slug === 'checkout-uat-2')
+    expect(projectListener?.projectId).toBe(projectId)
+  })
 })

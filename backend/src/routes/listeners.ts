@@ -39,6 +39,8 @@ function serializeListener(env: Env, listener: ListenerRecord) {
     shareUrl: shareUrlFor(env.APP_BASE_URL, listener.shareToken),
     slug: listener.slug,
     label: listener.label,
+    projectId: listener.projectId,
+    sortPosition: listener.sortPosition,
   }
 }
 

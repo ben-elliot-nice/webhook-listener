@@ -38,4 +38,16 @@ describe('projects routes', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
   })
+
+  it('serialized project includes hookUrlTemplate and sortPosition', async () => {
+    const response = await app.request('/api/projects', { method: 'POST' }, env)
+    const body = (await response.json()) as { id: string; hookUrlTemplate: string; sortPosition: number | null }
+    expect(body.hookUrlTemplate).toBe(`${env.HOOK_BASE_URL}/hook/${body.id}/<identifier>`)
+    expect(body.sortPosition).toBeNull()
+
+    const sessionId = extractSessionId(response)
+    const list = await app.request('/api/projects', { headers: cookieHeader({ wl_session_id: sessionId }) }, env)
+    const listBody = (await list.json()) as { id: string; hookUrlTemplate: string }[]
+    expect(listBody[0].hookUrlTemplate).toBe(`${env.HOOK_BASE_URL}/hook/${listBody[0].id}/<identifier>`)
+  })
 })
