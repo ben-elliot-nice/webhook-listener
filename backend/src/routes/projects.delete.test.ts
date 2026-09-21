@@ -1,28 +1,31 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('project delete', () => {
   let projectId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/projects', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/projects',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('deletes a project with no listeners', async () => {
     const response = await app.request(
       `/api/projects/${projectId}`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(204)
 
-    const list = await app.request('/api/projects', { headers: cookieHeader({ wl_session_id: sessionId }) }, env)
+    const list = await app.request('/api/projects', { headers: await authCookieHeader(env, ownerEmail) }, env)
     const body = (await list.json()) as { id: string }[]
     expect(body.find((p) => p.id === projectId)).toBeUndefined()
   })
@@ -30,7 +33,7 @@ describe('project delete', () => {
   it('cascades to child listeners and their requests', async () => {
     const hookResponse = await app.request(
       `/hook/${projectId}/uat-case-1`,
-      { method: 'POST', headers: { cookie: `wl_session_id=${sessionId}`, 'content-type': 'application/json' }, body: '{}' },
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
       env
     )
     expect(hookResponse.status).toBe(201)
@@ -43,7 +46,7 @@ describe('project delete', () => {
 
     const response = await app.request(
       `/api/projects/${projectId}`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(204)
@@ -57,25 +60,24 @@ describe('project delete', () => {
   it('returns 404 for an unknown project', async () => {
     const response = await app.request(
       '/api/projects/does-not-exist',
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(404)
   })
 
-  it('returns 404 for a different session, and leaves the project intact', async () => {
-    const other = await app.request('/api/projects', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+  it('returns 404 for a different owner, and leaves the project intact', async () => {
+    const otherEmail = 'other@nice.com'
     const response = await app.request(
       `/api/projects/${projectId}`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)
 
     const stillThere = await app.request(
       `/api/projects`,
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const body = (await stillThere.json()) as { id: string }[]

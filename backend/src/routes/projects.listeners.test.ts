@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('manual listener creation inside a project', () => {
   let projectId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/projects', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/projects',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('creates a listener with the given identifier', async () => {
@@ -19,7 +22,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'checkout-uat' }),
       },
       env
@@ -36,7 +39,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'checkout-uat-2' }),
       },
       env
@@ -44,7 +47,7 @@ describe('manual listener creation inside a project', () => {
     const body = (await response.json()) as { id: string }
     const listResponse = await app.request(
       '/api/listeners',
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const listeners = (await listResponse.json()) as { id: string; slug: string | null }[]
@@ -65,12 +68,13 @@ describe('manual listener creation inside a project', () => {
 
   it('a forced race between two near-simultaneous creates resolves to exactly one listener and a 409 for the loser', async () => {
     const slug = 'race-condition-create'
+    const requestHeaders = { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' }
     const fire = () =>
       app.request(
         `/api/projects/${projectId}/listeners`,
         {
           method: 'POST',
-          headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+          headers: requestHeaders,
           body: JSON.stringify({ slug }),
         },
         env
@@ -93,7 +97,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'checkout-uat-3' }),
       },
       env
@@ -111,7 +115,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'dup-case' }),
       },
       env
@@ -120,7 +124,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'dup-case' }),
       },
       env
@@ -133,7 +137,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'ab' }),
       },
       env
@@ -141,14 +145,13 @@ describe('manual listener creation inside a project', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 404 for a project owned by a different session', async () => {
-    const other = await app.request('/api/projects', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+  it('returns 404 for a project owned by a different owner', async () => {
+    const otherEmail = 'other@nice.com'
     const response = await app.request(
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'checkout-uat-4' }),
       },
       env
@@ -161,14 +164,14 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'shared-name' }),
       },
       env
     )
     const secondProject = await app.request(
       '/api/projects',
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const secondProjectId = ((await secondProject.json()) as { id: string }).id
@@ -176,7 +179,7 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${secondProjectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'shared-name' }),
       },
       env

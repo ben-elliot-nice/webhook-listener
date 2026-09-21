@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('listener label management', () => {
   let listenerId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/listeners', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('sets a label', async () => {
@@ -19,7 +22,7 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: '  Stripe prod  ' }),
       },
       env
@@ -29,7 +32,7 @@ describe('listener label management', () => {
 
     const getResponse = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await getResponse.json() as { label: string }).label).toBe('Stripe prod')
@@ -40,7 +43,7 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'Something' }),
       },
       env
@@ -49,7 +52,7 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: '' }),
       },
       env
@@ -62,7 +65,7 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'x'.repeat(101) }),
       },
       env
@@ -70,14 +73,13 @@ describe('listener label management', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 404 for a different session', async () => {
-    const other = await app.request('/api/listeners', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+  it('returns 404 for a different owner', async () => {
+    const otherEmail = 'other@nice.com'
     const response = await app.request(
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'nope' }),
       },
       env

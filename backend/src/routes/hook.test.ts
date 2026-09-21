@@ -3,12 +3,13 @@ import { env } from 'cloudflare:test'
 import { app } from '../app'
 import { createListener, setListenerSlug } from '../listeners.repo'
 import { getRequests } from '../requests.repo'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('hook capture route', () => {
   const listenerId = 'hook-test-listener'
 
   beforeEach(async () => {
-    await createListener(env.DB, listenerId, '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, listenerId, '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
   })
 
   it('captures a POST payload and returns 200', async () => {
@@ -77,9 +78,13 @@ describe('hook capture route', () => {
 
   it('a project-scoped listener whose slug collides with another listener\'s UUID does not shadow that listener\'s /hook/:id capture', async () => {
     const victimId = crypto.randomUUID()
-    await createListener(env.DB, victimId, '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, victimId, '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
 
-    const projectResponse = await app.request('/api/projects', { method: 'POST' }, env)
+    const projectResponse = await app.request(
+      '/api/projects',
+      { method: 'POST', headers: await authCookieHeader(env, 'owner-a@nice.com') },
+      env
+    )
     const projectId = ((await projectResponse.json()) as { id: string }).id
 
     // Attacker creates a project-scoped listener whose identifier equals the victim's UUID.
@@ -96,7 +101,7 @@ describe('hook capture route', () => {
 
 describe('hook capture route — slug + token', () => {
   it('captures via the slug URL when the correct token is provided', async () => {
-    await createListener(env.DB, 'hook-slug-listener-1', '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, 'hook-slug-listener-1', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
     const { slug, webhookToken } = await setListenerSlug(env.DB, 'hook-slug-listener-1', 'slug-hook-1')
 
     const response = await app.request(
@@ -115,7 +120,7 @@ describe('hook capture route — slug + token', () => {
   })
 
   it('returns 404 for the slug URL with a missing token', async () => {
-    await createListener(env.DB, 'hook-slug-listener-2', '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, 'hook-slug-listener-2', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
     const { slug } = await setListenerSlug(env.DB, 'hook-slug-listener-2', 'slug-hook-2')
 
     const response = await app.request(`/hook/${slug}`, { method: 'POST' }, env)
@@ -124,7 +129,7 @@ describe('hook capture route — slug + token', () => {
   })
 
   it('returns 404 for the slug URL with a wrong token', async () => {
-    await createListener(env.DB, 'hook-slug-listener-3', '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, 'hook-slug-listener-3', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
     const { slug } = await setListenerSlug(env.DB, 'hook-slug-listener-3', 'slug-hook-3')
 
     const response = await app.request(
@@ -136,7 +141,7 @@ describe('hook capture route — slug + token', () => {
   })
 
   it('returns 404 for the UUID hook URL once a slug has been set', async () => {
-    await createListener(env.DB, 'hook-slug-listener-4', '2024-01-01T00:00:00.000Z', 'session-a')
+    await createListener(env.DB, 'hook-slug-listener-4', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
     await setListenerSlug(env.DB, 'hook-slug-listener-4', 'slug-hook-4')
 
     const response = await app.request(`/hook/hook-slug-listener-4`, { method: 'POST' }, env)

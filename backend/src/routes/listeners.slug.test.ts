@@ -1,17 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('listener slug management', () => {
   let listenerId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
+  const otherEmail = 'other@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/listeners', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('sets a slug and returns the normalized value with a token', async () => {
@@ -19,7 +23,7 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'Stripe_Prod' }),
       },
       env
@@ -36,14 +40,14 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'my-slug' }),
       },
       env
     )
     const response = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const body = (await response.json()) as Record<string, unknown>
@@ -53,13 +57,16 @@ describe('listener slug management', () => {
   })
 
   it('returns 409 when the slug is already taken', async () => {
-    const other = await app.request('/api/listeners', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+    const other = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
+      env
+    )
     await app.request(
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'taken' }),
       },
       env
@@ -69,7 +76,7 @@ describe('listener slug management', () => {
       `/api/listeners/${otherBody.id}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'taken' }),
       },
       env
@@ -82,7 +89,7 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'ab' }),
       },
       env
@@ -90,14 +97,12 @@ describe('listener slug management', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 404 for a different session', async () => {
-    const other = await app.request('/api/listeners', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+  it('returns 404 for a different owner', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'stolen' }),
       },
       env
@@ -110,7 +115,7 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'rotate-target' }),
       },
       env
@@ -119,7 +124,7 @@ describe('listener slug management', () => {
 
     const rotateResponse = await app.request(
       `/api/listeners/${listenerId}/slug/rotate-token`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(rotateResponse.status).toBe(200)
@@ -137,7 +142,7 @@ describe('listener slug management', () => {
   it('returns 400 rotating a token on a listener with no slug', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/slug/rotate-token`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(400)
@@ -148,14 +153,14 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: 'remove-target' }),
       },
       env
     )
     const removeResponse = await app.request(
       `/api/listeners/${listenerId}/slug`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(removeResponse.status).toBe(204)
@@ -165,11 +170,14 @@ describe('listener slug management', () => {
   })
 
   it('rejects setting a slug to another listener\'s UUID, and leaves that listener\'s hook URL working', async () => {
-    // listenerId/sessionId is listener A, with no slug set (so its hook URL is its bare UUID).
+    // listenerId/ownerEmail is listener A, with no slug set (so its hook URL is its bare UUID).
     const listenerA = listenerId
 
-    const other = await app.request('/api/listeners', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+    const other = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
+      env
+    )
     const listenerB = ((await other.json()) as { id: string }).id
 
     // Listener B's owner attempts to set B's slug to A's raw UUID.
@@ -177,7 +185,7 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerB}/slug`,
       {
         method: 'PUT',
-        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ slug: listenerA }),
       },
       env

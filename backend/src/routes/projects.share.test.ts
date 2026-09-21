@@ -1,23 +1,26 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('project share management', () => {
   let projectId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/projects', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/projects',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('has no share link by default', async () => {
     const response = await app.request(
       '/api/projects',
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const body = (await response.json()) as { id: string; shareUrl: string | null }[]
@@ -27,7 +30,7 @@ describe('project share management', () => {
   it('creates a share link at /shared/projects/:token', async () => {
     const response = await app.request(
       `/api/projects/${projectId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(200)
@@ -39,12 +42,12 @@ describe('project share management', () => {
   it('is idempotent — repeat calls return the same token', async () => {
     const first = await app.request(
       `/api/projects/${projectId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const second = await app.request(
       `/api/projects/${projectId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await second.json() as { shareToken: string }).shareToken).toBe(
@@ -55,19 +58,19 @@ describe('project share management', () => {
   it('revokes a share link', async () => {
     await app.request(
       `/api/projects/${projectId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const revokeResponse = await app.request(
       `/api/projects/${projectId}/share`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(revokeResponse.status).toBe(204)
 
     const list = await app.request(
       '/api/projects',
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const body = (await list.json()) as { id: string; shareUrl: string | null }[]
@@ -77,25 +80,24 @@ describe('project share management', () => {
   it('returns 404 for an unknown project on both endpoints', async () => {
     const shareResponse = await app.request(
       '/api/projects/does-not-exist/share',
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(shareResponse.status).toBe(404)
 
     const revokeResponse = await app.request(
       '/api/projects/does-not-exist/share',
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(revokeResponse.status).toBe(404)
   })
 
-  it('returns 404 for a different session', async () => {
-    const other = await app.request('/api/projects', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+  it('returns 404 for a different owner', async () => {
+    const otherEmail = 'other@nice.com'
     const response = await app.request(
       `/api/projects/${projectId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)

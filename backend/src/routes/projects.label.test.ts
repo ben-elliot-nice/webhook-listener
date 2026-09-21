@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('project label management', () => {
   let projectId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/projects', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/projects',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('sets a label', async () => {
@@ -19,7 +22,7 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: '  UAT batch  ' }),
       },
       env
@@ -33,7 +36,7 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'Something' }),
       },
       env
@@ -42,7 +45,7 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: '' }),
       },
       env
@@ -55,7 +58,7 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'x'.repeat(101) }),
       },
       env
@@ -63,14 +66,13 @@ describe('project label management', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 404 for a different session', async () => {
-    const other = await app.request('/api/projects', { method: 'POST' }, env)
-    const otherSessionId = extractSessionId(other)
+  it('returns 404 for a different owner', async () => {
+    const otherEmail = 'other@nice.com'
     const response = await app.request(
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: otherSessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'nope' }),
       },
       env
@@ -83,12 +85,12 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ label: 'UAT batch' }),
       },
       env
     )
-    const list = await app.request('/api/projects', { headers: cookieHeader({ wl_session_id: sessionId }) }, env)
+    const list = await app.request('/api/projects', { headers: await authCookieHeader(env, ownerEmail) }, env)
     const body = (await list.json()) as { id: string; label: string | null }[]
     expect(body.find((p) => p.id === projectId)?.label).toBe('UAT batch')
   })

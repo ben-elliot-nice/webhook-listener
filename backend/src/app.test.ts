@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from './app'
+import { authCookieHeader } from './test-helpers/auth'
 
 // Registered at module load time, before any `app.request(...)` call builds
 // Hono's router matcher (adding routes afterwards throws).
@@ -10,7 +11,11 @@ app.get('/api/__boom', () => {
 
 describe('app', () => {
   it('responds (even with a 404) to prove the Hono app boots', async () => {
-    const response = await app.request('/does-not-exist', {}, env)
+    const response = await app.request(
+      '/does-not-exist',
+      { headers: await authCookieHeader(env, 'owner@nice.com') },
+      env
+    )
     expect(response.status).toBe(404)
   })
 })
@@ -19,7 +24,7 @@ describe('error handling preserves CORS headers', () => {
   it('returns 500 with CORS headers intact when a route handler throws', async () => {
     const response = await app.request(
       '/api/__boom',
-      { headers: { Origin: env.APP_BASE_URL } },
+      { headers: { Origin: env.APP_BASE_URL, ...(await authCookieHeader(env, 'owner@nice.com')) } },
       env
     )
 
