@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { JsonTreeColors } from '../lib/jsonTreeColors'
 
 type PathSegment = string | number
@@ -7,6 +8,8 @@ interface JsonTreeProps {
   colors: JsonTreeColors
   collapsedPaths: Set<string>
   onToggle: (pathKey: string) => void
+  indentWidth: number
+  showLineNumbers: boolean
 }
 
 export function pathKeyOf(path: PathSegment[]): string {
@@ -47,16 +50,6 @@ function Primitive({ value, colors }: { value: unknown; colors: JsonTreeColors }
   return <span style={{ color: colors.text }}>{String(value)}</span>
 }
 
-interface NodeProps {
-  path: PathSegment[]
-  keyLabel?: string
-  value: unknown
-  colors: JsonTreeColors
-  collapsedPaths: Set<string>
-  onToggle: (pathKey: string) => void
-  isLast: boolean
-}
-
 function KeyPrefix({ keyLabel, colors }: { keyLabel?: string; colors: JsonTreeColors }) {
   if (keyLabel === undefined) return null
   return (
@@ -67,16 +60,71 @@ function KeyPrefix({ keyLabel, colors }: { keyLabel?: string; colors: JsonTreeCo
   )
 }
 
-function JsonNode({ path, keyLabel, value, colors, collapsedPaths, onToggle, isLast }: NodeProps) {
+interface LineProps {
+  depth: number
+  indentWidth: number
+  showLineNumbers: boolean
+  nextLine: () => number
+  children: ReactNode
+}
+
+/**
+ * Calls nextLine() from its own render body rather than taking a
+ * precomputed number — as a lazily-rendered element, React only invokes
+ * this at the point it walks to it in the tree, which keeps numbering in
+ * true document order even though the tree is built by recursion.
+ */
+function Line({ depth, indentWidth, showLineNumbers, nextLine, children }: LineProps) {
+  const lineNumber = nextLine()
+  return (
+    <div className="flex">
+      {showLineNumbers && (
+        <span className="mr-3 min-w-[2.5em] shrink-0 select-none text-right text-slate-400 dark:text-slate-500">
+          {lineNumber}
+        </span>
+      )}
+      <span style={{ paddingLeft: `${depth * indentWidth}ch`, whiteSpace: 'pre' }}>{children}</span>
+    </div>
+  )
+}
+
+interface NodeProps {
+  path: PathSegment[]
+  keyLabel?: string
+  value: unknown
+  colors: JsonTreeColors
+  collapsedPaths: Set<string>
+  onToggle: (pathKey: string) => void
+  isLast: boolean
+  depth: number
+  indentWidth: number
+  showLineNumbers: boolean
+  nextLine: () => number
+}
+
+function JsonNode({
+  path,
+  keyLabel,
+  value,
+  colors,
+  collapsedPaths,
+  onToggle,
+  isLast,
+  depth,
+  indentWidth,
+  showLineNumbers,
+  nextLine,
+}: NodeProps) {
   const key = pathKeyOf(path)
+  const lineProps = { depth, indentWidth, showLineNumbers, nextLine }
 
   if (!isContainer(value)) {
     return (
-      <div>
+      <Line {...lineProps}>
         <KeyPrefix keyLabel={keyLabel} colors={colors} />
         <Primitive value={value} colors={colors} />
         {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
-      </div>
+      </Line>
     )
   }
 
@@ -86,67 +134,88 @@ function JsonNode({ path, keyLabel, value, colors, collapsedPaths, onToggle, isL
 
   if (entries.length === 0) {
     return (
-      <div>
+      <Line {...lineProps}>
         <KeyPrefix keyLabel={keyLabel} colors={colors} />
         <span style={{ color: colors.punctuation }}>
           {openBracket}
           {closeBracket}
         </span>
         {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
-      </div>
+      </Line>
     )
   }
 
   const collapsed = collapsedPaths.has(key)
 
-  return (
-    <div>
-      <div>
+  if (collapsed) {
+    return (
+      <Line {...lineProps}>
         <button
           type="button"
           onClick={() => onToggle(key)}
           className="mr-1 select-none text-slate-400 hover:text-slate-200"
-          aria-label={collapsed ? 'Expand' : 'Collapse'}
+          aria-label="Expand"
         >
-          {collapsed ? '▸' : '▾'}
+          ▸
         </button>
         <KeyPrefix keyLabel={keyLabel} colors={colors} />
         <span style={{ color: colors.punctuation }}>{openBracket}</span>
-        {collapsed && (
-          <>
-            <span className="text-slate-400"> {containerSummary(value)} </span>
-            <span style={{ color: colors.punctuation }}>{closeBracket}</span>
-            {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
-          </>
-        )}
-      </div>
-      {!collapsed && (
-        <>
-          <div className="pl-4">
-            {entries.map(([entryKey, entryValue], i) => (
-              <JsonNode
-                key={String(entryKey)}
-                path={[...path, entryKey]}
-                keyLabel={Array.isArray(value) ? undefined : String(entryKey)}
-                value={entryValue}
-                colors={colors}
-                collapsedPaths={collapsedPaths}
-                onToggle={onToggle}
-                isLast={i === entries.length - 1}
-              />
-            ))}
-          </div>
-          <div>
-            <span style={{ color: colors.punctuation }}>{closeBracket}</span>
-            {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
-          </div>
-        </>
-      )}
-    </div>
+        <span className="text-slate-400"> {containerSummary(value)} </span>
+        <span style={{ color: colors.punctuation }}>{closeBracket}</span>
+        {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
+      </Line>
+    )
+  }
+
+  return (
+    <>
+      <Line {...lineProps}>
+        <button
+          type="button"
+          onClick={() => onToggle(key)}
+          className="mr-1 select-none text-slate-400 hover:text-slate-200"
+          aria-label="Collapse"
+        >
+          ▾
+        </button>
+        <KeyPrefix keyLabel={keyLabel} colors={colors} />
+        <span style={{ color: colors.punctuation }}>{openBracket}</span>
+      </Line>
+      {entries.map(([entryKey, entryValue], i) => (
+        <JsonNode
+          key={String(entryKey)}
+          path={[...path, entryKey]}
+          keyLabel={Array.isArray(value) ? undefined : String(entryKey)}
+          value={entryValue}
+          colors={colors}
+          collapsedPaths={collapsedPaths}
+          onToggle={onToggle}
+          isLast={i === entries.length - 1}
+          depth={depth + 1}
+          indentWidth={indentWidth}
+          showLineNumbers={showLineNumbers}
+          nextLine={nextLine}
+        />
+      ))}
+      <Line {...lineProps}>
+        <span style={{ color: colors.punctuation }}>{closeBracket}</span>
+        {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
+      </Line>
+    </>
   )
 }
 
-export function JsonTree({ value, colors, collapsedPaths, onToggle }: JsonTreeProps) {
+export function JsonTree({
+  value,
+  colors,
+  collapsedPaths,
+  onToggle,
+  indentWidth,
+  showLineNumbers,
+}: JsonTreeProps) {
+  let counter = 0
+  const nextLine = () => ++counter
+
   return (
     <div className="font-mono text-sm">
       <JsonNode
@@ -156,6 +225,10 @@ export function JsonTree({ value, colors, collapsedPaths, onToggle }: JsonTreePr
         collapsedPaths={collapsedPaths}
         onToggle={onToggle}
         isLast
+        depth={0}
+        indentWidth={indentWidth}
+        showLineNumbers={showLineNumbers}
+        nextLine={nextLine}
       />
     </div>
   )

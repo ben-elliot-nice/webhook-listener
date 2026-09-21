@@ -173,6 +173,8 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
                   colors={treeColors}
                   collapsedPaths={collapsedPaths}
                   onToggle={toggleNode}
+                  indentWidth={indentWidth}
+                  showLineNumbers={lineNumbers}
                 />
               </div>
             )
