@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { listListeners, listProjects, type Listener, type Project } from '../api'
+import { useNavigate, useParams } from 'react-router-dom'
+import { deleteProject, listListeners, listProjects, setProjectLabel, type Listener, type Project } from '../api'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
   const [project, setProject] = useState<Project | null>(null)
   const [children, setChildren] = useState<Listener[]>([])
   const [notFound, setNotFound] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [labelDraft, setLabelDraft] = useState('')
+  const [editingLabel, setEditingLabel] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -60,6 +64,28 @@ export function ProjectDetail() {
     }
   }
 
+  async function handleSaveLabel() {
+    if (!projectId) return
+    try {
+      await setProjectLabel(projectId, labelDraft)
+      setEditingLabel(false)
+      await refresh()
+    } catch {
+      setError('Failed to save label.')
+    }
+  }
+
+  async function handleDelete() {
+    if (!projectId) return
+    if (!window.confirm('Delete this project and all its listeners and history?')) return
+    try {
+      await deleteProject(projectId)
+      navigate('/')
+    } catch {
+      setError('Failed to delete project.')
+    }
+  }
+
   if (notFound) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
@@ -86,16 +112,61 @@ export function ProjectDetail() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
-        <a href="/" className="mb-4 inline-block text-sm text-indigo-600 hover:underline dark:text-indigo-400">
-          ← Back to listeners
-        </a>
-        <h1 className="flex items-center justify-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-          <span aria-hidden="true">📁</span>
-          <span className="truncate">{project.id}</span>
-        </h1>
+        <div className="flex items-center justify-between">
+          <a href="/" className="mb-4 inline-block text-sm text-indigo-600 hover:underline dark:text-indigo-400">
+            ← Back to listeners
+          </a>
+          <button
+            onClick={handleDelete}
+            className="mb-4 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
+          >
+            Delete project
+          </button>
+        </div>
+        {editingLabel ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleSaveLabel()
+            }}
+            className="flex items-center justify-center gap-2"
+          >
+            <input
+              autoFocus
+              value={labelDraft}
+              onChange={(e) => setLabelDraft(e.target.value)}
+              maxLength={100}
+              placeholder="Project"
+              className="rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700"
+            />
+            <button type="submit" className="text-xs font-medium text-indigo-600">
+              Save
+            </button>
+            <button type="button" onClick={() => setEditingLabel(false)} className="text-xs text-slate-500 dark:text-slate-400">
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <button
+            onClick={() => {
+              setLabelDraft(project.label ?? '')
+              setEditingLabel(true)
+            }}
+            className="flex items-center justify-center gap-2 text-2xl font-semibold text-slate-900 hover:underline dark:text-slate-100"
+            title="Click to rename"
+          >
+            <span aria-hidden="true">📁</span>
+            <span className="truncate">{project.label || project.id}</span>
+          </button>
+        )}
         <p className="mt-1 text-xs text-slate-400 dark:text-slate-400">
           Created {new Date(project.createdAt).toLocaleString()}
         </p>
+        {error && (
+          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+            {error}
+          </p>
+        )}
 
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
           <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.hookUrlTemplate}</code>
