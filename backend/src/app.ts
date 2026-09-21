@@ -5,6 +5,7 @@ import type { Env } from './env'
 import { hookRoute } from './routes/hook'
 import { listenerRoutes } from './routes/listeners'
 import { sharedRoutes } from './routes/shared'
+import { projectRoutes } from './routes/projects'
 
 export type Variables = { sessionId: string }
 
@@ -51,6 +52,7 @@ app.use('*', async (c, next) => {
 app.route('/', hookRoute)
 app.route('/', listenerRoutes)
 app.route('/', sharedRoutes)
+app.route('/', projectRoutes)
 
 app.onError((err, c) => {
   console.error('Unhandled error:', err)
