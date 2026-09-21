@@ -175,4 +175,3 @@ patterns):
   already uses.
 - A per-listener `webhook_token` for project-scoped listeners — the
   project id itself is the only gate this round.
-</content>
