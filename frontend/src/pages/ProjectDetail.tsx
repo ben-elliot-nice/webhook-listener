@@ -7,14 +7,33 @@ import {
   getOrCreateProjectShareLink,
   listListeners,
   listProjects,
+  reorderItems,
   revokeProjectShareLink,
   setProjectLabel,
   type Listener,
   type Project,
+  type ReorderItem,
+  type SortMode,
 } from '../api'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: 'date', label: 'Date' },
+  { value: 'name', label: 'Name' },
+  { value: 'activity', label: 'Recent activity' },
+  { value: 'custom', label: 'Custom' },
+]
+
+function sortStorageKey(projectId: string): string {
+  return `wl_project_sort_${projectId}`
+}
+
+function loadStoredSort(projectId: string): SortMode {
+  const stored = localStorage.getItem(sortStorageKey(projectId))
+  return SORT_OPTIONS.some((option) => option.value === stored) ? (stored as SortMode) : 'date'
+}
 
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -28,11 +47,17 @@ export function ProjectDetail() {
   const [labelDraft, setLabelDraft] = useState('')
   const [editingLabel, setEditingLabel] = useState(false)
   const [createDraft, setCreateDraft] = useState('')
+  const [sort, setSort] = useState<SortMode>('date')
+  const [dragKey, setDragKey] = useState<string | null>(null)
   const consecutiveNotFoundRef = useRef(0)
+
+  useEffect(() => {
+    if (projectId) setSort(loadStoredSort(projectId))
+  }, [projectId])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!projectId) return false
-    const [projects, listeners] = await Promise.all([listProjects(), listListeners()])
+    const [projects, listeners] = await Promise.all([listProjects(), listListeners(sort)])
     const found = projects.find((p) => p.id === projectId)
     if (!found) {
       consecutiveNotFoundRef.current += 1
@@ -46,7 +71,7 @@ export function ProjectDetail() {
     setProject(found)
     setChildren(listeners.filter((l) => l.projectId === projectId))
     return true
-  }, [projectId])
+  }, [projectId, sort])
 
   useEffect(() => {
     let cancelled = false
@@ -137,6 +162,31 @@ export function ProjectDetail() {
         setError('Failed to create listener.')
       }
     }
+  }
+
+  function handleSortChange(next: SortMode) {
+    if (!projectId) return
+    setSort(next)
+    localStorage.setItem(sortStorageKey(projectId), next)
+  }
+
+  function handleDrop(targetId: string) {
+    if (!dragKey || dragKey === targetId) return
+    const previousChildren = children
+    const current = [...children]
+    const fromIndex = current.findIndex((l) => l.id === dragKey)
+    const toIndex = current.findIndex((l) => l.id === targetId)
+    if (fromIndex === -1 || toIndex === -1) return
+    const [moved] = current.splice(fromIndex, 1)
+    current.splice(toIndex, 0, moved)
+    setDragKey(null)
+    setChildren(current)
+
+    const orderedItems: ReorderItem[] = current.map((l) => ({ type: 'listener', id: l.id }))
+    reorderItems(orderedItems).catch(() => {
+      setChildren(previousChildren)
+      setError('Failed to save the new order.')
+    })
   }
 
   async function handleDelete() {
@@ -288,20 +338,52 @@ export function ProjectDetail() {
           </button>
         </form>
 
+        {children.length > 0 && (
+          <div className="mb-2 mt-6 flex items-center justify-center gap-1" role="group" aria-label="Sort listeners">
+            {SORT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSortChange(option.value)}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                  sort === option.value
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
         {children.length === 0 ? (
           <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
             No requests yet — point your test script at the URL above (with a real identifier in place of{' '}
             <code>&lt;identifier&gt;</code>) to get started.
           </p>
         ) : (
-          <ul className="mb-2 mt-6 space-y-2 text-left">
+          <ul className="mb-2 mt-2 space-y-2 text-left">
             {children.map((listener) => {
               const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
               return (
-                <li key={listener.id}>
+                <li
+                  key={listener.id}
+                  draggable={sort === 'custom'}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', listener.id)
+                    setDragKey(listener.id)
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleDrop(listener.id)}
+                  className="flex items-center gap-2"
+                >
+                  {sort === 'custom' && (
+                    <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
+                      ⠿
+                    </span>
+                  )}
                   <a
                     href={`/listener/${listener.id}`}
-                    className="block rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
                     <span className="flex items-center gap-2 font-medium">
                       <img src="/favicon.png" alt="" aria-hidden="true" className="h-4 w-4" />
