@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  ApiError,
+  createProjectListener,
   deleteProject,
   getOrCreateProjectShareLink,
   listListeners,
@@ -25,6 +27,7 @@ export function ProjectDetail() {
   const [error, setError] = useState<string | null>(null)
   const [labelDraft, setLabelDraft] = useState('')
   const [editingLabel, setEditingLabel] = useState(false)
+  const [createDraft, setCreateDraft] = useState('')
   const consecutiveNotFoundRef = useRef(0)
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -114,6 +117,25 @@ export function ProjectDetail() {
       setTimeout(() => setShareCopied(false), 1500)
     } catch {
       setError('Failed to copy to clipboard.')
+    }
+  }
+
+  async function handleCreateChild(e: FormEvent) {
+    e.preventDefault()
+    if (!projectId) return
+    try {
+      const listener = await createProjectListener(projectId, createDraft)
+      setCreateDraft('')
+      setError(null)
+      navigate(`/listener/${listener.id}`)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setError("That identifier's already in use in this project.")
+      } else if (err instanceof ApiError && err.status === 400) {
+        setError('Identifier must be 3-63 characters after removing invalid characters.')
+      } else {
+        setError('Failed to create listener.')
+      }
     }
   }
 
@@ -250,6 +272,21 @@ export function ProjectDetail() {
             )}
           </div>
         </div>
+
+        <form onSubmit={handleCreateChild} className="mt-4 flex items-center gap-2">
+          <input
+            value={createDraft}
+            onChange={(e) => setCreateDraft(e.target.value)}
+            placeholder="uat-case-42"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+          />
+          <button
+            type="submit"
+            className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            Create listener
+          </button>
+        </form>
 
         {children.length === 0 ? (
           <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
