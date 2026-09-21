@@ -190,7 +190,7 @@ export function Home() {
                       >
                         <span className="flex items-center gap-2 font-medium">
                           <span aria-hidden="true">📁</span>
-                          {project.id}
+                          {project.label || project.id}
                         </span>
                         <span className="block text-xs text-slate-400 dark:text-slate-400">
                           {new Date(project.createdAt).toLocaleString()}
