@@ -18,6 +18,8 @@ import {
   mergeHomeItemsByName,
   type HomeItem,
 } from '../lib/mergeHomeItems'
+import { useSettings } from '../hooks/useSettings'
+import { WIDTH_CLASSES } from '../lib/settings'
 
 const SORT_STORAGE_KEY = 'wl_home_sort'
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -52,6 +54,7 @@ function toReorderItem(item: HomeItem): ReorderItem {
 
 export function Home() {
   const navigate = useNavigate()
+  const { width } = useSettings()
   const [error, setError] = useState<string | null>(null)
   const [creatingListener, setCreatingListener] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
@@ -139,70 +142,54 @@ export function Home() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Webhook Listener</h1>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Create a unique URL, send it webhook payloads, and watch them arrive here.
+    <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Webhook Listener</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Create a unique URL, send it webhook payloads, and watch them arrive here.
+      </p>
+      <div className="mt-6 flex gap-2">
+        <button
+          onClick={handleCreateListener}
+          disabled={creatingListener}
+          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {creatingListener ? 'Creating…' : 'Create new webhook listener'}
+        </button>
+        <button
+          onClick={handleCreateProject}
+          disabled={creatingProject}
+          className="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+        >
+          {creatingProject ? 'Creating…' : 'Create project'}
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+          {error}
         </p>
-        {items.length > 0 && (
-          <>
-            <div className="mb-2 mt-6 flex items-center justify-center gap-1" role="group" aria-label="Sort listeners">
-              {SORT_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleSortChange(option.value)}
-                  className={`rounded-md px-2 py-1 text-xs font-medium transition ${
-                    sort === option.value
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <ul className="mb-6 space-y-2 text-left">
-              {items.map((item) => {
-                const key = itemKey(item)
-                if (item.kind === 'project') {
-                  const { project } = item
-                  return (
-                    <li
-                      key={key}
-                      draggable={sort === 'custom'}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', key)
-                        setDragKey(key)
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => handleDrop(key)}
-                      className="flex items-center gap-2"
-                    >
-                      {sort === 'custom' && (
-                        <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
-                          ⠿
-                        </span>
-                      )}
-                      <a
-                        href={`/projects/${project.id}`}
-                        className="block flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                      >
-                        <span className="flex items-center gap-2 font-medium">
-                          <span aria-hidden="true">📁</span>
-                          {project.label || project.id}
-                        </span>
-                        <span className="block text-xs text-slate-400 dark:text-slate-400">
-                          {new Date(project.createdAt).toLocaleString()}
-                        </span>
-                      </a>
-                    </li>
-                  )
-                }
-
-                const { listener } = item
-                const hasNameOrSlug = Boolean(listener.label || listener.slug)
-                const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
+      )}
+      {items.length > 0 && (
+        <>
+          <div className="mb-2 mt-8 flex items-center gap-1" role="group" aria-label="Sort listeners">
+            {SORT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSortChange(option.value)}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                  sort === option.value
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <ul className="mb-6 space-y-2">
+            {items.map((item) => {
+              const key = itemKey(item)
+              if (item.kind === 'project') {
+                const { project } = item
                 return (
                   <li
                     key={key}
@@ -221,47 +208,61 @@ export function Home() {
                       </span>
                     )}
                     <a
-                      href={`/listener/${listener.id}`}
-                      className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                      href={`/projects/${project.id}`}
+                      className="block flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       <span className="flex items-center gap-2 font-medium">
-                        <img src="/favicon.png" alt="" aria-hidden="true" className="h-4 w-4" />
-                        {primaryText}
+                        <span aria-hidden="true">📁</span>
+                        {project.label || project.id}
                       </span>
-                      {hasNameOrSlug && (
-                        <span className="block text-xs text-slate-400 dark:text-slate-400">
-                          {new Date(listener.createdAt).toLocaleString()}
-                        </span>
-                      )}
+                      <span className="block text-xs text-slate-400 dark:text-slate-400">
+                        {new Date(project.createdAt).toLocaleString()}
+                      </span>
                     </a>
                   </li>
                 )
-              })}
-            </ul>
-          </>
-        )}
-        <div className="mt-6 flex gap-2">
-          <button
-            onClick={handleCreateListener}
-            disabled={creatingListener}
-            className="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {creatingListener ? 'Creating…' : 'Create new webhook listener'}
-          </button>
-          <button
-            onClick={handleCreateProject}
-            disabled={creatingProject}
-            className="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-          >
-            {creatingProject ? 'Creating…' : 'Create project'}
-          </button>
-        </div>
-        {error && (
-          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
-            {error}
-          </p>
-        )}
-      </div>
+              }
+
+              const { listener } = item
+              const hasNameOrSlug = Boolean(listener.label || listener.slug)
+              const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
+              return (
+                <li
+                  key={key}
+                  draggable={sort === 'custom'}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', key)
+                    setDragKey(key)
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleDrop(key)}
+                  className="flex items-center gap-2"
+                >
+                  {sort === 'custom' && (
+                    <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
+                      ⠿
+                    </span>
+                  )}
+                  <a
+                    href={`/listener/${listener.id}`}
+                    className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      <img src="/favicon.png" alt="" aria-hidden="true" className="h-4 w-4" />
+                      {primaryText}
+                    </span>
+                    {hasNameOrSlug && (
+                      <span className="block text-xs text-slate-400 dark:text-slate-400">
+                        {new Date(listener.createdAt).toLocaleString()}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
     </main>
   )
 }

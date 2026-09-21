@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
   createProjectListener,
@@ -15,6 +15,8 @@ import {
   type ReorderItem,
   type SortMode,
 } from '../api'
+import { useSettings } from '../hooks/useSettings'
+import { WIDTH_CLASSES } from '../lib/settings'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
@@ -38,6 +40,7 @@ function loadStoredSort(projectId: string): SortMode {
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const { width } = useSettings()
   const [project, setProject] = useState<Project | null>(null)
   const [children, setChildren] = useState<Listener[]>([])
   const [notFound, setNotFound] = useState(false)
@@ -202,48 +205,50 @@ export function ProjectDetail() {
 
   if (notFound) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Project not found.</p>
-          <a href="/" className="mt-4 inline-block text-sm text-indigo-600 hover:underline dark:text-indigo-400">
-            ← Back to listeners
-          </a>
-        </div>
+      <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+        <Link
+          to="/"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+        >
+          ← Back to listeners
+        </Link>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Project not found.</p>
       </main>
     )
   }
 
   if (!project) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
-        </div>
+      <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       </main>
     )
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-800">
-        <div className="flex items-center justify-between">
-          <a href="/" className="mb-4 inline-block text-sm text-indigo-600 hover:underline dark:text-indigo-400">
-            ← Back to listeners
-          </a>
-          <button
-            onClick={handleDelete}
-            className="mb-4 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
-          >
-            Delete project
-          </button>
-        </div>
+    <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+      <div className="mb-4 flex items-center justify-between">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+        >
+          ← Back to listeners
+        </Link>
+        <button
+          onClick={handleDelete}
+          className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
+        >
+          Delete project
+        </button>
+      </div>
+      <div className="mb-6 flex items-center gap-2">
         {editingLabel ? (
           <form
             onSubmit={(e) => {
               e.preventDefault()
               handleSaveLabel()
             }}
-            className="flex items-center justify-center gap-2"
+            className="flex items-center gap-2"
           >
             <input
               autoFocus
@@ -266,68 +271,77 @@ export function ProjectDetail() {
               setLabelDraft(project.label ?? '')
               setEditingLabel(true)
             }}
-            className="flex items-center justify-center gap-2 text-2xl font-semibold text-slate-900 hover:underline dark:text-slate-100"
+            className="flex items-center gap-2 text-xl font-semibold text-slate-900 hover:underline dark:text-slate-100"
             title="Click to rename"
           >
             <span aria-hidden="true">📁</span>
             <span className="truncate">{project.label || project.id}</span>
           </button>
         )}
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-400">
-          Created {new Date(project.createdAt).toLocaleString()}
-        </p>
-        {error && (
-          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
-            {error}
-          </p>
-        )}
+      </div>
 
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+      {error && (
+        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+          {error}
+        </p>
+      )}
+
+      <div className="mb-6">
+        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Create-and-send URL template</p>
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.hookUrlTemplate}</code>
           <button
             onClick={handleCopy}
             aria-label="Copy create-and-send URL template"
-            className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+            className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             {copied ? 'Copied!' : 'Copy'}
           </button>
         </div>
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-400">
+          Created {new Date(project.createdAt).toLocaleString()}
+        </p>
+      </div>
 
-        <div className="mt-4">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-            {project.shareUrl ? (
-              <>
-                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.shareUrl}</code>
-                <button
-                  onClick={handleCopyShare}
-                  aria-label="Copy share link"
-                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                >
-                  {shareCopied ? 'Copied!' : 'Copy'}
-                </button>
-                <button
-                  onClick={handleRevokeShare}
-                  className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
-                >
-                  Revoke share link
-                </button>
-              </>
-            ) : (
+      <div className="mb-6">
+        {project.shareUrl && <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Share link (read-only)</p>}
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          {project.shareUrl ? (
+            <>
+              <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.shareUrl}</code>
               <button
-                onClick={handleShare}
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+                onClick={handleCopyShare}
+                aria-label="Copy share link"
+                className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
-                Get read-only share link
+                {shareCopied ? 'Copied!' : 'Copy'}
               </button>
-            )}
-          </div>
+              <button
+                onClick={handleRevokeShare}
+                className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
+              >
+                Revoke share link
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleShare}
+              className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              Get read-only share link
+            </button>
+          )}
         </div>
+      </div>
 
-        <form onSubmit={handleCreateChild} className="mt-4 flex items-center gap-2">
+      <div className="mb-6">
+        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Create a listener now</p>
+        <form onSubmit={handleCreateChild} className="flex items-center gap-2">
           <input
             value={createDraft}
             onChange={(e) => setCreateDraft(e.target.value)}
             placeholder="uat-case-42"
+            aria-label="New listener identifier"
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
           />
           <button
@@ -337,68 +351,68 @@ export function ProjectDetail() {
             Create listener
           </button>
         </form>
-
-        {children.length > 0 && (
-          <div className="mb-2 mt-6 flex items-center justify-center gap-1" role="group" aria-label="Sort listeners">
-            {SORT_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => handleSortChange(option.value)}
-                className={`rounded-md px-2 py-1 text-xs font-medium transition ${
-                  sort === option.value
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {children.length === 0 ? (
-          <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
-            No requests yet — point your test script at the URL above (with a real identifier in place of{' '}
-            <code>&lt;identifier&gt;</code>) to get started.
-          </p>
-        ) : (
-          <ul className="mb-2 mt-2 space-y-2 text-left">
-            {children.map((listener) => {
-              const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
-              return (
-                <li
-                  key={listener.id}
-                  draggable={sort === 'custom'}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', listener.id)
-                    setDragKey(listener.id)
-                  }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop(listener.id)}
-                  className="flex items-center gap-2"
-                >
-                  {sort === 'custom' && (
-                    <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
-                      ⠿
-                    </span>
-                  )}
-                  <a
-                    href={`/listener/${listener.id}`}
-                    className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                  >
-                    <span className="flex items-center gap-2 font-medium">
-                      <img src="/favicon.png" alt="" aria-hidden="true" className="h-4 w-4" />
-                      {primaryText}
-                    </span>
-                    <span className="block text-xs text-slate-400 dark:text-slate-400">
-                      {new Date(listener.createdAt).toLocaleString()}
-                    </span>
-                  </a>
-                </li>
-              )
-            })}
-          </ul>
-        )}
       </div>
+
+      {children.length > 0 && (
+        <div className="mb-2 flex items-center gap-1" role="group" aria-label="Sort listeners">
+          {SORT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSortChange(option.value)}
+              className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                sort === option.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {children.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          No requests yet — point your test script at the URL above (with a real identifier in place of{' '}
+          <code>&lt;identifier&gt;</code>) to get started.
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {children.map((listener) => {
+            const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
+            return (
+              <li
+                key={listener.id}
+                draggable={sort === 'custom'}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', listener.id)
+                  setDragKey(listener.id)
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDrop(listener.id)}
+                className="flex items-center gap-2"
+              >
+                {sort === 'custom' && (
+                  <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
+                    ⠿
+                  </span>
+                )}
+                <a
+                  href={`/listener/${listener.id}`}
+                  className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <img src="/favicon.png" alt="" aria-hidden="true" className="h-4 w-4" />
+                    {primaryText}
+                  </span>
+                  <span className="block text-xs text-slate-400 dark:text-slate-400">
+                    {new Date(listener.createdAt).toLocaleString()}
+                  </span>
+                </a>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </main>
   )
 }
