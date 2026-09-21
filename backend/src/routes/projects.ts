@@ -11,7 +11,16 @@ import {
   deleteProject,
   type ProjectRecord,
 } from '../projects.repo'
-import { LabelValidationError } from '../listeners.repo'
+import {
+  LabelValidationError,
+  normalizeSlug,
+  assertValidSlug,
+  SlugValidationError,
+  isUniqueConstraintError,
+  getListenerByProjectAndSlug,
+  createProjectListener,
+} from '../listeners.repo'
+import { serializeListener } from './listeners'
 
 function projectShareUrlFor(appBaseUrl: string, shareToken: string | null): string | null {
   return shareToken ? `${appBaseUrl}/shared/projects/${shareToken}` : null
@@ -89,4 +98,48 @@ projectRoutes.delete('/api/projects/:id', async (c) => {
   }
   await deleteProject(c.env.DB, project.id)
   return c.body(null, 204)
+})
+
+projectRoutes.post('/api/projects/:projectId/listeners', async (c) => {
+  const project = await getProjectForOwner(c.env.DB, c.req.param('projectId'), c.get('sessionId'))
+  if (!project) {
+    return c.json({ error: 'project not found' }, 404)
+  }
+
+  const body = await c.req.json<{ slug?: unknown }>().catch(() => ({}) as { slug?: unknown })
+  if (typeof body.slug !== 'string') {
+    return c.json({ error: 'slug is required' }, 400)
+  }
+
+  const slug = normalizeSlug(body.slug)
+  try {
+    assertValidSlug(slug)
+  } catch (err) {
+    if (err instanceof SlugValidationError) {
+      return c.json({ error: err.message }, 400)
+    }
+    throw err
+  }
+
+  const existing = await getListenerByProjectAndSlug(c.env.DB, project.id, slug)
+  if (existing) {
+    return c.json({ error: `identifier "${slug}" is already in use in this project` }, 409)
+  }
+
+  try {
+    const listener = await createProjectListener(
+      c.env.DB,
+      crypto.randomUUID(),
+      new Date().toISOString(),
+      project.ownerSession,
+      project.id,
+      slug
+    )
+    return c.json(serializeListener(c.env, listener), 201)
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return c.json({ error: `identifier "${slug}" is already in use in this project` }, 409)
+    }
+    throw err
+  }
 })

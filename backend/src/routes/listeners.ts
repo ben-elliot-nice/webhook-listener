@@ -32,7 +32,7 @@ function hookUrlFor(env: Env, listener: ListenerRecord): string {
     : `${env.HOOK_BASE_URL}/hook/${listener.slug ?? listener.id}`
 }
 
-function serializeListener(env: Env, listener: ListenerRecord) {
+export function serializeListener(env: Env, listener: ListenerRecord) {
   return {
     id: listener.id,
     createdAt: listener.createdAt,
