@@ -1,15 +1,16 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { resolveListenerForHook } from '../listeners.repo'
-import { insertRequest } from '../requests.repo'
-import { getProject } from '../projects.repo'
 import {
+  resolveListenerForHook,
   getListenerByProjectAndSlug,
   createProjectListener,
   normalizeSlug,
   assertValidSlug,
   SlugValidationError,
+  isUniqueConstraintError,
 } from '../listeners.repo'
+import { insertRequest } from '../requests.repo'
+import { getProject } from '../projects.repo'
 
 const REDACTED_HEADER_NAMES = new Set(['cookie', 'set-cookie'])
 const MAX_BODY_BYTES = 10 * 1024 * 1024
@@ -84,16 +85,25 @@ hookRoute.all('/hook/:projectId/:identifier', async (c) => {
   }
 
   let listener = await getListenerByProjectAndSlug(c.env.DB, project.id, identifier)
-  const status = listener ? 200 : 201
+  let status: 200 | 201 = listener ? 200 : 201
   if (!listener) {
-    listener = await createProjectListener(
-      c.env.DB,
-      crypto.randomUUID(),
-      new Date().toISOString(),
-      project.ownerSession,
-      project.id,
-      identifier
-    )
+    try {
+      listener = await createProjectListener(
+        c.env.DB,
+        crypto.randomUUID(),
+        new Date().toISOString(),
+        project.ownerSession,
+        project.id,
+        identifier
+      )
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err
+      // Lost the race to a concurrent first-call creating the same
+      // (projectId, identifier) pair — the winner's row now exists, use it.
+      listener = await getListenerByProjectAndSlug(c.env.DB, project.id, identifier)
+      status = 200
+      if (!listener) throw err
+    }
   }
 
   const body = c.req.raw.body ? await c.req.raw.clone().text() : null

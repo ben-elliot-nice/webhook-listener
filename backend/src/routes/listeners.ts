@@ -25,13 +25,17 @@ function shareUrlFor(appBaseUrl: string, shareToken: string | null): string | nu
   return shareToken ? `${appBaseUrl}/shared/${shareToken}` : null
 }
 
+function hookUrlFor(env: Env, listener: ListenerRecord): string {
+  return listener.projectId && listener.slug
+    ? `${env.HOOK_BASE_URL}/hook/${listener.projectId}/${listener.slug}`
+    : `${env.HOOK_BASE_URL}/hook/${listener.slug ?? listener.id}`
+}
+
 function serializeListener(env: Env, listener: ListenerRecord) {
   return {
     id: listener.id,
     createdAt: listener.createdAt,
-    hookUrl: listener.projectId
-      ? `${env.HOOK_BASE_URL}/hook/${listener.projectId}/${listener.slug}`
-      : `${env.HOOK_BASE_URL}/hook/${listener.slug ?? listener.id}`,
+    hookUrl: hookUrlFor(env, listener),
     shareUrl: shareUrlFor(env.APP_BASE_URL, listener.shareToken),
     slug: listener.slug,
     label: listener.label,
@@ -137,7 +141,7 @@ listenerRoutes.put('/api/listeners/:id/slug', async (c) => {
 
   try {
     const { slug, webhookToken } = await setListenerSlug(c.env.DB, listener.id, body.slug)
-    return c.json({ slug, webhookToken, hookUrl: `${c.env.HOOK_BASE_URL}/hook/${slug}` })
+    return c.json({ slug, webhookToken, hookUrl: hookUrlFor(c.env, { ...listener, slug, webhookToken }) })
   } catch (err) {
     if (err instanceof SlugValidationError) {
       return c.json({ error: err.message }, 400)
