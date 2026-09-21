@@ -41,6 +41,33 @@ indistinguishable from the intended owner.
   existing global slug-uniqueness index into project-scoped and
   global-scoped partial indexes.
 
+## Not started — list view actions on the home page
+
+**No spec, no plan, never built** — ideated in the 2026-09-19 brainstorming
+session (recorded in the now-deleted `HANDOFF.md`) alongside the slug/label/
+ordering feature (shipped) and the email access gate (above). This third
+item was never picked up:
+
+- Delete-with-confirm, share-with-confirm, copy share link, and copy hook
+  target URL, as affordances directly on the home page listener list.
+- Today these actions (where they exist at all) live only on the individual
+  listener page (`/listener/:id`) — the home list is view/navigate-only.
+- Likely shares a single confirm-dialog pattern across delete/share, per the
+  original framing.
+
+## Documentation catch-up — undocumented shipped feature
+
+A full **collapsible JSON tree view** (render/wrap toggles, row striping
+with an intensity control, line numbers, indent width) shipped across 8
+commits (`6b4e520`..`9994d3b`) built directly, skipping the full
+spec/plan cycle — a deliberate choice for this piece of work, not a process
+break (the brainstorm → spec → plan cycle in `CLAUDE.md` is for
+non-trivial work, not a hard requirement for everything). The one loose end:
+
+- `STATUS.md`'s "Features shipped and live" list doesn't mention it yet —
+  worth a line next time that file is touched, so the shipped-feature index
+  stays accurate.
+
 ## Deferred polish / accepted-as-non-blocking
 
 - `Home.tsx`'s list-fetch failure is fully silent (no error banner). Spec
