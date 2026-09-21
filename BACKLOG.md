@@ -26,21 +26,6 @@ indistinguishable from the intended owner.
   implementation plan → build. Don't skip straight to code — this touches
   every route.
 
-## Not started — projects & create-and-send hook
-
-**Spec exists, not implemented, no plan written yet:**
-`docs/superpowers/specs/2026-09-20-projects-create-and-send-design.md`.
-
-- Backend-only this round (frontend deferred to a follow-up spec).
-- Adds a `projects` table (session-owned grouping) so a UAT test script can
-  `POST` straight to a URL built from a runtime-known identifier and have
-  the listener created + payload recorded in one call, instead of the
-  current two-step `POST /api/listeners` → `PUT /api/listeners/:id/slug`.
-- Requires new migration `backend/migrations/0005_projects.sql` (schema is
-  fully specified in the design doc, not yet created) and splits the
-  existing global slug-uniqueness index into project-scoped and
-  global-scoped partial indexes.
-
 ## Not started — list view actions on the home page
 
 **No spec, no plan, never built** — ideated in the 2026-09-19 brainstorming
@@ -89,9 +74,8 @@ non-trivial work, not a hard requirement for everything). The one loose end:
 - `.DS_Store` and `frontend/.DS_Store` are currently untracked in the
   working tree — add `.DS_Store` to `.gitignore` rather than letting them
   get committed by accident.
-- No `backend/migrations/0005*` yet — the next migration number to use is
-  `0005`, reserved in the projects-feature spec above; don't let an
-  unrelated change grab that number first without checking.
+- `backend/migrations/0005_projects.sql` is now in use (projects feature,
+  shipped 2026-09-21) — the next migration number to use is `0006`.
 
 ## Outstanding manual check
 

@@ -23,11 +23,9 @@ before trusting it.
 
 ## Build / test health
 
-- Backend: `cd backend && npm test` → **116/116 passing** (12 test files).
+- Backend: `cd backend && npm test` → **137/137 passing** (16 test files).
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors.
-- D1 migrations applied: `0001_init.sql` → `0004_slug_label_ordering.sql`.
-  No `0005` yet (the projects feature's migration, designed but not built —
-  see `BACKLOG.md`).
+- D1 migrations applied: `0001_init.sql` → `0005_projects.sql`.
 
 ## Recent rebrand (deployed, not yet committed)
 
@@ -76,6 +74,11 @@ In build order — each has a full design spec + implementation plan under
    Docker Compose/Fastify/better-sqlite3/Nginx removed entirely; now two
    Workers (`webhook`, `webhook-api`) + D1. Details and rationale in
    `CLAUDE.md`.
+8. **Projects & create-and-send hook (backend-only)** — session-owned
+   `projects` table; `ALL /hook/:projectId/:identifier` creates a
+   listener on first call and reuses it on subsequent calls, scoped to
+   the project rather than global slug uniqueness. No frontend UI yet —
+   see `docs/superpowers/specs/2026-09-20-projects-create-and-send-design.md`.
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
