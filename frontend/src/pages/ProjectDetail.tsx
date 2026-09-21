@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { deleteProject, listListeners, listProjects, setProjectLabel, type Listener, type Project } from '../api'
+import {
+  deleteProject,
+  getOrCreateProjectShareLink,
+  listListeners,
+  listProjects,
+  revokeProjectShareLink,
+  setProjectLabel,
+  type Listener,
+  type Project,
+} from '../api'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
@@ -12,6 +21,7 @@ export function ProjectDetail() {
   const [children, setChildren] = useState<Listener[]>([])
   const [notFound, setNotFound] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [labelDraft, setLabelDraft] = useState('')
   const [editingLabel, setEditingLabel] = useState(false)
@@ -72,6 +82,38 @@ export function ProjectDetail() {
       await refresh()
     } catch {
       setError('Failed to save label.')
+    }
+  }
+
+  async function handleShare() {
+    if (!projectId) return
+    try {
+      await getOrCreateProjectShareLink(projectId)
+      await refresh()
+    } catch {
+      setError('Failed to create share link.')
+    }
+  }
+
+  async function handleRevokeShare() {
+    if (!projectId) return
+    if (!window.confirm('Revoke this share link? Anyone using it will lose access.')) return
+    try {
+      await revokeProjectShareLink(projectId)
+      await refresh()
+    } catch {
+      setError('Failed to revoke share link.')
+    }
+  }
+
+  async function handleCopyShare() {
+    if (!project?.shareUrl) return
+    try {
+      await navigator.clipboard.writeText(project.shareUrl)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 1500)
+    } catch {
+      setError('Failed to copy to clipboard.')
     }
   }
 
@@ -177,6 +219,36 @@ export function ProjectDetail() {
           >
             {copied ? 'Copied!' : 'Copy'}
           </button>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+            {project.shareUrl ? (
+              <>
+                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.shareUrl}</code>
+                <button
+                  onClick={handleCopyShare}
+                  aria-label="Copy share link"
+                  className="shrink-0 rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {shareCopied ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  onClick={handleRevokeShare}
+                  className="shrink-0 rounded-md border border-rose-200 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950"
+                >
+                  Revoke share link
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleShare}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+              >
+                Get read-only share link
+              </button>
+            )}
+          </div>
         </div>
 
         {children.length === 0 ? (
