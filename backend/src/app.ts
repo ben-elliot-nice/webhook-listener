@@ -7,12 +7,14 @@ import { listenerRoutes } from './routes/listeners'
 import { sharedRoutes } from './routes/shared'
 import { projectRoutes } from './routes/projects'
 import { authRoutes } from './routes/auth'
+import { verifyEmailSession } from './auth/session'
 
-export type Variables = { sessionId: string }
+export type Variables = { sessionId: string; email: string }
 
 const SESSION_COOKIE_NAME = 'wl_session_id'
 const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const EMAIL_SESSION_COOKIE_NAME = 'wl_email_session'
 
 export const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -47,6 +49,22 @@ app.use('*', async (c, next) => {
     ...(c.env.SESSION_COOKIE_DOMAIN ? { domain: c.env.SESSION_COOKIE_DOMAIN } : {}),
   })
   c.set('sessionId', sessionId)
+  await next()
+})
+
+app.use('*', async (c, next) => {
+  if (c.req.path.startsWith('/hook/') || c.req.path.startsWith('/auth/')) {
+    await next()
+    return
+  }
+
+  const cookieValue = getCookie(c, EMAIL_SESSION_COOKIE_NAME)
+  const email = cookieValue ? await verifyEmailSession(c.env.WL_SESSION_SECRET, cookieValue) : null
+  if (!email) {
+    return c.json({ error: 'unauthorized' }, 401)
+  }
+
+  c.set('email', email)
   await next()
 })
 
