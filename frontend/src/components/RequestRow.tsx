@@ -8,7 +8,7 @@ import { useHighlightTheme } from '../hooks/useHighlightTheme'
 import { getThemeBackground } from '../lib/highlightThemes'
 import { buildDiffBlob, diffLineClassName } from '../lib/diffHighlight'
 import { extractJsonTreeColors } from '../lib/jsonTreeColors'
-import { collectContainerPaths, JsonTree } from './JsonTree'
+import { collectContainerPaths, JsonTree, type JsonTreeOptions } from './JsonTree'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -51,10 +51,17 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
   const [copied, setCopied] = useState(false)
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
-  const { highlightTheme, indentWidth, compact, lineNumbers } = useSettings()
+  const { highlightTheme, indentWidth, compact, lineNumbers, render, wrap, stripedRows } = useSettings()
   const loadedTheme = useHighlightTheme(highlightTheme)
   const panelBackground = loadedTheme ? getThemeBackground(loadedTheme) : 'transparent'
   const treeColors = useMemo(() => extractJsonTreeColors(loadedTheme), [loadedTheme])
+  const treeOptions: JsonTreeOptions = {
+    indentWidth,
+    showLineNumbers: lineNumbers,
+    render,
+    wrap,
+    stripedRows,
+  }
 
   const detailObject = {
     headers: request.headers,
@@ -173,8 +180,7 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
                   colors={treeColors}
                   collapsedPaths={collapsedPaths}
                   onToggle={toggleNode}
-                  indentWidth={indentWidth}
-                  showLineNumbers={lineNumbers}
+                  options={treeOptions}
                 />
               </div>
             )

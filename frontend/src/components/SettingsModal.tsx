@@ -20,12 +20,18 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     indentWidth,
     compact,
     lineNumbers,
+    render,
+    wrap,
+    stripedRows,
     setTheme,
     setWidth,
     setHighlightTheme,
     setIndentWidth,
     setCompact,
     setLineNumbers,
+    setRender,
+    setWrap,
+    setStripedRows,
   } = useSettings()
 
   return (
@@ -125,9 +131,24 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
           </label>
 
-          <label className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
+          <label className="mb-2 flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
             Line numbers
             <input type="checkbox" checked={lineNumbers} onChange={(e) => setLineNumbers(e.target.checked)} />
+          </label>
+
+          <label className="mb-2 flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
+            Render escaped whitespace
+            <input type="checkbox" checked={render} onChange={(e) => setRender(e.target.checked)} />
+          </label>
+
+          <label className="mb-2 flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
+            Wrap long lines
+            <input type="checkbox" checked={wrap} onChange={(e) => setWrap(e.target.checked)} />
+          </label>
+
+          <label className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-300">
+            Alternate row striping
+            <input type="checkbox" checked={stripedRows} onChange={(e) => setStripedRows(e.target.checked)} />
           </label>
         </section>
       </div>

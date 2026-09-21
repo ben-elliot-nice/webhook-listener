@@ -3,13 +3,20 @@ import type { JsonTreeColors } from '../lib/jsonTreeColors'
 
 type PathSegment = string | number
 
+export interface JsonTreeOptions {
+  indentWidth: number
+  showLineNumbers: boolean
+  render: boolean
+  wrap: boolean
+  stripedRows: boolean
+}
+
 interface JsonTreeProps {
   value: unknown
   colors: JsonTreeColors
   collapsedPaths: Set<string>
   onToggle: (pathKey: string) => void
-  indentWidth: number
-  showLineNumbers: boolean
+  options: JsonTreeOptions
 }
 
 export function pathKeyOf(path: PathSegment[]): string {
@@ -42,8 +49,13 @@ function containerSummary(value: Record<string, unknown> | unknown[]): string {
   return `${count} key${count === 1 ? '' : 's'}`
 }
 
-function Primitive({ value, colors }: { value: unknown; colors: JsonTreeColors }) {
-  if (typeof value === 'string') return <span style={{ color: colors.string }}>"{value}"</span>
+function Primitive({ value, colors, render }: { value: unknown; colors: JsonTreeColors; render: boolean }) {
+  if (typeof value === 'string') {
+    // render=false: full JSON escaping (accurate, matches raw wire format).
+    // render=true: the raw string as-is, so real \n/\t become actual breaks
+    // once the Line's white-space CSS is set to preserve them.
+    return <span style={{ color: colors.string }}>{render ? `"${value}"` : JSON.stringify(value)}</span>
+  }
   if (typeof value === 'number') return <span style={{ color: colors.number }}>{value}</span>
   if (typeof value === 'boolean') return <span style={{ color: colors.boolean }}>{String(value)}</span>
   if (value === null) return <span style={{ color: colors.null }}>null</span>
@@ -62,8 +74,7 @@ function KeyPrefix({ keyLabel, colors }: { keyLabel?: string; colors: JsonTreeCo
 
 interface LineProps {
   depth: number
-  indentWidth: number
-  showLineNumbers: boolean
+  options: JsonTreeOptions
   nextLine: () => number
   arrow?: ReactNode
   children: ReactNode
@@ -79,17 +90,27 @@ interface LineProps {
  * line-number gutter, so it stays left-justified regardless of nesting
  * depth or whether line numbers are on.
  */
-function Line({ depth, indentWidth, showLineNumbers, nextLine, arrow, children }: LineProps) {
+function Line({ depth, options, nextLine, arrow, children }: LineProps) {
   const lineNumber = nextLine()
+  const striped = options.stripedRows && lineNumber % 2 === 0
+
   return (
-    <div className="flex">
+    <div className={`flex items-start${striped ? ' bg-black/5 dark:bg-white/5' : ''}`}>
       <span className="mr-1 inline-block w-4 shrink-0 select-none text-center text-slate-400">{arrow}</span>
-      {showLineNumbers && (
+      {options.showLineNumbers && (
         <span className="mr-3 min-w-[2.5em] shrink-0 select-none text-right text-slate-400 dark:text-slate-500">
           {lineNumber}
         </span>
       )}
-      <span style={{ paddingLeft: `${depth * indentWidth}ch`, whiteSpace: 'pre' }}>{children}</span>
+      <span
+        className={options.wrap ? 'min-w-0 flex-1 break-words' : ''}
+        style={{
+          paddingLeft: `${depth * options.indentWidth}ch`,
+          whiteSpace: options.wrap ? 'pre-wrap' : 'pre',
+        }}
+      >
+        {children}
+      </span>
     </div>
   )
 }
@@ -103,8 +124,7 @@ interface NodeProps {
   onToggle: (pathKey: string) => void
   isLast: boolean
   depth: number
-  indentWidth: number
-  showLineNumbers: boolean
+  options: JsonTreeOptions
   nextLine: () => number
 }
 
@@ -117,18 +137,17 @@ function JsonNode({
   onToggle,
   isLast,
   depth,
-  indentWidth,
-  showLineNumbers,
+  options,
   nextLine,
 }: NodeProps) {
   const key = pathKeyOf(path)
-  const lineProps = { depth, indentWidth, showLineNumbers, nextLine }
+  const lineProps = { depth, options, nextLine }
 
   if (!isContainer(value)) {
     return (
       <Line {...lineProps}>
         <KeyPrefix keyLabel={keyLabel} colors={colors} />
-        <Primitive value={value} colors={colors} />
+        <Primitive value={value} colors={colors} render={options.render} />
         {!isLast && <span style={{ color: colors.punctuation }}>,</span>}
       </Line>
     )
@@ -193,8 +212,7 @@ function JsonNode({
           onToggle={onToggle}
           isLast={i === entries.length - 1}
           depth={depth + 1}
-          indentWidth={indentWidth}
-          showLineNumbers={showLineNumbers}
+          options={options}
           nextLine={nextLine}
         />
       ))}
@@ -206,14 +224,7 @@ function JsonNode({
   )
 }
 
-export function JsonTree({
-  value,
-  colors,
-  collapsedPaths,
-  onToggle,
-  indentWidth,
-  showLineNumbers,
-}: JsonTreeProps) {
+export function JsonTree({ value, colors, collapsedPaths, onToggle, options }: JsonTreeProps) {
   let counter = 0
   const nextLine = () => ++counter
 
@@ -227,8 +238,7 @@ export function JsonTree({
         onToggle={onToggle}
         isLast
         depth={0}
-        indentWidth={indentWidth}
-        showLineNumbers={showLineNumbers}
+        options={options}
         nextLine={nextLine}
       />
     </div>

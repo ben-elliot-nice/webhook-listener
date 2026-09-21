@@ -8,6 +8,9 @@ export interface Settings {
   indentWidth: 2 | 4
   compact: boolean
   lineNumbers: boolean
+  render: boolean
+  wrap: boolean
+  stripedRows: boolean
 }
 
 export const WIDTH_CLASSES: Record<Width, string> = {
@@ -23,6 +26,9 @@ export const DEFAULT_SETTINGS: Settings = {
   indentWidth: 2,
   compact: false,
   lineNumbers: false,
+  render: false,
+  wrap: false,
+  stripedRows: false,
 }
 
 const STORAGE_KEY = 'wl_settings'

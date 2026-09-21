@@ -15,6 +15,9 @@ interface SettingsContextValue extends Settings {
   setIndentWidth: (n: 2 | 4) => void
   setCompact: (compact: boolean) => void
   setLineNumbers: (lineNumbers: boolean) => void
+  setRender: (render: boolean) => void
+  setWrap: (wrap: boolean) => void
+  setStripedRows: (stripedRows: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -35,6 +38,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setIndentWidth: (indentWidth) => setSettings((s) => ({ ...s, indentWidth })),
     setCompact: (compact) => setSettings((s) => ({ ...s, compact })),
     setLineNumbers: (lineNumbers) => setSettings((s) => ({ ...s, lineNumbers })),
+    setRender: (render) => setSettings((s) => ({ ...s, render })),
+    setWrap: (wrap) => setSettings((s) => ({ ...s, wrap })),
+    setStripedRows: (stripedRows) => setSettings((s) => ({ ...s, stripedRows })),
   }
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
