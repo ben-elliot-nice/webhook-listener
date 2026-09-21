@@ -38,4 +38,9 @@ describe('signEmailSession / verifyEmailSession', () => {
     const result = await verifyEmailSession(SECRET, 'not-a-valid-cookie-value')
     expect(result).toBeNull()
   })
+
+  it('returns null (does not throw) when the signature segment contains invalid base64url characters', async () => {
+    const result = await verifyEmailSession(SECRET, 'somepayload.!!!invalid-base64-chars!!!')
+    expect(result).toBeNull()
+  })
 })

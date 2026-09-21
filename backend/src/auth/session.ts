@@ -43,17 +43,17 @@ export async function verifyEmailSession(secret: string, cookieValue: string): P
   if (parts.length !== 2) return null
   const [payloadEncoded, signatureEncoded] = parts
 
-  const key = await importHmacKey(secret)
-  const signatureValid = await crypto.subtle.verify(
-    'HMAC',
-    key,
-    base64UrlDecode(signatureEncoded),
-    new TextEncoder().encode(payloadEncoded)
-  )
-  if (!signatureValid) return null
-
   let payload: EmailSessionPayload
   try {
+    const key = await importHmacKey(secret)
+    const signatureValid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      base64UrlDecode(signatureEncoded),
+      new TextEncoder().encode(payloadEncoded)
+    )
+    if (!signatureValid) return null
+
     payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadEncoded)))
   } catch {
     return null
