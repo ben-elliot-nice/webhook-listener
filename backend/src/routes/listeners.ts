@@ -29,7 +29,9 @@ function serializeListener(env: Env, listener: ListenerRecord) {
   return {
     id: listener.id,
     createdAt: listener.createdAt,
-    hookUrl: `${env.HOOK_BASE_URL}/hook/${listener.slug ?? listener.id}`,
+    hookUrl: listener.projectId
+      ? `${env.HOOK_BASE_URL}/hook/${listener.projectId}/${listener.slug}`
+      : `${env.HOOK_BASE_URL}/hook/${listener.slug ?? listener.id}`,
     shareUrl: shareUrlFor(env.APP_BASE_URL, listener.shareToken),
     slug: listener.slug,
     label: listener.label,
