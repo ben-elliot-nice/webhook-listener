@@ -74,11 +74,16 @@ In build order — each has a full design spec + implementation plan under
    Docker Compose/Fastify/better-sqlite3/Nginx removed entirely; now two
    Workers (`webhook`, `webhook-api`) + D1. Details and rationale in
    `CLAUDE.md`.
-8. **Projects & create-and-send hook (backend-only)** — session-owned
-   `projects` table; `ALL /hook/:projectId/:identifier` creates a
-   listener on first call and reuses it on subsequent calls, scoped to
-   the project rather than global slug uniqueness. No frontend UI yet —
-   see `docs/superpowers/specs/2026-09-20-projects-create-and-send-design.md`.
+8. **Projects & create-and-send hook** — session-owned `projects` table;
+   `ALL /hook/:projectId/:identifier` creates a listener on first call and
+   reuses it on subsequent calls, scoped to the project rather than global
+   slug uniqueness (backend design:
+   `docs/superpowers/specs/2026-09-20-projects-create-and-send-design.md`).
+   Frontend UI shipped in a follow-up round: a "Create project" button and
+   folder-icon project cards on the Home page, a `/projects/:id` detail
+   page, and drag-reorder support extended to cover projects alongside
+   listeners (frontend design:
+   `docs/superpowers/specs/2026-09-21-projects-frontend-design.md`).
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
