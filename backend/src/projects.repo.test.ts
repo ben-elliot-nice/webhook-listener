@@ -7,7 +7,7 @@ describe('projects.repo', () => {
     const id = crypto.randomUUID()
     const createdAt = new Date().toISOString()
     const result = await createProject(env.DB, id, createdAt, 'session-a')
-    expect(result).toEqual({ id, createdAt, ownerSession: 'session-a' })
+    expect(result).toEqual({ id, createdAt, ownerSession: 'session-a', sortPosition: null })
   })
 
   it('getProject returns undefined for an unknown id', async () => {
@@ -20,7 +20,7 @@ describe('projects.repo', () => {
     const createdAt = new Date().toISOString()
     await createProject(env.DB, id, createdAt, 'session-b')
     const result = await getProject(env.DB, id)
-    expect(result).toEqual({ id, createdAt, ownerSession: 'session-b' })
+    expect(result).toEqual({ id, createdAt, ownerSession: 'session-b', sortPosition: null })
   })
 
   it('getProjectsForOwner returns only the caller session, newest first', async () => {
@@ -36,5 +36,18 @@ describe('projects.repo', () => {
   it('getProjectsForOwner returns an empty list for a session with no projects', async () => {
     const results = await getProjectsForOwner(env.DB, crypto.randomUUID())
     expect(results).toEqual([])
+  })
+
+  it('getProjectsForOwner places a project with a set sort_position before ones without, regardless of created_at', async () => {
+    const sessionId = crypto.randomUUID()
+    const older = await createProject(env.DB, crypto.randomUUID(), '2026-01-01T00:00:00.000Z', sessionId)
+    const newer = await createProject(env.DB, crypto.randomUUID(), '2026-01-02T00:00:00.000Z', sessionId)
+    // Give the older project an explicit position; the newer one stays unset (null).
+    await env.DB.prepare('UPDATE projects SET sort_position = 0 WHERE id = ?').bind(older.id).run()
+
+    const results = await getProjectsForOwner(env.DB, sessionId)
+    expect(results.map((p) => p.id)).toEqual([older.id, newer.id])
+    expect(results[0].sortPosition).toBe(0)
+    expect(results[1].sortPosition).toBeNull()
   })
 })
