@@ -26,6 +26,14 @@ app.use(
   })
 )
 
+app.use(
+  '/auth/*',
+  cors({
+    origin: (_origin, c) => c.env.APP_BASE_URL,
+    credentials: true,
+  })
+)
+
 app.use('*', async (c, next) => {
   if (c.req.path.startsWith('/hook/')) {
     await next()

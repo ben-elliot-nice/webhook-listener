@@ -56,3 +56,30 @@ describe('CORS on /api/*', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
   })
 })
+
+describe('CORS on /auth/*', () => {
+  // frontend and backend are two independent Workers on different
+  // subdomains in production (webhook.fde.nice-agentic.com vs.
+  // webhook-api.fde.nice-agentic.com), so credentialed fetch() calls to
+  // /auth/* routes (requestMagicLink, getMe, logout) are genuinely
+  // cross-origin and need the same CORS headers /api/* already gets.
+  it('allows the configured APP_BASE_URL with credentials', async () => {
+    const response = await app.request(
+      '/auth/me',
+      { headers: { Origin: env.APP_BASE_URL } },
+      env
+    )
+    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
+    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+  })
+
+  it('does not reflect back a foreign Origin', async () => {
+    const response = await app.request(
+      '/auth/me',
+      { headers: { Origin: 'https://evil.example.com' } },
+      env
+    )
+    expect(response.headers.get('access-control-allow-origin')).not.toBe('https://evil.example.com')
+    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
+  })
+})
