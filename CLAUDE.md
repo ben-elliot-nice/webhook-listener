@@ -45,9 +45,10 @@ than one-shotting features directly into code.
    then review the whole change once complete.
 5. Fix anything Critical/Important found in review before calling it done.
 
-**Git:** everything lands directly on `main` — solo project, no feature
-branches, no worktrees, no PRs. That's a deliberate, established choice, not
-an oversight. Don't introduce branch workflow unless asked.
+**Git:** work happens on a feature branch in its own worktree, opened as a
+PR, and merged into `main` — no more committing straight to `main`. This
+supersedes the earlier direct-to-main practice; if you see that described
+elsewhere (old commit messages, stale docs), it's outdated.
 
 **Commits:** Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`
 + optional scope), e.g. `fix(backend): reject a slug that collides with
