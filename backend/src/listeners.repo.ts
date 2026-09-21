@@ -113,18 +113,31 @@ export async function getListenersForOwner(
   return results
 }
 
-export async function reorderListeners(db: Env['DB'], sessionId: string, orderedIds: string[]): Promise<boolean> {
-  if (orderedIds.length === 0) return false
+export interface ReorderItem {
+  type: 'listener' | 'project'
+  id: string
+}
 
-  const { results } = await db
-    .prepare('SELECT id FROM listeners WHERE owner_session = ?')
-    .bind(sessionId)
-    .all<{ id: string }>()
-  const ownedIds = new Set(results.map((r) => r.id))
-  if (!orderedIds.every((id) => ownedIds.has(id))) return false
+export async function reorderItems(db: Env['DB'], sessionId: string, items: ReorderItem[]): Promise<boolean> {
+  if (items.length === 0) return false
 
-  const statements = orderedIds.map((id, index) =>
-    db.prepare('UPDATE listeners SET sort_position = ? WHERE id = ?').bind(index, id)
+  const listenerIds = items.filter((item) => item.type === 'listener').map((item) => item.id)
+  const projectIds = items.filter((item) => item.type === 'project').map((item) => item.id)
+
+  const [ownedListeners, ownedProjects] = await Promise.all([
+    db.prepare('SELECT id FROM listeners WHERE owner_session = ?').bind(sessionId).all<{ id: string }>(),
+    db.prepare('SELECT id FROM projects WHERE owner_session = ?').bind(sessionId).all<{ id: string }>(),
+  ])
+  const ownedListenerIds = new Set(ownedListeners.results.map((r) => r.id))
+  const ownedProjectIds = new Set(ownedProjects.results.map((r) => r.id))
+
+  if (!listenerIds.every((id) => ownedListenerIds.has(id))) return false
+  if (!projectIds.every((id) => ownedProjectIds.has(id))) return false
+
+  const statements = items.map((item, index) =>
+    item.type === 'listener'
+      ? db.prepare('UPDATE listeners SET sort_position = ? WHERE id = ?').bind(index, item.id)
+      : db.prepare('UPDATE projects SET sort_position = ? WHERE id = ?').bind(index, item.id)
   )
   await db.batch(statements)
   return true

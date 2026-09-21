@@ -7,7 +7,7 @@ import {
   getListenerForOwner,
   getListenersForOwner,
   getListenerByProjectAndSlug,
-  reorderListeners,
+  reorderItems,
   deleteListener,
   getOrCreateShareToken,
   revokeShareToken,
@@ -175,7 +175,10 @@ describe('getListenersForOwner sort modes', () => {
   it('sorts by custom position, unpositioned listeners last', async () => {
     await createListener(env.DB, 'sort-custom-1', '2024-01-01T00:00:00.000Z', 'session-custom')
     await createListener(env.DB, 'sort-custom-2', '2024-01-02T00:00:00.000Z', 'session-custom')
-    await reorderListeners(env.DB, 'session-custom', ['sort-custom-2', 'sort-custom-1'])
+    await reorderItems(env.DB, 'session-custom', [
+      { type: 'listener', id: 'sort-custom-2' },
+      { type: 'listener', id: 'sort-custom-1' },
+    ])
 
     const result = await getListenersForOwner(env.DB, 'session-custom', 100, 'custom')
     expect(result.map((l) => l.id)).toEqual(['sort-custom-2', 'sort-custom-1'])
@@ -189,11 +192,14 @@ describe('getListenersForOwner sort modes', () => {
   })
 })
 
-describe('reorderListeners', () => {
+describe('reorderItems', () => {
   it('assigns sort positions in the given order', async () => {
     await createListener(env.DB, 'reorder-1', '2024-01-01T00:00:00.000Z', 'session-reorder')
     await createListener(env.DB, 'reorder-2', '2024-01-02T00:00:00.000Z', 'session-reorder')
-    const ok = await reorderListeners(env.DB, 'session-reorder', ['reorder-2', 'reorder-1'])
+    const ok = await reorderItems(env.DB, 'session-reorder', [
+      { type: 'listener', id: 'reorder-2' },
+      { type: 'listener', id: 'reorder-1' },
+    ])
     expect(ok).toBe(true)
     const result = await getListenersForOwner(env.DB, 'session-reorder', 100, 'custom')
     expect(result.map((l) => l.id)).toEqual(['reorder-2', 'reorder-1'])
@@ -202,12 +208,35 @@ describe('reorderListeners', () => {
   it('rejects an id that does not belong to the session, changing nothing', async () => {
     await createListener(env.DB, 'reorder-3', '2024-01-01T00:00:00.000Z', 'session-owns')
     await createListener(env.DB, 'reorder-4', '2024-01-01T00:00:00.000Z', 'session-other')
-    const ok = await reorderListeners(env.DB, 'session-owns', ['reorder-3', 'reorder-4'])
+    const ok = await reorderItems(env.DB, 'session-owns', [
+      { type: 'listener', id: 'reorder-3' },
+      { type: 'listener', id: 'reorder-4' },
+    ])
     expect(ok).toBe(false)
   })
 
   it('rejects an empty list', async () => {
-    expect(await reorderListeners(env.DB, 'session-empty', [])).toBe(false)
+    expect(await reorderItems(env.DB, 'session-empty', [])).toBe(false)
+  })
+
+  it('assigns sort positions across a mix of listeners and projects', async () => {
+    await createListener(env.DB, 'reorder-mix-1', '2024-01-01T00:00:00.000Z', 'session-mix')
+    await createProject(env.DB, 'reorder-mix-project', '2024-01-01T00:00:00.000Z', 'session-mix')
+    const ok = await reorderItems(env.DB, 'session-mix', [
+      { type: 'project', id: 'reorder-mix-project' },
+      { type: 'listener', id: 'reorder-mix-1' },
+    ])
+    expect(ok).toBe(true)
+  })
+
+  it('rejects a project id that does not belong to the session, changing nothing', async () => {
+    await createListener(env.DB, 'reorder-mix-2', '2024-01-01T00:00:00.000Z', 'session-mix-owns')
+    await createProject(env.DB, 'reorder-mix-other-project', '2024-01-01T00:00:00.000Z', 'session-mix-other')
+    const ok = await reorderItems(env.DB, 'session-mix-owns', [
+      { type: 'listener', id: 'reorder-mix-2' },
+      { type: 'project', id: 'reorder-mix-other-project' },
+    ])
+    expect(ok).toBe(false)
   })
 })
 

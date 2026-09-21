@@ -5,7 +5,8 @@ import {
   createListener,
   getListenerForOwner,
   getListenersForOwner,
-  reorderListeners,
+  reorderItems,
+  type ReorderItem,
   type SortMode,
   deleteListener,
   getOrCreateShareToken,
@@ -60,15 +61,24 @@ listenerRoutes.get('/api/listeners', async (c) => {
   return c.json(listeners.map((listener) => serializeListener(c.env, listener)))
 })
 
+function isReorderItem(value: unknown): value is ReorderItem {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as ReorderItem).id === 'string' &&
+    ((value as ReorderItem).type === 'listener' || (value as ReorderItem).type === 'project')
+  )
+}
+
 listenerRoutes.post('/api/listeners/reorder', async (c) => {
-  const body = await c.req.json<{ orderedIds?: unknown }>().catch(() => ({}) as { orderedIds?: unknown })
-  if (!Array.isArray(body.orderedIds) || body.orderedIds.some((id) => typeof id !== 'string')) {
-    return c.json({ error: 'orderedIds must be an array of strings' }, 400)
+  const body = await c.req.json<{ orderedItems?: unknown }>().catch(() => ({}) as { orderedItems?: unknown })
+  if (!Array.isArray(body.orderedItems) || !body.orderedItems.every(isReorderItem)) {
+    return c.json({ error: 'orderedItems must be an array of { type, id }' }, 400)
   }
 
-  const ok = await reorderListeners(c.env.DB, c.get('sessionId'), body.orderedIds)
+  const ok = await reorderItems(c.env.DB, c.get('sessionId'), body.orderedItems)
   if (!ok) {
-    return c.json({ error: 'orderedIds must only contain your own listeners' }, 400)
+    return c.json({ error: 'orderedItems must only contain your own listeners and projects' }, 400)
   }
   return c.body(null, 204)
 })
