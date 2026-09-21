@@ -179,7 +179,7 @@ export function normalizeSlug(raw: string): string {
 export class SlugValidationError extends Error {}
 export class SlugConflictError extends Error {}
 
-function assertValidSlug(slug: string): void {
+export function assertValidSlug(slug: string): void {
   if (slug.length < MIN_SLUG_LENGTH || slug.length > MAX_SLUG_LENGTH) {
     throw new SlugValidationError(
       `slug must be between ${MIN_SLUG_LENGTH} and ${MAX_SLUG_LENGTH} characters after normalization`
