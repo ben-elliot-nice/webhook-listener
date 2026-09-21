@@ -23,11 +23,21 @@ before trusting it.
 
 ## Build / test health
 
-- Backend: `cd backend && npm test` → **116/116 passing** (12 test files).
+- Backend: `cd backend && npm test` → **194/195 passing** (21 test files); the
+  one failure (`app.session.test.ts`'s `Domain=` cookie assertion) is
+  pre-existing and unrelated to this round — it only fails because
+  `SESSION_COOKIE_DOMAIN` is unset when running locally without a
+  `.dev.vars` override (see "Running it locally" in `CLAUDE.md`).
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors.
-- D1 migrations applied: `0001_init.sql` → `0004_slug_label_ordering.sql`.
-  No `0005` yet (the projects feature's migration, designed but not built —
-  see `BACKLOG.md`).
+- D1 migrations applied: `0001_init.sql` → `0007_projects_label_share.sql`
+  (includes `0006_projects_sort_position.sql` and
+  `0007_projects_label_share.sql` from this and the prior round).
+- **Before deploying the updated backend Worker**, apply
+  `0007_projects_label_share.sql` to the remote D1 database with
+  `cd backend && npm run db:migrate:remote`. Both the backend and frontend
+  Workers changed this round and should each be redeployed (`cd backend &&
+  npm run deploy`; `cd frontend && npm run build && npx wrangler deploy`) —
+  see "Deploying" in `CLAUDE.md` for the exact commands.
 
 ## Recent rebrand (deployed, not yet committed)
 
@@ -76,6 +86,26 @@ In build order — each has a full design spec + implementation plan under
    Docker Compose/Fastify/better-sqlite3/Nginx removed entirely; now two
    Workers (`webhook`, `webhook-api`) + D1. Details and rationale in
    `CLAUDE.md`.
+8. **Projects & create-and-send hook** — session-owned `projects` table;
+   `ALL /hook/:projectId/:identifier` creates a listener on first call and
+   reuses it on subsequent calls, scoped to the project rather than global
+   slug uniqueness (backend design:
+   `docs/superpowers/specs/2026-09-20-projects-create-and-send-design.md`).
+   Frontend UI shipped in a follow-up round: a "Create project" button and
+   folder-icon project cards on the Home page, a `/projects/:id` detail
+   page, and drag-reorder support extended to cover projects alongside
+   listeners (frontend design:
+   `docs/superpowers/specs/2026-09-21-projects-frontend-design.md`).
+9. **Projects management** — project label/rename; revocable read-only
+   share links for a whole project (`/shared/projects/:token`), separate
+   from per-listener share links; cascading project delete (removes the
+   project's listeners and their requests); manual listener creation
+   inside a project ahead of any real webhook traffic
+   (`POST /api/projects/:projectId/listeners`, racing two concurrent
+   creates with the same identifier resolves to one `201` and one `409`,
+   never two listeners); and a sort-mode/drag-reorder view for a project's
+   child listeners, mirroring the Home page's existing reorder UX (design:
+   `docs/superpowers/specs/2026-09-21-projects-management-design.md`).
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.

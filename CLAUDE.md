@@ -77,6 +77,29 @@ cd frontend && npm run dev    # vite dev server
   access, use it — this repo has never had a real click-through pass done by
   an agent.
 
+**Browser-based local dev needs a `.dev.vars` override.** `backend/wrangler.toml`'s
+`[vars]` block (`APP_BASE_URL`, `HOOK_BASE_URL`, `SESSION_COOKIE_DOMAIN`) is
+hardcoded to the production domains, since there's no `routes` block or
+environment split to vary it by. Left as-is, `wrangler dev` still starts
+fine and answers `curl` correctly, but a real browser hitting the frontend
+at `http://localhost:5173` gets every session-cookie-bearing request
+silently blocked: CORS returns `Access-Control-Allow-Origin:
+https://webhook.fde.nice-agentic.com` (mismatched origin) and the
+`Set-Cookie` carries `Domain=fde.nice-agentic.com` (doesn't match
+`localhost`, so the browser drops it) — this shows up as a generic
+"failed to create" with no obvious backend error. Create a
+`backend/.dev.vars` (gitignored, wrangler auto-loads it, already in
+`.gitignore` via `.dev.vars`/`*.dev.vars`) to override for local dev:
+
+```
+APP_BASE_URL = "http://localhost:5173"
+HOOK_BASE_URL = "http://localhost:8787"
+SESSION_COOKIE_DOMAIN = ""
+```
+
+Restart `wrangler dev` after creating/editing it (env vars are read at
+startup, not hot-reloaded).
+
 ## Deploying
 
 Two independent Workers, deployed and versioned separately — deploy the one

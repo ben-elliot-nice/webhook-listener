@@ -7,6 +7,29 @@ export interface Listener {
   shareUrl: string | null
   slug: string | null
   label: string | null
+  projectId: string | null
+  sortPosition: number | null
+}
+
+export interface Project {
+  id: string
+  createdAt: string
+  hookUrlTemplate: string
+  sortPosition: number | null
+  label: string | null
+  shareUrl: string | null
+}
+
+export interface SharedProjectListener {
+  id: string
+  label: string | null
+  slug: string | null
+  createdAt: string
+}
+
+export interface ReorderItem {
+  type: 'listener' | 'project'
+  id: string
 }
 
 export type SortMode = 'date' | 'name' | 'activity' | 'custom'
@@ -61,6 +84,18 @@ export function getListener(id: string): Promise<Listener> {
 export function listListeners(sort: SortMode = 'date'): Promise<Listener[]> {
   return fetch(`${API_BASE_URL}/api/listeners?sort=${sort}`, { credentials: 'include' }).then((r) =>
     parseJsonOrThrow<Listener[]>(r)
+  )
+}
+
+export function createProject(): Promise<Project> {
+  return fetch(`${API_BASE_URL}/api/projects`, { method: 'POST', credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Project>(r)
+  )
+}
+
+export function listProjects(): Promise<Project[]> {
+  return fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Project[]>(r)
   )
 }
 
@@ -140,14 +175,67 @@ export function setLabel(id: string, label: string): Promise<{ label: string | n
   }).then((r) => parseJsonOrThrow<{ label: string | null }>(r))
 }
 
-export async function reorderListeners(orderedIds: string[]): Promise<void> {
+export async function reorderItems(orderedItems: ReorderItem[]): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/listeners/reorder`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ orderedIds }),
+    body: JSON.stringify({ orderedItems }),
   })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
+}
+
+export function setProjectLabel(id: string, label: string): Promise<{ label: string | null }> {
+  return fetch(`${API_BASE_URL}/api/projects/${id}/label`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ label }),
+  }).then((r) => parseJsonOrThrow<{ label: string | null }>(r))
+}
+
+export function getOrCreateProjectShareLink(id: string): Promise<ShareLink> {
+  return fetch(`${API_BASE_URL}/api/projects/${id}/share`, { method: 'POST', credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<ShareLink>(r)
+  )
+}
+
+export async function revokeProjectShareLink(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/projects/${id}/share`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, { method: 'DELETE', credentials: 'include' })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
+}
+
+export function createProjectListener(projectId: string, slug: string): Promise<Listener> {
+  return fetch(`${API_BASE_URL}/api/projects/${projectId}/listeners`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ slug }),
+  }).then((r) => parseJsonOrThrow<Listener>(r))
+}
+
+export function getSharedProject(token: string): Promise<SharedProjectListener[]> {
+  return fetch(`${API_BASE_URL}/api/shared/projects/${token}`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<SharedProjectListener[]>(r)
+  )
+}
+
+export function getSharedProjectListenerRequests(token: string, listenerId: string): Promise<RequestDetail[]> {
+  return fetch(`${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<RequestDetail[]>(r))
 }
