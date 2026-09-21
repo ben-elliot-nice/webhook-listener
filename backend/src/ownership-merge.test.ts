@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
 import { mergeSessionIntoEmail } from './ownership-merge'
-import { createListener } from './listeners.repo'
 import { createProject } from './projects.repo'
 
 describe('mergeSessionIntoEmail', () => {
   it('reassigns a matching listener to the email and clears its owner_session', async () => {
     const sessionId = crypto.randomUUID()
-    const listener = await createListener(env.DB, crypto.randomUUID(), new Date().toISOString(), sessionId)
+    const listenerId = crypto.randomUUID()
+    await env.DB.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
+      .bind(listenerId, new Date().toISOString(), sessionId)
+      .run()
+    const listener = { id: listenerId }
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'claimed@nice.com')
 
@@ -34,7 +37,11 @@ describe('mergeSessionIntoEmail', () => {
   it('does not touch rows belonging to a different session', async () => {
     const sessionId = crypto.randomUUID()
     const otherSessionId = crypto.randomUUID()
-    const listener = await createListener(env.DB, crypto.randomUUID(), new Date().toISOString(), otherSessionId)
+    const listenerId = crypto.randomUUID()
+    await env.DB.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
+      .bind(listenerId, new Date().toISOString(), otherSessionId)
+      .run()
+    const listener = { id: listenerId }
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'claimed@nice.com')
 
@@ -47,7 +54,11 @@ describe('mergeSessionIntoEmail', () => {
 
   it('is a no-op the second time it is called for the same session (already claimed)', async () => {
     const sessionId = crypto.randomUUID()
-    const listener = await createListener(env.DB, crypto.randomUUID(), new Date().toISOString(), sessionId)
+    const listenerId = crypto.randomUUID()
+    await env.DB.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
+      .bind(listenerId, new Date().toISOString(), sessionId)
+      .run()
+    const listener = { id: listenerId }
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'first@nice.com')
     await mergeSessionIntoEmail(env.DB, sessionId, 'second@nice.com')

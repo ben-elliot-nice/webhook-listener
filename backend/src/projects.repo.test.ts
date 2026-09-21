@@ -157,8 +157,8 @@ describe('projects.repo', () => {
 
   it('deleteProject removes the project and its child listeners', async () => {
     const project = await createProject(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-i')
-    await createProjectListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-i', project.id, 'case-one')
-    await createProjectListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-i', project.id, 'case-two')
+    await createProjectListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-i', null, project.id, 'case-one')
+    await createProjectListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-i', null, project.id, 'case-two')
 
     const deleted = await deleteProject(env.DB, project.id)
     expect(deleted).toBe(true)
