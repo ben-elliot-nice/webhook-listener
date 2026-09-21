@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
 import { mergeSessionIntoEmail } from './ownership-merge'
-import { createProject } from './projects.repo'
 
 describe('mergeSessionIntoEmail', () => {
   it('reassigns a matching listener to the email and clears its owner_session', async () => {
@@ -23,12 +22,15 @@ describe('mergeSessionIntoEmail', () => {
 
   it('reassigns a matching project to the email and clears its owner_session', async () => {
     const sessionId = crypto.randomUUID()
-    const project = await createProject(env.DB, crypto.randomUUID(), new Date().toISOString(), sessionId)
+    const projectId = crypto.randomUUID()
+    await env.DB.prepare('INSERT INTO projects (id, created_at, owner_session) VALUES (?, ?, ?)')
+      .bind(projectId, new Date().toISOString(), sessionId)
+      .run()
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'claimed@nice.com')
 
     const updated = await env.DB.prepare('SELECT owner_email, owner_session FROM projects WHERE id = ?')
-      .bind(project.id)
+      .bind(projectId)
       .first<{ owner_email: string | null; owner_session: string | null }>()
     expect(updated?.owner_email).toBe('claimed@nice.com')
     expect(updated?.owner_session).toBeNull()

@@ -4,27 +4,28 @@ import { LabelValidationError } from './listeners.repo'
 export interface ProjectRecord {
   id: string
   createdAt: string
-  ownerSession: string
+  ownerSession: string | null
+  ownerEmail: string | null
   sortPosition: number | null
   label: string | null
   shareToken: string | null
 }
 
 const SELECT_COLUMNS =
-  'id, created_at AS createdAt, owner_session AS ownerSession, sort_position AS sortPosition, ' +
-  'label, share_token AS shareToken'
+  'id, created_at AS createdAt, owner_session AS ownerSession, owner_email AS ownerEmail, ' +
+  'sort_position AS sortPosition, label, share_token AS shareToken'
 
 export async function createProject(
   db: Env['DB'],
   id: string,
   createdAt: string,
-  ownerSession: string
+  ownerEmail: string
 ): Promise<ProjectRecord> {
   await db
-    .prepare('INSERT INTO projects (id, created_at, owner_session) VALUES (?, ?, ?)')
-    .bind(id, createdAt, ownerSession)
+    .prepare('INSERT INTO projects (id, created_at, owner_email) VALUES (?, ?, ?)')
+    .bind(id, createdAt, ownerEmail)
     .run()
-  return { id, createdAt, ownerSession, sortPosition: null, label: null, shareToken: null }
+  return { id, createdAt, ownerSession: null, ownerEmail, sortPosition: null, label: null, shareToken: null }
 }
 
 export async function getProject(db: Env['DB'], id: string): Promise<ProjectRecord | undefined> {
@@ -38,22 +39,22 @@ export async function getProject(db: Env['DB'], id: string): Promise<ProjectReco
 export async function getProjectForOwner(
   db: Env['DB'],
   id: string,
-  sessionId: string
+  email: string
 ): Promise<ProjectRecord | undefined> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM projects WHERE id = ? AND owner_session = ?`)
-    .bind(id, sessionId)
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM projects WHERE id = ? AND owner_email = ?`)
+    .bind(id, email)
     .first<ProjectRecord>()
   return row ?? undefined
 }
 
-export async function getProjectsForOwner(db: Env['DB'], sessionId: string): Promise<ProjectRecord[]> {
+export async function getProjectsForOwner(db: Env['DB'], email: string): Promise<ProjectRecord[]> {
   const { results } = await db
     .prepare(
-      `SELECT ${SELECT_COLUMNS} FROM projects WHERE owner_session = ? ` +
+      `SELECT ${SELECT_COLUMNS} FROM projects WHERE owner_email = ? ` +
         'ORDER BY (sort_position IS NULL), sort_position ASC, created_at DESC, id DESC'
     )
-    .bind(sessionId)
+    .bind(email)
     .all<ProjectRecord>()
   return results
 }
