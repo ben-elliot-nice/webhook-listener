@@ -6,6 +6,7 @@ import { hookRoute } from './routes/hook'
 import { listenerRoutes } from './routes/listeners'
 import { sharedRoutes } from './routes/shared'
 import { projectRoutes } from './routes/projects'
+import { authRoutes } from './routes/auth'
 
 export type Variables = { sessionId: string }
 
@@ -53,6 +54,7 @@ app.route('/', hookRoute)
 app.route('/', listenerRoutes)
 app.route('/', sharedRoutes)
 app.route('/', projectRoutes)
+app.route('/', authRoutes)
 
 app.onError((err, c) => {
   console.error('Unhandled error:', err)
