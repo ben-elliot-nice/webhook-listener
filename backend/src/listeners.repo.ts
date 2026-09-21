@@ -10,11 +10,13 @@ export interface ListenerRecord {
   label: string | null
   lastRequestAt: string | null
   sortPosition: number | null
+  projectId: string | null
 }
 
 const SELECT_COLUMNS =
   'id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession, ' +
-  'slug, webhook_token AS webhookToken, label, last_request_at AS lastRequestAt, sort_position AS sortPosition'
+  'slug, webhook_token AS webhookToken, label, last_request_at AS lastRequestAt, sort_position AS sortPosition, ' +
+  'project_id AS projectId'
 
 export async function createListener(
   db: Env['DB'],
@@ -26,7 +28,47 @@ export async function createListener(
     .prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
     .bind(id, createdAt, ownerSession)
     .run()
-  return { id, createdAt, shareToken: null, ownerSession, slug: null, webhookToken: null, label: null, lastRequestAt: null, sortPosition: null }
+  return { id, createdAt, shareToken: null, ownerSession, slug: null, webhookToken: null, label: null, lastRequestAt: null, sortPosition: null, projectId: null }
+}
+
+export async function getListenerByProjectAndSlug(
+  db: Env['DB'],
+  projectId: string,
+  slug: string
+): Promise<ListenerRecord | undefined> {
+  const row = await db
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? AND slug = ?`)
+    .bind(projectId, slug)
+    .first<ListenerRecord>()
+  return row ?? undefined
+}
+
+export async function createProjectListener(
+  db: Env['DB'],
+  id: string,
+  createdAt: string,
+  ownerSession: string,
+  projectId: string,
+  slug: string
+): Promise<ListenerRecord> {
+  await db
+    .prepare(
+      'INSERT INTO listeners (id, created_at, owner_session, project_id, slug) VALUES (?, ?, ?, ?, ?)'
+    )
+    .bind(id, createdAt, ownerSession, projectId, slug)
+    .run()
+  return {
+    id,
+    createdAt,
+    shareToken: null,
+    ownerSession,
+    slug,
+    webhookToken: null,
+    label: null,
+    lastRequestAt: null,
+    sortPosition: null,
+    projectId,
+  }
 }
 
 export async function getListener(db: Env['DB'], id: string): Promise<ListenerRecord | undefined> {
@@ -157,18 +199,20 @@ export async function setListenerSlug(
   const slug = normalizeSlug(rawSlug)
   assertValidSlug(slug)
 
+  const listener = await getListener(db, id)
+
   // A slug that happens to match another listener's UUID would let
   // resolveListenerForHook's slug lookup shadow that listener's id-based
-  // lookup, breaking its (token-less) hook URL. Reject that collision with
-  // the same error the DB's partial unique index produces for slug-vs-slug
-  // conflicts, since from the caller's perspective it's the same "already in
-  // use" situation.
-  const idCollision = await db.prepare('SELECT id FROM listeners WHERE id = ? AND id != ?').bind(slug, id).first()
-  if (idCollision) {
-    throw new SlugConflictError(`slug "${slug}" is already in use`)
+  // lookup, breaking its (token-less) hook URL. Only a concern for
+  // project-less listeners, since resolveListenerForHook only ever looks
+  // up by bare id on the /hook/:id path, never scoped to a project.
+  if (!listener?.projectId) {
+    const idCollision = await db.prepare('SELECT id FROM listeners WHERE id = ? AND id != ?').bind(slug, id).first()
+    if (idCollision) {
+      throw new SlugConflictError(`slug "${slug}" is already in use`)
+    }
   }
 
-  const listener = await getListener(db, id)
   const webhookToken = listener?.webhookToken ?? crypto.randomUUID()
 
   try {
