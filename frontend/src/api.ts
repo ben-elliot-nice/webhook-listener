@@ -7,6 +7,20 @@ export interface Listener {
   shareUrl: string | null
   slug: string | null
   label: string | null
+  projectId: string | null
+  sortPosition: number | null
+}
+
+export interface Project {
+  id: string
+  createdAt: string
+  hookUrlTemplate: string
+  sortPosition: number | null
+}
+
+export interface ReorderItem {
+  type: 'listener' | 'project'
+  id: string
 }
 
 export type SortMode = 'date' | 'name' | 'activity' | 'custom'
@@ -61,6 +75,18 @@ export function getListener(id: string): Promise<Listener> {
 export function listListeners(sort: SortMode = 'date'): Promise<Listener[]> {
   return fetch(`${API_BASE_URL}/api/listeners?sort=${sort}`, { credentials: 'include' }).then((r) =>
     parseJsonOrThrow<Listener[]>(r)
+  )
+}
+
+export function createProject(): Promise<Project> {
+  return fetch(`${API_BASE_URL}/api/projects`, { method: 'POST', credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Project>(r)
+  )
+}
+
+export function listProjects(): Promise<Project[]> {
+  return fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<Project[]>(r)
   )
 }
 
@@ -140,12 +166,12 @@ export function setLabel(id: string, label: string): Promise<{ label: string | n
   }).then((r) => parseJsonOrThrow<{ label: string | null }>(r))
 }
 
-export async function reorderListeners(orderedIds: string[]): Promise<void> {
+export async function reorderItems(orderedItems: ReorderItem[]): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/listeners/reorder`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ orderedIds }),
+    body: JSON.stringify({ orderedItems }),
   })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
