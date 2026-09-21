@@ -17,14 +17,20 @@ work. Everything else is frontend-only.
 
 ## 1. Backend additions (small, additive)
 
-### 1.1 Expose `projectId` on listener serialization
+### 1.1 Expose `projectId` and `sortPosition` on listener serialization
 
 `backend/src/routes/listeners.ts` — `serializeListener` gains
-`projectId: listener.projectId` in its returned object. `GET
-/api/listeners` behavior is otherwise unchanged: still interleaved, still
-scoped to `owner_session`, still ordered by whatever `?sort=` is active.
-This is the only field the frontend needs to tell project-scoped listeners
-apart from standalone ones and to group them by project.
+`projectId: listener.projectId` (to tell project-scoped listeners apart
+from standalone ones and group them by project) and
+`sortPosition: listener.sortPosition` in its returned object.
+`sortPosition` — surfaced during implementation planning, not anticipated
+above — is needed because Custom-mode merging (§3.2) has to compare a
+standalone listener's real position against a project's real
+`sortPosition` numerically; without exposing the raw value, the frontend
+would only know each list's *internal* order, not how the two interleave.
+`GET /api/listeners` behavior is otherwise unchanged: still interleaved,
+still scoped to `owner_session`, still ordered by whatever `?sort=` is
+active.
 
 ### 1.2 Expose `hookUrlTemplate` and `sortPosition` on project serialization
 
