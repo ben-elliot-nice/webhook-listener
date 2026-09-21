@@ -65,6 +65,7 @@ interface LineProps {
   indentWidth: number
   showLineNumbers: boolean
   nextLine: () => number
+  arrow?: ReactNode
   children: ReactNode
 }
 
@@ -73,11 +74,16 @@ interface LineProps {
  * precomputed number — as a lazily-rendered element, React only invokes
  * this at the point it walks to it in the tree, which keeps numbering in
  * true document order even though the tree is built by recursion.
+ *
+ * The collapse arrow gets its own fixed-width column, to the left of the
+ * line-number gutter, so it stays left-justified regardless of nesting
+ * depth or whether line numbers are on.
  */
-function Line({ depth, indentWidth, showLineNumbers, nextLine, children }: LineProps) {
+function Line({ depth, indentWidth, showLineNumbers, nextLine, arrow, children }: LineProps) {
   const lineNumber = nextLine()
   return (
     <div className="flex">
+      <span className="mr-1 inline-block w-4 shrink-0 select-none text-center text-slate-400">{arrow}</span>
       {showLineNumbers && (
         <span className="mr-3 min-w-[2.5em] shrink-0 select-none text-right text-slate-400 dark:text-slate-500">
           {lineNumber}
@@ -147,17 +153,20 @@ function JsonNode({
 
   const collapsed = collapsedPaths.has(key)
 
+  const toggleButton = (label: string, glyph: string) => (
+    <button
+      type="button"
+      onClick={() => onToggle(key)}
+      className="select-none hover:text-slate-200"
+      aria-label={label}
+    >
+      {glyph}
+    </button>
+  )
+
   if (collapsed) {
     return (
-      <Line {...lineProps}>
-        <button
-          type="button"
-          onClick={() => onToggle(key)}
-          className="mr-1 select-none text-slate-400 hover:text-slate-200"
-          aria-label="Expand"
-        >
-          ▸
-        </button>
+      <Line {...lineProps} arrow={toggleButton('Expand', '▸')}>
         <KeyPrefix keyLabel={keyLabel} colors={colors} />
         <span style={{ color: colors.punctuation }}>{openBracket}</span>
         <span className="text-slate-400"> {containerSummary(value)} </span>
@@ -169,15 +178,7 @@ function JsonNode({
 
   return (
     <>
-      <Line {...lineProps}>
-        <button
-          type="button"
-          onClick={() => onToggle(key)}
-          className="mr-1 select-none text-slate-400 hover:text-slate-200"
-          aria-label="Collapse"
-        >
-          ▾
-        </button>
+      <Line {...lineProps} arrow={toggleButton('Collapse', '▾')}>
         <KeyPrefix keyLabel={keyLabel} colors={colors} />
         <span style={{ color: colors.punctuation }}>{openBracket}</span>
       </Line>

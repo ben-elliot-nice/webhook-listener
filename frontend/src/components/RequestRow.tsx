@@ -167,7 +167,7 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
             </SyntaxHighlighter>
           ) : (
             loadedTheme && (
-              <div className="p-4">
+              <div className="overflow-x-auto p-4">
                 <JsonTree
                   value={detailObject}
                   colors={treeColors}
