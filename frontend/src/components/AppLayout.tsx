@@ -15,8 +15,11 @@ export function AppLayout() {
   }, [])
 
   async function handleSignOut() {
-    await logout()
-    window.location.reload()
+    try {
+      await logout()
+    } finally {
+      window.location.reload()
+    }
   }
 
   return (
