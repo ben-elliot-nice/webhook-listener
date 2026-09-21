@@ -43,6 +43,14 @@ export async function getListenerByProjectAndSlug(
   return row ?? undefined
 }
 
+export async function getListenersByProject(db: Env['DB'], projectId: string): Promise<ListenerRecord[]> {
+  const { results } = await db
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? ORDER BY created_at DESC, id DESC`)
+    .bind(projectId)
+    .all<ListenerRecord>()
+  return results
+}
+
 export async function createProjectListener(
   db: Env['DB'],
   id: string,

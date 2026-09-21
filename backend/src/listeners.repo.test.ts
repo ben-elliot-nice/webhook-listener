@@ -7,6 +7,7 @@ import {
   getListenerForOwner,
   getListenersForOwner,
   getListenerByProjectAndSlug,
+  getListenersByProject,
   reorderItems,
   deleteListener,
   getOrCreateShareToken,
@@ -437,5 +438,27 @@ describe('project-scoped listeners', () => {
     await setListenerSlug(env.DB, first.id, 'global-taken')
     const second = await createListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-a')
     await expect(setListenerSlug(env.DB, second.id, 'global-taken')).rejects.toThrow(SlugConflictError)
+  })
+})
+
+describe('getListenersByProject', () => {
+  it('returns only listeners for the given project, newest first', async () => {
+    const project = await createProject(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-k')
+    const older = await createProjectListener(
+      env.DB, crypto.randomUUID(), '2026-01-01T00:00:00.000Z', 'session-k', project.id, 'case-a'
+    )
+    const newer = await createProjectListener(
+      env.DB, crypto.randomUUID(), '2026-01-02T00:00:00.000Z', 'session-k', project.id, 'case-b'
+    )
+    await createListener(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-k')
+
+    const results = await getListenersByProject(env.DB, project.id)
+    expect(results.map((l) => l.id)).toEqual([newer.id, older.id])
+  })
+
+  it('returns an empty list for a project with no listeners', async () => {
+    const project = await createProject(env.DB, crypto.randomUUID(), new Date().toISOString(), 'session-l')
+    const results = await getListenersByProject(env.DB, project.id)
+    expect(results).toEqual([])
   })
 })
