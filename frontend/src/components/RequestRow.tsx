@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import type { RequestDetail } from '../api'
@@ -7,6 +7,8 @@ import { useSettings } from '../hooks/useSettings'
 import { useHighlightTheme } from '../hooks/useHighlightTheme'
 import { getThemeBackground } from '../lib/highlightThemes'
 import { buildDiffBlob, diffLineClassName } from '../lib/diffHighlight'
+import { extractJsonTreeColors } from '../lib/jsonTreeColors'
+import { collectContainerPaths, JsonTree } from './JsonTree'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -47,10 +49,12 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
   const [expanded, setExpanded] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
   const { highlightTheme, indentWidth, compact, lineNumbers } = useSettings()
   const loadedTheme = useHighlightTheme(highlightTheme)
   const panelBackground = loadedTheme ? getThemeBackground(loadedTheme) : 'transparent'
+  const treeColors = useMemo(() => extractJsonTreeColors(loadedTheme), [loadedTheme])
 
   const detailObject = {
     headers: request.headers,
@@ -61,6 +65,23 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
   const detailJson = compact
     ? JSON.stringify(detailObject)
     : JSON.stringify(detailObject, null, indentWidth)
+
+  function toggleNode(pathKey: string) {
+    setCollapsedPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(pathKey)) next.delete(pathKey)
+      else next.add(pathKey)
+      return next
+    })
+  }
+
+  function collapseAll() {
+    setCollapsedPaths(new Set(collectContainerPaths(detailObject)))
+  }
+
+  function expandAll() {
+    setCollapsedPaths(new Set())
+  }
 
   const diffBlob = previousRequest
     ? buildDiffBlob(
@@ -98,6 +119,22 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
         <div className="rounded-b-lg border-t border-slate-200 dark:border-slate-700" style={{ background: panelBackground }}>
           {!diffOnly && (
             <div className="flex justify-end gap-2 px-2 pt-2">
+              {!showDiff && (
+                <>
+                  <button
+                    onClick={collapseAll}
+                    className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+                  >
+                    Collapse all
+                  </button>
+                  <button
+                    onClick={expandAll}
+                    className="rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-800"
+                  >
+                    Expand all
+                  </button>
+                </>
+              )}
               {previousRequest && (
                 <button
                   onClick={() => setShowDiff((v) => !v)}
@@ -130,15 +167,14 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
             </SyntaxHighlighter>
           ) : (
             loadedTheme && (
-              <SyntaxHighlighter
-                language="json"
-                style={loadedTheme}
-                showLineNumbers={lineNumbers}
-                customStyle={{ background: 'transparent', margin: 0, padding: '1rem' }}
-                codeTagProps={{ style: { background: 'transparent' } }}
-              >
-                {detailJson}
-              </SyntaxHighlighter>
+              <div className="p-4">
+                <JsonTree
+                  value={detailObject}
+                  colors={treeColors}
+                  collapsedPaths={collapsedPaths}
+                  onToggle={toggleNode}
+                />
+              </div>
             )
           )}
         </div>
