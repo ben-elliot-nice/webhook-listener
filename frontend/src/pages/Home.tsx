@@ -209,6 +209,7 @@ export function Home() {
                     )}
                     <a
                       href={`/projects/${project.id}`}
+                      draggable={false}
                       className="block flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       <span className="flex items-center gap-2 font-medium">
@@ -245,10 +246,11 @@ export function Home() {
                   )}
                   <a
                     href={`/listener/${listener.id}`}
+                    draggable={false}
                     className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
                     <span className="flex items-center gap-2 font-medium">
-                      <img src="/favicon.png" alt="" aria-hidden="true" className="h-4 w-4" />
+                      <img src="/favicon.png" alt="" aria-hidden="true" draggable={false} className="h-4 w-4" />
                       {primaryText}
                     </span>
                     {hasNameOrSlug && (
