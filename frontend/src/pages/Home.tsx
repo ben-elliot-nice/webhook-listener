@@ -115,15 +115,24 @@ export function Home() {
 
     // Optimistically reflect the drop by rebuilding local state from the
     // reordered items, since `items` itself is derived, not stored directly.
-    setListeners(
-      current.filter((item): item is { kind: 'listener'; listener: Listener } => item.kind === 'listener').map((item) => item.listener)
-    )
+    // `items`/`current` only ever contain standalone (project-less) listeners
+    // in Custom mode — mergeHomeItemsByCustom filters project-scoped ones out
+    // before merging — so reconstructing `listeners` state purely from
+    // `current` would silently drop every project-scoped listener from state.
+    // Preserve them by concatenating the reordered standalone listeners with
+    // whatever project-scoped listeners already exist in state, unchanged.
+    const previousListeners = listeners
+    const reorderedStandalone = current
+      .filter((item): item is { kind: 'listener'; listener: Listener } => item.kind === 'listener')
+      .map((item) => item.listener)
+    const projectScopedListeners = listeners.filter((l) => l.projectId !== null)
+    setListeners([...reorderedStandalone, ...projectScopedListeners])
     setProjects(
       current.filter((item): item is { kind: 'project'; project: Project } => item.kind === 'project').map((item) => item.project)
     )
 
     reorderItems(current.map(toReorderItem)).catch(() => {
-      setListeners(previousItems.filter((item): item is { kind: 'listener'; listener: Listener } => item.kind === 'listener').map((item) => item.listener))
+      setListeners(previousListeners)
       setProjects(previousItems.filter((item): item is { kind: 'project'; project: Project } => item.kind === 'project').map((item) => item.project))
       setError('Failed to save the new order.')
     })
