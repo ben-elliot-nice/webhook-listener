@@ -42,17 +42,17 @@ export const projectRoutes = new Hono<{ Bindings: Env; Variables: Variables }>()
 projectRoutes.post('/api/projects', async (c) => {
   const id = crypto.randomUUID()
   const createdAt = new Date().toISOString()
-  const project = await createProject(c.env.DB, id, createdAt, c.get('sessionId'))
+  const project = await createProject(c.env.DB, id, createdAt, c.get('email'))
   return c.json(serializeProject(c.env, project), 201)
 })
 
 projectRoutes.get('/api/projects', async (c) => {
-  const projects = await getProjectsForOwner(c.env.DB, c.get('sessionId'))
+  const projects = await getProjectsForOwner(c.env.DB, c.get('email'))
   return c.json(projects.map((project) => serializeProject(c.env, project)))
 })
 
 projectRoutes.patch('/api/projects/:id/label', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -74,7 +74,7 @@ projectRoutes.patch('/api/projects/:id/label', async (c) => {
 })
 
 projectRoutes.post('/api/projects/:id/share', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -83,7 +83,7 @@ projectRoutes.post('/api/projects/:id/share', async (c) => {
 })
 
 projectRoutes.delete('/api/projects/:id/share', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -92,7 +92,7 @@ projectRoutes.delete('/api/projects/:id/share', async (c) => {
 })
 
 projectRoutes.delete('/api/projects/:id', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -101,7 +101,7 @@ projectRoutes.delete('/api/projects/:id', async (c) => {
 })
 
 projectRoutes.post('/api/projects/:projectId/listeners', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('projectId'), c.get('sessionId'))
+  const project = await getProjectForOwner(c.env.DB, c.req.param('projectId'), c.get('email'))
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -131,7 +131,8 @@ projectRoutes.post('/api/projects/:projectId/listeners', async (c) => {
       c.env.DB,
       crypto.randomUUID(),
       new Date().toISOString(),
-      project.ownerSession,
+      null,
+      project.ownerEmail,
       project.id,
       slug
     )

@@ -57,7 +57,7 @@ export const listenerRoutes = new Hono<{ Bindings: Env; Variables: Variables }>(
 
 listenerRoutes.get('/api/listeners', async (c) => {
   const sort = parseSortMode(c.req.query('sort'))
-  const listeners = await getListenersForOwner(c.env.DB, c.get('sessionId'), LIST_LIMIT, sort)
+  const listeners = await getListenersForOwner(c.env.DB, c.get('email'), LIST_LIMIT, sort)
   return c.json(listeners.map((listener) => serializeListener(c.env, listener)))
 })
 
@@ -76,7 +76,7 @@ listenerRoutes.post('/api/listeners/reorder', async (c) => {
     return c.json({ error: 'orderedItems must be an array of { type, id }' }, 400)
   }
 
-  const ok = await reorderItems(c.env.DB, c.get('sessionId'), body.orderedItems)
+  const ok = await reorderItems(c.env.DB, c.get('email'), body.orderedItems)
   if (!ok) {
     return c.json({ error: 'orderedItems must only contain your own listeners and projects' }, 400)
   }
@@ -86,12 +86,12 @@ listenerRoutes.post('/api/listeners/reorder', async (c) => {
 listenerRoutes.post('/api/listeners', async (c) => {
   const id = crypto.randomUUID()
   const createdAt = new Date().toISOString()
-  const listener = await createListener(c.env.DB, id, createdAt, c.get('sessionId'))
+  const listener = await createListener(c.env.DB, id, createdAt, c.get('email'))
   return c.json(serializeListener(c.env, listener), 201)
 })
 
 listenerRoutes.get('/api/listeners/:id', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -99,7 +99,7 @@ listenerRoutes.get('/api/listeners/:id', async (c) => {
 })
 
 listenerRoutes.get('/api/listeners/:id/requests', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -114,7 +114,7 @@ listenerRoutes.get('/api/listeners/:id/requests', async (c) => {
 })
 
 listenerRoutes.delete('/api/listeners/:id', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -123,7 +123,7 @@ listenerRoutes.delete('/api/listeners/:id', async (c) => {
 })
 
 listenerRoutes.post('/api/listeners/:id/share', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -132,7 +132,7 @@ listenerRoutes.post('/api/listeners/:id/share', async (c) => {
 })
 
 listenerRoutes.delete('/api/listeners/:id/share', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -141,7 +141,7 @@ listenerRoutes.delete('/api/listeners/:id/share', async (c) => {
 })
 
 listenerRoutes.put('/api/listeners/:id/slug', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -166,7 +166,7 @@ listenerRoutes.put('/api/listeners/:id/slug', async (c) => {
 })
 
 listenerRoutes.post('/api/listeners/:id/slug/rotate-token', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -179,7 +179,7 @@ listenerRoutes.post('/api/listeners/:id/slug/rotate-token', async (c) => {
 })
 
 listenerRoutes.delete('/api/listeners/:id/slug', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -189,7 +189,7 @@ listenerRoutes.delete('/api/listeners/:id/slug', async (c) => {
 })
 
 listenerRoutes.patch('/api/listeners/:id/label', async (c) => {
-  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('sessionId'))
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
