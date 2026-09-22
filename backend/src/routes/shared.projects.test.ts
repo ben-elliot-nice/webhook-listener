@@ -57,10 +57,32 @@ describe('shared project view', () => {
       env
     )
     expect(response.status).toBe(200)
-    const body = (await response.json()) as { id: string; label: string | null; slug: string | null; createdAt: string }[]
-    expect(body).toHaveLength(1)
-    expect(body[0].id).toBe(listenerId)
-    expect(body[0].slug).toBe('checkout-uat')
+    const body = (await response.json()) as {
+      label: string | null
+      listeners: { id: string; label: string | null; slug: string | null; createdAt: string }[]
+    }
+    expect(body.listeners).toHaveLength(1)
+    expect(body.listeners[0].id).toBe(listenerId)
+    expect(body.listeners[0].slug).toBe('checkout-uat')
+  })
+
+  it('includes the project label set by the owner', async () => {
+    await app.request(
+      `/api/projects/${projectId}/label`,
+      {
+        method: 'PATCH',
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        body: JSON.stringify({ label: 'Checkout UAT' }),
+      },
+      env
+    )
+    const response = await app.request(
+      `/api/shared/projects/${shareToken}`,
+      { headers: await authCookieHeader(env, viewerEmail) },
+      env
+    )
+    const body = (await response.json()) as { label: string | null }
+    expect(body.label).toBe('Checkout UAT')
   })
 
   it('never includes the project id or hookUrlTemplate anywhere in the response', async () => {
@@ -80,8 +102,8 @@ describe('shared project view', () => {
       { headers: await authCookieHeader(env, viewerEmail) },
       env
     )
-    const body = (await response.json()) as Record<string, unknown>[]
-    expect(Object.keys(body[0]).sort()).toEqual(['createdAt', 'id', 'label', 'slug'].sort())
+    const body = (await response.json()) as { listeners: Record<string, unknown>[] }
+    expect(Object.keys(body.listeners[0]).sort()).toEqual(['createdAt', 'id', 'label', 'slug'].sort())
   })
 
   it('returns 404 for an unknown token', async () => {

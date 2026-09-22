@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiError, type RequestDetail, getSharedProjectListenerRequests } from '../api'
+import { ApiError, type RequestDetail, getSharedProjectListenerRequests, recordSharedProjectVisit } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
@@ -20,6 +20,9 @@ export function SharedProjectListener() {
   const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
   const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
+  useEffect(() => {
+    if (token) recordSharedProjectVisit(token)
+  }, [token])
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
   const previousByRequestId = useMemo(() => {
     const map = new Map<number, RequestDetail>()
