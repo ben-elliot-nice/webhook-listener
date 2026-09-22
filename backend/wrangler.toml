@@ -31,3 +31,27 @@ HOOK_BASE_URL = "https://webhook-api.fde.nice-agentic.com"
 APP_BASE_URL = "https://webhook.fde.nice-agentic.com"
 SESSION_COOKIE_DOMAIN = "fde.nice-agentic.com"
 ALLOWED_EMAIL_DOMAINS = "nice.com,cognigy.com"
+
+# Staging: isolated Worker + D1 database on the account's workers.dev
+# subdomain (no custom domain, no Custom Domains API dependency). Deploy
+# with `wrangler deploy --env staging`. WL_SESSION_SECRET and
+# RESEND_API_KEY are set as real Workers secrets via
+# `wrangler secret put <NAME> --env staging` — never committed here, and
+# (same as the default environment above) never declared in
+# [env.staging.vars] either, for the same reason: Cloudflare rejects a
+# secret put for a binding name already registered as a plaintext var.
+[env.staging]
+name = "webhook-api-staging"
+workers_dev = true
+preview_urls = false
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "webhook-listener-staging"
+database_id = "7f55f3f0-7fe0-4237-8307-8769755f4c3a"
+
+[env.staging.vars]
+HOOK_BASE_URL = "https://webhook-api-staging.ben-elliot-9a4.workers.dev"
+APP_BASE_URL = "https://webhook-staging.ben-elliot-9a4.workers.dev"
+SESSION_COOKIE_DOMAIN = ""
+ALLOWED_EMAIL_DOMAINS = "nice.com,cognigy.com"
