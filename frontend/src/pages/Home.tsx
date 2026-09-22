@@ -5,10 +5,13 @@ import {
   createProject,
   listListeners,
   listProjects,
+  listSharedWithMe,
+  removeSharedWithMe,
   reorderItems,
   type Listener,
   type Project,
   type ReorderItem,
+  type SharedWithMeEntry,
   type SortMode,
 } from '../api'
 import {
@@ -61,6 +64,7 @@ export function Home() {
   const [creatingProject, setCreatingProject] = useState(false)
   const [listeners, setListeners] = useState<Listener[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeEntry[]>([])
   const [sort, setSort] = useState<SortMode>(loadStoredSort)
   const [dragKey, setDragKey] = useState<string | null>(null)
   const [dropIndicator, setDropIndicator] = useState<{ key: string; before: boolean } | null>(null)
@@ -76,11 +80,29 @@ export function Home() {
       })
   }, [sort])
 
+  useEffect(() => {
+    listSharedWithMe()
+      .then(setSharedWithMe)
+      .catch(() => {
+        // Same as the owned-items list above: a failed fetch is a nice-to-have
+        // miss, not a blocker for the rest of Home.
+      })
+  }, [])
+
   const items = mergeItems(sort, listeners, projects)
 
   function handleSortChange(next: SortMode) {
     setSort(next)
     localStorage.setItem(SORT_STORAGE_KEY, next)
+  }
+
+  function handleRemoveSharedWithMe(kind: 'listener' | 'project', token: string) {
+    setSharedWithMe((current) => current.filter((entry) => !(entry.kind === kind && entry.token === token)))
+    removeSharedWithMe(kind, token).catch(() => {
+      // Best-effort optimistic removal; a failed DELETE just means the entry
+      // reappears on the next Home load, which is an acceptable degradation
+      // for a personal declutter action.
+    })
   }
 
   async function handleCreateListener() {
@@ -329,6 +351,36 @@ export function Home() {
             })}
           </ul>
         </>
+      )}
+      {sharedWithMe.length > 0 && (
+        <div className="mt-10">
+          <h2 className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">Shared with me</h2>
+          <ul className="space-y-2">
+            {sharedWithMe.map((entry) => (
+              <li key={`${entry.kind}:${entry.token}`} className="flex items-center gap-2">
+                <a
+                  href={entry.url}
+                  className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <span aria-hidden="true">🔗</span>
+                    {entry.label || entry.token}
+                  </span>
+                  <span className="block text-xs text-slate-400 dark:text-slate-400">
+                    {new Date(entry.createdAt).toLocaleString()}
+                  </span>
+                </a>
+                <button
+                  onClick={() => handleRemoveSharedWithMe(entry.kind, entry.token)}
+                  aria-label="Remove from shared with me"
+                  className="rounded-md px-2 py-1 text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </main>
   )

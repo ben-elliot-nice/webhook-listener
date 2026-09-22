@@ -69,12 +69,12 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function requestMagicLink(email: string): Promise<{ message: string }> {
+export function requestMagicLink(email: string, returnTo?: string): Promise<{ message: string }> {
   return fetch(`${API_BASE_URL}/auth/request-link`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, returnTo }),
   }).then((r) => parseJsonOrThrow<{ message: string }>(r))
 }
 
@@ -248,9 +248,14 @@ export function createProjectListener(projectId: string, slug: string): Promise<
   }).then((r) => parseJsonOrThrow<Listener>(r))
 }
 
-export function getSharedProject(token: string): Promise<SharedProjectListener[]> {
+export interface SharedProjectData {
+  label: string | null
+  listeners: SharedProjectListener[]
+}
+
+export function getSharedProject(token: string): Promise<SharedProjectData> {
   return fetch(`${API_BASE_URL}/api/shared/projects/${token}`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<SharedProjectListener[]>(r)
+    parseJsonOrThrow<SharedProjectData>(r)
   )
 }
 
@@ -258,4 +263,38 @@ export function getSharedProjectListenerRequests(token: string, listenerId: stri
   return fetch(`${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests`, {
     credentials: 'include',
   }).then((r) => parseJsonOrThrow<RequestDetail[]>(r))
+}
+
+export async function recordSharedListenerVisit(token: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/shared/${token}/visit`, { method: 'POST', credentials: 'include' }).catch(() => {})
+}
+
+export async function recordSharedProjectVisit(token: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/shared/projects/${token}/visit`, { method: 'POST', credentials: 'include' }).catch(
+    () => {}
+  )
+}
+
+export interface SharedWithMeEntry {
+  kind: 'listener' | 'project'
+  token: string
+  label: string | null
+  createdAt: string
+  url: string
+}
+
+export function listSharedWithMe(): Promise<SharedWithMeEntry[]> {
+  return fetch(`${API_BASE_URL}/api/shared-with-me`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<SharedWithMeEntry[]>(r)
+  )
+}
+
+export async function removeSharedWithMe(kind: 'listener' | 'project', token: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/shared-with-me/${kind}/${token}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
 }
