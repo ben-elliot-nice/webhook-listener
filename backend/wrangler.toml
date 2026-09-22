@@ -17,10 +17,17 @@ binding = "DB"
 database_name = "webhook-listener"
 database_id = "8584b678-1372-4348-a7ef-7a4e51bc23f2"
 
+# WL_SESSION_SECRET and RESEND_API_KEY are intentionally NOT declared here.
+# Cloudflare rejects `wrangler secret put` for a binding name that's already
+# registered as a plaintext var in this file (error code 10053) — so a var
+# entry for either name, even a "dev-only" placeholder, permanently blocks
+# ever setting the real secret. Set both with:
+#   wrangler secret put WL_SESSION_SECRET
+#   wrangler secret put RESEND_API_KEY
+# For local dev, put dev-only values in backend/.dev.vars (gitignored,
+# auto-loaded by `wrangler dev`) — same pattern env.staging already uses.
 [vars]
 HOOK_BASE_URL = "https://webhook-api.fde.nice-agentic.com"
 APP_BASE_URL = "https://webhook.fde.nice-agentic.com"
 SESSION_COOKIE_DOMAIN = "fde.nice-agentic.com"
 ALLOWED_EMAIL_DOMAINS = "nice.com,cognigy.com"
-WL_SESSION_SECRET = "dev-only-not-a-real-secret"
-RESEND_API_KEY = "dev-only-not-a-real-key"
