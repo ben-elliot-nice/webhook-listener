@@ -8,7 +8,7 @@ export async function sendMagicLinkEmail(env: Env, email: string, verifyUrl: str
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'noreply@fde.nice-agentic.com',
+      from: 'noreply@nice-agentic.com',
       to: email,
       subject: 'Sign in to webhook-listener',
       html: `<p>Click the link below to sign in. This link expires in 15 minutes.</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`,

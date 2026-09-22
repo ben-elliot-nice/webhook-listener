@@ -22,7 +22,7 @@ describe('sendMagicLinkEmail', () => {
     )
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.to).toBe('person@nice.com')
-    expect(body.from).toBe('noreply@fde.nice-agentic.com')
+    expect(body.from).toBe('noreply@nice-agentic.com')
     expect(body.html).toContain('https://webhook-api.fde.nice-agentic.com/auth/verify?token=abc')
   })
 
