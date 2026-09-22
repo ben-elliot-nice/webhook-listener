@@ -85,12 +85,20 @@ export function SharedProjectListener() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
-      <Link
-        to={`/shared/projects/${token}`}
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-      >
-        ← Back to project
-      </Link>
+      <div className="mb-4 flex items-center gap-4">
+        <Link
+          to={`/shared/projects/${token}`}
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+        >
+          ← Back to project
+        </Link>
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+        >
+          ← Back to home
+        </Link>
+      </div>
       <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">Shared listener (read-only)</h1>
 
       {error && (

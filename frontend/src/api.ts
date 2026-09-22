@@ -248,9 +248,14 @@ export function createProjectListener(projectId: string, slug: string): Promise<
   }).then((r) => parseJsonOrThrow<Listener>(r))
 }
 
-export function getSharedProject(token: string): Promise<SharedProjectListener[]> {
+export interface SharedProjectData {
+  label: string | null
+  listeners: SharedProjectListener[]
+}
+
+export function getSharedProject(token: string): Promise<SharedProjectData> {
   return fetch(`${API_BASE_URL}/api/shared/projects/${token}`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<SharedProjectListener[]>(r)
+    parseJsonOrThrow<SharedProjectData>(r)
   )
 }
 

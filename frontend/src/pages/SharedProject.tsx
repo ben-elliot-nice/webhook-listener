@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ApiError, getSharedProject, recordSharedProjectVisit, type SharedProjectListener } from '../api'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
@@ -7,9 +7,21 @@ import { WIDTH_CLASSES } from '../lib/settings'
 const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
+function BackToHome() {
+  return (
+    <Link
+      to="/"
+      className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+    >
+      ← Back to home
+    </Link>
+  )
+}
+
 export function SharedProject() {
   const { token } = useParams<{ token: string }>()
   const { width } = useSettings()
+  const [label, setLabel] = useState<string | null>(null)
   const [listeners, setListeners] = useState<SharedProjectListener[]>([])
   const [loaded, setLoaded] = useState(false)
   const [notFound, setNotFound] = useState(false)
@@ -22,7 +34,8 @@ export function SharedProject() {
     if (!token) return false
     try {
       const data = await getSharedProject(token)
-      setListeners(data)
+      setLabel(data.label)
+      setListeners(data.listeners)
       setLoaded(true)
       consecutiveNotFoundRef.current = 0
       return true
@@ -60,6 +73,7 @@ export function SharedProject() {
   if (notFound) {
     return (
       <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+        <BackToHome />
         <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">Shared project (read-only)</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Share link not found or revoked.</p>
       </main>
@@ -69,6 +83,7 @@ export function SharedProject() {
   if (!loaded) {
     return (
       <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+        <BackToHome />
         <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">Shared project (read-only)</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       </main>
@@ -77,7 +92,10 @@ export function SharedProject() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
-      <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">Shared project (read-only)</h1>
+      <BackToHome />
+      <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">
+        {label || 'Shared project'} <span className="font-normal text-slate-400">(read-only)</span>
+      </h1>
 
       {listeners.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">

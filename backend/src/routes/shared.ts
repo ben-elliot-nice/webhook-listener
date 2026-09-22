@@ -34,14 +34,15 @@ sharedRoutes.get('/api/shared/projects/:token', async (c) => {
     return c.json({ error: 'share link not found' }, 404)
   }
   const listeners = await getListenersByProject(c.env.DB, project.id)
-  return c.json(
-    listeners.map((l) => ({
+  return c.json({
+    label: project.label,
+    listeners: listeners.map((l) => ({
       id: l.id,
       label: l.label,
       slug: l.slug,
       createdAt: l.createdAt,
-    }))
-  )
+    })),
+  })
 })
 
 sharedRoutes.get('/api/shared/projects/:token/listeners/:listenerId/requests', async (c) => {
