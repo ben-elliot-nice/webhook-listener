@@ -269,3 +269,27 @@ export async function recordSharedProjectVisit(token: string): Promise<void> {
     () => {}
   )
 }
+
+export interface SharedWithMeEntry {
+  kind: 'listener' | 'project'
+  token: string
+  label: string | null
+  createdAt: string
+  url: string
+}
+
+export function listSharedWithMe(): Promise<SharedWithMeEntry[]> {
+  return fetch(`${API_BASE_URL}/api/shared-with-me`, { credentials: 'include' }).then((r) =>
+    parseJsonOrThrow<SharedWithMeEntry[]>(r)
+  )
+}
+
+export async function removeSharedWithMe(kind: 'listener' | 'project', token: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/shared-with-me/${kind}/${token}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
+}
