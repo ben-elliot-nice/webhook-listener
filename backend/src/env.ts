@@ -11,4 +11,10 @@ export interface Env {
    * discard the Set-Cookie header, breaking sessions entirely.
    */
   SESSION_COOKIE_DOMAIN?: string
+  /** Comma-separated list of email domains allowed to request/use a magic link. */
+  ALLOWED_EMAIL_DOMAINS: string
+  /** HMAC key for signing the wl_email_session cookie. Wrangler secret in production. */
+  WL_SESSION_SECRET: string
+  /** Resend API key used to send magic-link emails. Wrangler secret in production. */
+  RESEND_API_KEY: string
 }

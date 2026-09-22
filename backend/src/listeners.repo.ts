@@ -5,6 +5,7 @@ export interface ListenerRecord {
   createdAt: string
   shareToken: string | null
   ownerSession: string | null
+  ownerEmail: string | null
   slug: string | null
   webhookToken: string | null
   label: string | null
@@ -15,20 +16,32 @@ export interface ListenerRecord {
 
 const SELECT_COLUMNS =
   'id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession, ' +
-  'slug, webhook_token AS webhookToken, label, last_request_at AS lastRequestAt, sort_position AS sortPosition, ' +
-  'project_id AS projectId'
+  'owner_email AS ownerEmail, slug, webhook_token AS webhookToken, label, last_request_at AS lastRequestAt, ' +
+  'sort_position AS sortPosition, project_id AS projectId'
 
 export async function createListener(
   db: Env['DB'],
   id: string,
   createdAt: string,
-  ownerSession: string
+  ownerEmail: string
 ): Promise<ListenerRecord> {
   await db
-    .prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
-    .bind(id, createdAt, ownerSession)
+    .prepare('INSERT INTO listeners (id, created_at, owner_email) VALUES (?, ?, ?)')
+    .bind(id, createdAt, ownerEmail)
     .run()
-  return { id, createdAt, shareToken: null, ownerSession, slug: null, webhookToken: null, label: null, lastRequestAt: null, sortPosition: null, projectId: null }
+  return {
+    id,
+    createdAt,
+    shareToken: null,
+    ownerSession: null,
+    ownerEmail,
+    slug: null,
+    webhookToken: null,
+    label: null,
+    lastRequestAt: null,
+    sortPosition: null,
+    projectId: null,
+  }
 }
 
 export async function getListenerByProjectAndSlug(
@@ -55,21 +68,23 @@ export async function createProjectListener(
   db: Env['DB'],
   id: string,
   createdAt: string,
-  ownerSession: string,
+  ownerSession: string | null,
+  ownerEmail: string | null,
   projectId: string,
   slug: string
 ): Promise<ListenerRecord> {
   await db
     .prepare(
-      'INSERT INTO listeners (id, created_at, owner_session, project_id, slug) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO listeners (id, created_at, owner_session, owner_email, project_id, slug) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    .bind(id, createdAt, ownerSession, projectId, slug)
+    .bind(id, createdAt, ownerSession, ownerEmail, projectId, slug)
     .run()
   return {
     id,
     createdAt,
     shareToken: null,
     ownerSession,
+    ownerEmail,
     slug,
     webhookToken: null,
     label: null,
@@ -90,11 +105,11 @@ export async function getListener(db: Env['DB'], id: string): Promise<ListenerRe
 export async function getListenerForOwner(
   db: Env['DB'],
   id: string,
-  sessionId: string
+  email: string
 ): Promise<ListenerRecord | undefined> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE id = ? AND owner_session = ?`)
-    .bind(id, sessionId)
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE id = ? AND owner_email = ?`)
+    .bind(id, email)
     .first<ListenerRecord>()
   return row ?? undefined
 }
@@ -110,13 +125,13 @@ const SORT_CLAUSES: Record<SortMode, string> = {
 
 export async function getListenersForOwner(
   db: Env['DB'],
-  sessionId: string,
+  email: string,
   limit: number,
   sort: SortMode = 'date'
 ): Promise<ListenerRecord[]> {
   const { results } = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE owner_session = ? ORDER BY ${SORT_CLAUSES[sort]} LIMIT ?`)
-    .bind(sessionId, limit)
+    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE owner_email = ? ORDER BY ${SORT_CLAUSES[sort]} LIMIT ?`)
+    .bind(email, limit)
     .all<ListenerRecord>()
   return results
 }
@@ -126,15 +141,15 @@ export interface ReorderItem {
   id: string
 }
 
-export async function reorderItems(db: Env['DB'], sessionId: string, items: ReorderItem[]): Promise<boolean> {
+export async function reorderItems(db: Env['DB'], email: string, items: ReorderItem[]): Promise<boolean> {
   if (items.length === 0) return false
 
   const listenerIds = items.filter((item) => item.type === 'listener').map((item) => item.id)
   const projectIds = items.filter((item) => item.type === 'project').map((item) => item.id)
 
   const [ownedListeners, ownedProjects] = await Promise.all([
-    db.prepare('SELECT id FROM listeners WHERE owner_session = ?').bind(sessionId).all<{ id: string }>(),
-    db.prepare('SELECT id FROM projects WHERE owner_session = ?').bind(sessionId).all<{ id: string }>(),
+    db.prepare('SELECT id FROM listeners WHERE owner_email = ?').bind(email).all<{ id: string }>(),
+    db.prepare('SELECT id FROM projects WHERE owner_email = ?').bind(email).all<{ id: string }>(),
   ])
   const ownedListenerIds = new Set(ownedListeners.results.map((r) => r.id))
   const ownedProjectIds = new Set(ownedProjects.results.map((r) => r.id))

@@ -1,18 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
+import { authCookieHeader } from '../test-helpers/auth'
 
-async function createProjectId(): Promise<string> {
-  const response = await app.request('/api/projects', { method: 'POST' }, env)
+async function createProjectId(email = 'owner@nice.com'): Promise<string> {
+  const response = await app.request(
+    '/api/projects',
+    { method: 'POST', headers: await authCookieHeader(env, email) },
+    env
+  )
   const body = (await response.json()) as { id: string }
   return body.id
-}
-
-async function createProjectWithSession(): Promise<{ projectId: string; sessionCookie: string }> {
-  const response = await app.request('/api/projects', { method: 'POST' }, env)
-  const sessionId = response.headers.get('set-cookie')?.match(/wl_session_id=([^;]+)/)?.[1]
-  const projectId = ((await response.json()) as { id: string }).id
-  return { projectId, sessionCookie: `wl_session_id=${sessionId}` }
 }
 
 describe('create-and-send hook route', () => {
@@ -27,36 +25,37 @@ describe('create-and-send hook route', () => {
   })
 
   it('second call to the same pair reuses the listener and returns 200, with both requests recorded', async () => {
-    const { projectId, sessionCookie } = await createProjectWithSession()
+    const ownerEmail = 'owner@nice.com'
+    const projectId = await createProjectId(ownerEmail)
     const first = await app.request(
       `/hook/${projectId}/checkout-uat`,
-      { method: 'POST', headers: { cookie: sessionCookie }, body: 'first' },
+      { method: 'POST', body: 'first' },
       env
     )
     expect(first.status).toBe(201)
 
     const second = await app.request(
       `/hook/${projectId}/checkout-uat`,
-      { method: 'POST', headers: { cookie: sessionCookie }, body: 'second' },
+      { method: 'POST', body: 'second' },
       env
     )
     expect(second.status).toBe(200)
 
     const third = await app.request(
       `/hook/${projectId}/checkout-uat`,
-      { method: 'POST', headers: { cookie: sessionCookie }, body: 'third' },
+      { method: 'POST', body: 'third' },
       env
     )
     expect(third.status).toBe(200)
 
-    const list = await app.request('/api/listeners', { headers: { cookie: sessionCookie } }, env)
+    const list = await app.request('/api/listeners', { headers: await authCookieHeader(env, ownerEmail) }, env)
     const listBody = (await list.json()) as { id: string; slug: string }[]
     const listenerId = listBody.find((l) => l.slug === 'checkout-uat')?.id
     expect(listenerId).toBeDefined()
 
     const requestsResponse = await app.request(
       `/api/listeners/${listenerId}/requests`,
-      { headers: { cookie: sessionCookie } },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const requests = (await requestsResponse.json()) as unknown[]
@@ -98,17 +97,12 @@ describe('create-and-send hook route', () => {
   })
 
   it('GET /api/listeners includes a project-scoped listener with a /hook/:projectId/:slug hookUrl', async () => {
-    const created = await app.request('/api/projects', { method: 'POST' }, env)
-    const sessionId = created.headers.get('set-cookie')?.match(/wl_session_id=([^;]+)/)?.[1]
-    const projectId = ((await created.json()) as { id: string }).id
+    const ownerEmail = 'owner@nice.com'
+    const projectId = await createProjectId(ownerEmail)
 
-    await app.request(
-      `/hook/${projectId}/checkout-uat`,
-      { method: 'POST', headers: { cookie: `wl_session_id=${sessionId}` } },
-      env
-    )
+    await app.request(`/hook/${projectId}/checkout-uat`, { method: 'POST' }, env)
 
-    const list = await app.request('/api/listeners', { headers: { cookie: `wl_session_id=${sessionId}` } }, env)
+    const list = await app.request('/api/listeners', { headers: await authCookieHeader(env, ownerEmail) }, env)
     const listBody = (await list.json()) as { hookUrl: string; slug: string }[]
     const match = listBody.find((l) => l.slug === 'checkout-uat')
     expect(match?.hookUrl).toBe(`${env.HOOK_BASE_URL}/hook/${projectId}/checkout-uat`)

@@ -93,6 +93,7 @@ hookRoute.all('/hook/:projectId/:identifier', async (c) => {
         crypto.randomUUID(),
         new Date().toISOString(),
         project.ownerSession,
+        project.ownerEmail,
         project.id,
         identifier
       )

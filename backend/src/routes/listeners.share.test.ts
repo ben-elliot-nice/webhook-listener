@@ -1,23 +1,26 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('listener share management', () => {
   let listenerId: string
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/listeners', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
-    sessionId = extractSessionId(created)
   })
 
   it('has no share link by default', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await response.json() as { shareUrl: string | null }).shareUrl).toBeNull()
@@ -26,7 +29,7 @@ describe('listener share management', () => {
   it('creates a share link', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(200)
@@ -45,12 +48,12 @@ describe('listener share management', () => {
   it('is idempotent — repeat calls return the same token', async () => {
     const first = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const second = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await second.json() as { shareToken: string }).shareToken).toBe(
@@ -61,12 +64,12 @@ describe('listener share management', () => {
   it('reflects the created share link on the listener', async () => {
     const shareResponse = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const listenerResponse = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await listenerResponse.json() as { shareUrl: string }).shareUrl).toBe(
@@ -77,19 +80,19 @@ describe('listener share management', () => {
   it('revokes a share link', async () => {
     await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const revokeResponse = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(revokeResponse.status).toBe(204)
 
     const listenerResponse = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await listenerResponse.json() as { shareUrl: string | null }).shareUrl).toBeNull()
@@ -98,17 +101,17 @@ describe('listener share management', () => {
   it('generates a new token after revoke then re-share', async () => {
     const first = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const second = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect((await second.json() as { shareToken: string }).shareToken).not.toBe(
@@ -119,14 +122,14 @@ describe('listener share management', () => {
   it('returns 404 for an unknown listener on both endpoints', async () => {
     const shareResponse = await app.request(
       '/api/listeners/does-not-exist/share',
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(shareResponse.status).toBe(404)
 
     const revokeResponse = await app.request(
       '/api/listeners/does-not-exist/share',
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(revokeResponse.status).toBe(404)

@@ -1,152 +1,152 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('listener ownership isolation', () => {
   let listenerId: string
-  let ownerSessionId: string
-  let otherSessionId: string
+  const ownerEmail = 'owner@nice.com'
+  const otherEmail = 'other@nice.com'
 
   beforeEach(async () => {
-    const created = await app.request('/api/listeners', { method: 'POST' }, env)
+    const created = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
-    ownerSessionId = extractSessionId(created)
-
-    const otherVisit = await app.request('/api/listeners/does-not-exist', {}, env)
-    otherSessionId = extractSessionId(otherVisit)
   })
 
-  it('is invisible to a different session on GET /api/listeners/:id', async () => {
+  it('is invisible to a different owner on GET /api/listeners/:id', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)
   })
 
-  it('is invisible to a different session on GET /api/listeners/:id/requests', async () => {
+  it('is invisible to a different owner on GET /api/listeners/:id/requests', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/requests`,
-      { headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)
   })
 
-  it('cannot be deleted by a different session', async () => {
+  it('cannot be deleted by a different owner', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)
 
     const stillThere = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(stillThere.status).toBe(200)
   })
 
-  it('can be deleted by the owning session, and then 404s', async () => {
+  it('can be deleted by the owning email, and then 404s', async () => {
     const deleteResponse = await app.request(
       `/api/listeners/${listenerId}`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(deleteResponse.status).toBe(204)
 
     const getResponse = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(getResponse.status).toBe(404)
   })
 
-  it('cannot have a share link created by a different session', async () => {
+  it('cannot have a share link created by a different owner', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)
   })
 
-  it('cannot have its share link revoked by a different session', async () => {
+  it('cannot have its share link revoked by a different owner', async () => {
     await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'POST', headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const response = await app.request(
       `/api/listeners/${listenerId}/share`,
-      { method: 'DELETE', headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { method: 'DELETE', headers: await authCookieHeader(env, otherEmail) },
       env
     )
     expect(response.status).toBe(404)
   })
 
-  it('is invisible to a request with no session cookie at all', async () => {
+  it('is unauthorized for a request with no auth cookie at all', async () => {
     const response = await app.request(`/api/listeners/${listenerId}`, {}, env)
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(401)
   })
 
-  it('cannot be deleted by a request with no session cookie at all', async () => {
+  it('cannot be deleted by a request with no auth cookie at all', async () => {
     const response = await app.request(`/api/listeners/${listenerId}`, { method: 'DELETE' }, env)
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(401)
   })
 
-  it('cannot have a share link created by a request with no session cookie at all', async () => {
+  it('cannot have a share link created by a request with no auth cookie at all', async () => {
     const response = await app.request(`/api/listeners/${listenerId}/share`, { method: 'POST' }, env)
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(401)
   })
 
-  it('cannot have its share link revoked by a request with no session cookie at all', async () => {
+  it('cannot have its share link revoked by a request with no auth cookie at all', async () => {
     const response = await app.request(`/api/listeners/${listenerId}/share`, { method: 'DELETE' }, env)
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(401)
   })
 
   it('returns the exact same 404 body as a nonexistent listener', async () => {
-    const wrongSessionResponse = await app.request(
+    const wrongOwnerResponse = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { headers: await authCookieHeader(env, otherEmail) },
       env
     )
     const nonexistentResponse = await app.request(
       '/api/listeners/does-not-exist',
-      { headers: cookieHeader({ wl_session_id: otherSessionId }) },
+      { headers: await authCookieHeader(env, otherEmail) },
       env
     )
-    expect(await wrongSessionResponse.json()).toEqual(await nonexistentResponse.json())
-    expect(wrongSessionResponse.status).toBe(nonexistentResponse.status)
+    expect(await wrongOwnerResponse.json()).toEqual(await nonexistentResponse.json())
+    expect(wrongOwnerResponse.status).toBe(nonexistentResponse.status)
   })
 
-  it('a legacy listener with no owner_session is inaccessible via the route layer', async () => {
+  it('a legacy listener with no owner_email is inaccessible via the route layer', async () => {
     await env.DB.prepare("INSERT INTO listeners (id, created_at) VALUES ('legacy-listener', '2024-01-01T00:00:00.000Z')").run()
 
     const response = await app.request(
       '/api/listeners/legacy-listener',
-      { headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(404)
   })
 
-  it('remains visible to the owning session throughout', async () => {
+  it('remains visible to the owning email throughout', async () => {
     const response = await app.request(
       `/api/listeners/${listenerId}`,
-      { headers: cookieHeader({ wl_session_id: ownerSessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     expect(response.status).toBe(200)
   })
 
-  it('the hook route remains reachable regardless of session', async () => {
+  it('the hook route remains reachable regardless of auth', async () => {
     const response = await app.request(
       `/hook/${listenerId}`,
       { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ok: true }) },

@@ -1,20 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
-import { cookieHeader, extractSessionId } from '../test-helpers/session'
+import { authCookieHeader } from '../test-helpers/auth'
 
 describe('POST /api/listeners/reorder', () => {
-  let sessionId: string
+  const ownerEmail = 'owner@nice.com'
   let firstId: string
   let secondId: string
 
   beforeEach(async () => {
-    const first = await app.request('/api/listeners', { method: 'POST' }, env)
-    sessionId = extractSessionId(first)
+    const first = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+      env
+    )
     firstId = ((await first.json()) as { id: string }).id
     const second = await app.request(
       '/api/listeners',
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     secondId = ((await second.json()) as { id: string }).id
@@ -25,7 +28,7 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({
           orderedItems: [
             { type: 'listener', id: secondId },
@@ -39,7 +42,7 @@ describe('POST /api/listeners/reorder', () => {
 
     const listResponse = await app.request(
       '/api/listeners?sort=custom',
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const body = (await listResponse.json()) as { id: string }[]
@@ -49,7 +52,7 @@ describe('POST /api/listeners/reorder', () => {
   it('reorders a mix of listeners and projects together', async () => {
     const projectResponse = await app.request(
       '/api/projects',
-      { method: 'POST', headers: cookieHeader({ wl_session_id: sessionId }) },
+      { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const projectId = ((await projectResponse.json()) as { id: string }).id
@@ -58,7 +61,7 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({
           orderedItems: [
             { type: 'project', id: projectId },
@@ -73,7 +76,7 @@ describe('POST /api/listeners/reorder', () => {
 
     const listResponse = await app.request(
       '/api/listeners?sort=custom',
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const listBody = (await listResponse.json()) as { id: string }[]
@@ -81,21 +84,26 @@ describe('POST /api/listeners/reorder', () => {
 
     const projectsResponse = await app.request(
       '/api/projects',
-      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
     const projectsBody = (await projectsResponse.json()) as { id: string; sortPosition: number }[]
     expect(projectsBody[0]).toMatchObject({ id: projectId, sortPosition: 0 })
   })
 
-  it('returns 400 for a listener id belonging to another session', async () => {
-    const other = await app.request('/api/listeners', { method: 'POST' }, env)
+  it('returns 400 for a listener id belonging to another owner', async () => {
+    const otherEmail = 'other@nice.com'
+    const other = await app.request(
+      '/api/listeners',
+      { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
+      env
+    )
     const otherId = ((await other.json()) as { id: string }).id
     const response = await app.request(
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({
           orderedItems: [
             { type: 'listener', id: firstId },
@@ -108,14 +116,19 @@ describe('POST /api/listeners/reorder', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 for a project id belonging to another session', async () => {
-    const otherProject = await app.request('/api/projects', { method: 'POST' }, env)
+  it('returns 400 for a project id belonging to another owner', async () => {
+    const otherEmail = 'other@nice.com'
+    const otherProject = await app.request(
+      '/api/projects',
+      { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
+      env
+    )
     const otherProjectId = ((await otherProject.json()) as { id: string }).id
     const response = await app.request(
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({
           orderedItems: [
             { type: 'listener', id: firstId },
@@ -133,7 +146,7 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ orderedItems: 'not-an-array' }),
       },
       env
@@ -146,7 +159,7 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...cookieHeader({ wl_session_id: sessionId }), 'content-type': 'application/json' },
+        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
         body: JSON.stringify({ orderedItems: [{ type: 'bogus', id: firstId }] }),
       },
       env

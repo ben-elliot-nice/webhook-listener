@@ -69,6 +69,26 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>
 }
 
+export function requestMagicLink(email: string): Promise<{ message: string }> {
+  return fetch(`${API_BASE_URL}/auth/request-link`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email }),
+  }).then((r) => parseJsonOrThrow<{ message: string }>(r))
+}
+
+export function getMe(): Promise<{ email: string }> {
+  return fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include' }).then((r) => parseJsonOrThrow<{ email: string }>(r))
+}
+
+export async function logout(): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status)
+  }
+}
+
 export function createListener(): Promise<Listener> {
   return fetch(`${API_BASE_URL}/api/listeners`, { method: 'POST', credentials: 'include' }).then((r) =>
     parseJsonOrThrow<Listener>(r)
