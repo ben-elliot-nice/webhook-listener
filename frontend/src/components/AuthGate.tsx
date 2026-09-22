@@ -22,6 +22,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [returnTo] = useState(() => window.location.pathname + window.location.search)
 
   useEffect(() => {
     getMe()
@@ -41,7 +42,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     e.preventDefault()
     setError(null)
     try {
-      await requestMagicLink(email)
+      await requestMagicLink(email, returnTo)
       setSubmitted(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
