@@ -237,7 +237,7 @@ export function JsonTree({ value, colors, collapsedPaths, onToggle, options }: J
   const nextLine = () => ++counter
 
   return (
-    <div className="font-mono text-sm">
+    <div className="inline-block min-w-full font-mono text-sm">
       <JsonNode
         path={[]}
         value={value}

@@ -22,6 +22,23 @@ export async function createMagicLink(
     .run()
 }
 
+// Read-only lookup for the GET landing page — deliberately does not consume
+// the token. Email security scanners (Safe Links, Proofpoint, Mimecast, etc.)
+// commonly pre-fetch links in incoming mail via a plain GET before the human
+// ever clicks; if that GET consumed the token, the real click would always
+// find it already used. Consumption only happens on the confirmation page's
+// POST, which no scanner submits.
+export async function peekMagicLink(
+  db: Env['DB'],
+  tokenHash: string
+): Promise<{ email: string } | undefined> {
+  const row = await db
+    .prepare('SELECT email FROM magic_links WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?')
+    .bind(tokenHash, new Date().toISOString())
+    .first<{ email: string }>()
+  return row ?? undefined
+}
+
 export async function consumeMagicLink(
   db: Env['DB'],
   tokenHash: string

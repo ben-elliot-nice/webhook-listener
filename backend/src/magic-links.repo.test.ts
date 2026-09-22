@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
-import { hasPendingMagicLink, createMagicLink, consumeMagicLink } from './magic-links.repo'
+import { hasPendingMagicLink, createMagicLink, consumeMagicLink, peekMagicLink } from './magic-links.repo'
 import { hashToken } from './auth/tokens'
 
 describe('magic-links.repo', () => {
@@ -75,5 +75,41 @@ describe('magic-links.repo', () => {
   it('consumeMagicLink returns undefined for an unknown token', async () => {
     const result = await consumeMagicLink(env.DB, await hashToken('never-created'))
     expect(result).toBeUndefined()
+  })
+
+  it('peekMagicLink returns the email without marking the link used', async () => {
+    const email = 'peek@nice.com'
+    const tokenHash = await hashToken('raw-token-7')
+    const now = new Date()
+    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+
+    const peeked = await peekMagicLink(env.DB, tokenHash)
+    expect(peeked).toEqual({ email })
+
+    // Peeking must not consume it — a real consume still succeeds afterward.
+    const consumed = await consumeMagicLink(env.DB, tokenHash)
+    expect(consumed).toEqual({ email, returnTo: null })
+  })
+
+  it('peekMagicLink returns undefined for an already-used token', async () => {
+    const email = 'peek-used@nice.com'
+    const tokenHash = await hashToken('raw-token-8')
+    const now = new Date()
+    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+    await consumeMagicLink(env.DB, tokenHash)
+
+    expect(await peekMagicLink(env.DB, tokenHash)).toBeUndefined()
+  })
+
+  it('peekMagicLink returns undefined for an expired token', async () => {
+    const tokenHash = await hashToken('raw-token-9')
+    const now = new Date()
+    await createMagicLink(env.DB, 'peek-expired@nice.com', tokenHash, now.toISOString(), new Date(now.getTime() - 1000).toISOString())
+
+    expect(await peekMagicLink(env.DB, tokenHash)).toBeUndefined()
+  })
+
+  it('peekMagicLink returns undefined for an unknown token', async () => {
+    expect(await peekMagicLink(env.DB, await hashToken('never-created-2'))).toBeUndefined()
   })
 })
