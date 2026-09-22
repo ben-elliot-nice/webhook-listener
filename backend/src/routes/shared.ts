@@ -4,7 +4,7 @@ import type { Variables } from '../app'
 import { getListenerByShareToken, getListener, getListenersByProject } from '../listeners.repo'
 import { getProjectByShareToken } from '../projects.repo'
 import { getRequests } from '../requests.repo'
-import { recordSharedVisit } from '../shared-with-me.repo'
+import { recordSharedVisit, listSharedWithMe, removeSharedWithMe } from '../shared-with-me.repo'
 
 export const sharedRoutes = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -83,5 +83,46 @@ sharedRoutes.post('/api/shared/projects/:token/visit', async (c) => {
     return c.json({ error: 'share link not found' }, 404)
   }
   await recordSharedVisit(c.env.DB, c.get('email'), 'project', c.req.param('token'), new Date().toISOString())
+  return c.body(null, 204)
+})
+
+sharedRoutes.get('/api/shared-with-me', async (c) => {
+  const viewerEmail = c.get('email')
+  const rows = await listSharedWithMe(c.env.DB, viewerEmail)
+
+  const entries = await Promise.all(
+    rows.map(async (row) => {
+      if (row.kind === 'listener') {
+        const listener = await getListenerByShareToken(c.env.DB, row.token)
+        if (!listener || listener.ownerEmail === viewerEmail) return null
+        return {
+          kind: 'listener' as const,
+          token: row.token,
+          label: listener.label ?? listener.slug,
+          createdAt: listener.createdAt,
+          url: `/shared/${row.token}`,
+        }
+      }
+      const project = await getProjectByShareToken(c.env.DB, row.token)
+      if (!project || project.ownerEmail === viewerEmail) return null
+      return {
+        kind: 'project' as const,
+        token: row.token,
+        label: project.label,
+        createdAt: project.createdAt,
+        url: `/shared/projects/${row.token}`,
+      }
+    })
+  )
+
+  return c.json(entries.filter((entry) => entry !== null))
+})
+
+sharedRoutes.delete('/api/shared-with-me/:kind/:token', async (c) => {
+  const kind = c.req.param('kind')
+  if (kind !== 'listener' && kind !== 'project') {
+    return c.json({ error: 'kind must be "listener" or "project"' }, 400)
+  }
+  await removeSharedWithMe(c.env.DB, c.get('email'), kind, c.req.param('token'), new Date().toISOString())
   return c.body(null, 204)
 })

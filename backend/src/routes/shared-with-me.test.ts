@@ -84,4 +84,142 @@ describe('shared-with-me visit recording', () => {
     const response = await app.request(`/api/shared/${listenerShareToken}/visit`, { method: 'POST' }, env)
     expect(response.status).toBe(401)
   })
+
+  describe('GET /api/shared-with-me and DELETE /api/shared-with-me/:kind/:token', () => {
+    it('lists a recorded listener visit with its live label', async () => {
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+
+      const response = await app.request('/api/shared-with-me', { headers: await authCookieHeader(env, viewerEmail) }, env)
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { kind: string; token: string; url: string }[]
+      expect(body).toEqual([
+        expect.objectContaining({ kind: 'listener', token: listenerShareToken, url: `/shared/${listenerShareToken}` }),
+      ])
+    })
+
+    it('lists a recorded project visit with its live label', async () => {
+      await app.request(
+        `/api/shared/projects/${projectShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+
+      const response = await app.request('/api/shared-with-me', { headers: await authCookieHeader(env, viewerEmail) }, env)
+      const body = (await response.json()) as { kind: string; token: string; url: string }[]
+      expect(body).toEqual([
+        expect.objectContaining({
+          kind: 'project',
+          token: projectShareToken,
+          url: `/shared/projects/${projectShareToken}`,
+        }),
+      ])
+    })
+
+    it('excludes an entry once its token is revoked', async () => {
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      await app.request(
+        `/api/listeners/${listenerId}/share`,
+        { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
+        env
+      )
+
+      const response = await app.request('/api/shared-with-me', { headers: await authCookieHeader(env, viewerEmail) }, env)
+      expect(await response.json()).toEqual([])
+    })
+
+    it('excludes an entry whose resolved owner is the viewer themselves', async () => {
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
+        env
+      )
+
+      const response = await app.request('/api/shared-with-me', { headers: await authCookieHeader(env, ownerEmail) }, env)
+      expect(await response.json()).toEqual([])
+    })
+
+    it('DELETE removes an entry, and it drops out of the next GET', async () => {
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+
+      const deleteResponse = await app.request(
+        `/api/shared-with-me/listener/${listenerShareToken}`,
+        { method: 'DELETE', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      expect(deleteResponse.status).toBe(204)
+
+      const response = await app.request('/api/shared-with-me', { headers: await authCookieHeader(env, viewerEmail) }, env)
+      expect(await response.json()).toEqual([])
+    })
+
+    it('DELETE returns 204 even for a token the viewer never visited', async () => {
+      const response = await app.request(
+        '/api/shared-with-me/listener/never-visited-token',
+        { method: 'DELETE', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      expect(response.status).toBe(204)
+    })
+
+    it('revisiting after removal clears removed_at and it reappears in GET', async () => {
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      await app.request(
+        `/api/shared-with-me/listener/${listenerShareToken}`,
+        { method: 'DELETE', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+
+      const response = await app.request('/api/shared-with-me', { headers: await authCookieHeader(env, viewerEmail) }, env)
+      const body = (await response.json()) as { token: string }[]
+      expect(body.map((r) => r.token)).toContain(listenerShareToken)
+    })
+
+    it('one viewer removing an entry does not affect another viewer who also visited it', async () => {
+      const otherViewerEmail = 'other-viewer@nice.com'
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      await app.request(
+        `/api/shared/${listenerShareToken}/visit`,
+        { method: 'POST', headers: await authCookieHeader(env, otherViewerEmail) },
+        env
+      )
+      await app.request(
+        `/api/shared-with-me/listener/${listenerShareToken}`,
+        { method: 'DELETE', headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+
+      const otherResponse = await app.request(
+        '/api/shared-with-me',
+        { headers: await authCookieHeader(env, otherViewerEmail) },
+        env
+      )
+      const otherBody = (await otherResponse.json()) as { token: string }[]
+      expect(otherBody.map((r) => r.token)).toContain(listenerShareToken)
+    })
+  })
 })
