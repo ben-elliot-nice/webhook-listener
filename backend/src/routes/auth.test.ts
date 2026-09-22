@@ -7,6 +7,18 @@ function stubResendOk() {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
 }
 
+async function postVerify(token: string) {
+  return app.request(
+    '/auth/verify',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: `token=${encodeURIComponent(token)}`,
+    },
+    env
+  )
+}
+
 describe('auth routes', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -59,41 +71,22 @@ describe('auth routes', () => {
     return match[1]
   }
 
-  it('GET /auth/verify with a valid token issues a working wl_email_session cookie', async () => {
-    const verifyUrl = await requestAndExtractVerifyUrl('verifyme@nice.com')
+  it('GET /auth/verify renders a confirmation page without consuming the token', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('scanner@nice.com')
     const token = new URL(verifyUrl).searchParams.get('token')!
 
-    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
-    expect(response.status).toBe(302)
-    const setCookie = response.headers.getSetCookie().find((c) => c.startsWith('wl_email_session='))
-    expect(setCookie).toBeDefined()
-    const cookieValue = setCookie!.split(';')[0].split('=')[1]
-    expect(await verifyEmailSession(env.WL_SESSION_SECRET, cookieValue)).toBe('verifyme@nice.com')
-  })
+    const getResponse = await app.request(`/auth/verify?token=${token}`, {}, env)
+    expect(getResponse.status).toBe(200)
+    expect(getResponse.headers.get('content-type')).toContain('text/html')
+    const html = await getResponse.text()
+    expect(html).toContain('scanner@nice.com')
+    expect(html).toContain(token)
+    expect(html).toContain('action="/auth/verify"')
 
-  it('GET /auth/verify redirects to the requested returnTo path after verifying', async () => {
-    const verifyUrl = await requestAndExtractVerifyUrl('returnto@nice.com', '/shared/abc123')
-    const token = new URL(verifyUrl).searchParams.get('token')!
-
-    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
-    expect(response.status).toBe(302)
-    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/shared/abc123`)
-  })
-
-  it('GET /auth/verify falls back to "/" when no returnTo was supplied', async () => {
-    const verifyUrl = await requestAndExtractVerifyUrl('noreturnto@nice.com')
-    const token = new URL(verifyUrl).searchParams.get('token')!
-
-    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
-    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/`)
-  })
-
-  it('GET /auth/verify falls back to "/" when returnTo is not a safe relative path', async () => {
-    const verifyUrl = await requestAndExtractVerifyUrl('badreturnto@nice.com', '//evil.com')
-    const token = new URL(verifyUrl).searchParams.get('token')!
-
-    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
-    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/`)
+    // A plain GET (the kind an email-security link scanner performs) must
+    // never consume the token — the real click (a POST) should still work.
+    const postResponse = await postVerify(token)
+    expect(postResponse.status).toBe(302)
   })
 
   it('GET /auth/verify redirects with authError for an invalid token', async () => {
@@ -102,19 +95,62 @@ describe('auth routes', () => {
     expect(response.headers.get('location')).toContain('authError=invalid_link')
   })
 
-  it('GET /auth/verify redirects with authError on a second use of the same token', async () => {
+  it('POST /auth/verify with a valid token issues a working wl_email_session cookie', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('verifyme@nice.com')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await postVerify(token)
+    expect(response.status).toBe(302)
+    const setCookie = response.headers.getSetCookie().find((c) => c.startsWith('wl_email_session='))
+    expect(setCookie).toBeDefined()
+    const cookieValue = setCookie!.split(';')[0].split('=')[1]
+    expect(await verifyEmailSession(env.WL_SESSION_SECRET, cookieValue)).toBe('verifyme@nice.com')
+  })
+
+  it('POST /auth/verify redirects to the requested returnTo path after verifying', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('returnto@nice.com', '/shared/abc123')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await postVerify(token)
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/shared/abc123`)
+  })
+
+  it('POST /auth/verify falls back to "/" when no returnTo was supplied', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('noreturnto@nice.com')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await postVerify(token)
+    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/`)
+  })
+
+  it('POST /auth/verify falls back to "/" when returnTo is not a safe relative path', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('badreturnto@nice.com', '//evil.com')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await postVerify(token)
+    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/`)
+  })
+
+  it('POST /auth/verify redirects with authError for an unknown token', async () => {
+    const response = await postVerify('not-a-real-token')
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toContain('authError=invalid_link')
+  })
+
+  it('POST /auth/verify redirects with authError on a second use of the same token', async () => {
     const verifyUrl = await requestAndExtractVerifyUrl('reused@nice.com')
     const token = new URL(verifyUrl).searchParams.get('token')!
 
-    await app.request(`/auth/verify?token=${token}`, {}, env)
-    const second = await app.request(`/auth/verify?token=${token}`, {}, env)
+    await postVerify(token)
+    const second = await postVerify(token)
     expect(second.headers.get('location')).toContain('authError=invalid_link')
   })
 
   it('GET /auth/me returns the email for a valid session cookie', async () => {
     const verifyUrl = await requestAndExtractVerifyUrl('me@nice.com')
     const token = new URL(verifyUrl).searchParams.get('token')!
-    const verifyResponse = await app.request(`/auth/verify?token=${token}`, {}, env)
+    const verifyResponse = await postVerify(token)
     const cookieValue = verifyResponse.headers
       .getSetCookie()
       .find((c) => c.startsWith('wl_email_session='))!

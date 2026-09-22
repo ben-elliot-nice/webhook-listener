@@ -3,7 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import type { Env } from '../env'
 import { hashToken } from '../auth/tokens'
 import { signEmailSession, verifyEmailSession } from '../auth/session'
-import { hasPendingMagicLink, createMagicLink, consumeMagicLink } from '../magic-links.repo'
+import { hasPendingMagicLink, createMagicLink, consumeMagicLink, peekMagicLink } from '../magic-links.repo'
 import { mergeSessionIntoEmail } from '../ownership-merge'
 import { sendMagicLinkEmail } from '../email'
 
@@ -28,6 +28,41 @@ function domainOf(email: string): string {
 function safeReturnTo(value: unknown): string | null {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return null
   return value
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function confirmSignInPage(email: string, token: string): string {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="robots" content="noindex" />
+  <title>Sign in to webhook-listener</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; display: flex; min-height: 100vh; align-items: center; justify-content: center; background: #f8fafc; margin: 0; }
+    .card { max-width: 380px; padding: 2rem; text-align: center; }
+    p { color: #475569; font-size: 0.875rem; }
+    button { width: 100%; border-radius: 0.5rem; background: #0f172a; color: #fff; padding: 0.625rem 0.75rem; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; }
+    button:hover { background: #1e293b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <p>Click below to finish signing in as <strong>${escapeHtml(email)}</strong>.</p>
+    <form method="POST" action="/auth/verify">
+      <input type="hidden" name="token" value="${escapeHtml(token)}" />
+      <button type="submit">Finish signing in</button>
+    </form>
+  </div>
+</body>
+</html>`
 }
 
 function cookieOptions(env: Env) {
@@ -76,8 +111,26 @@ authRoutes.post('/auth/request-link', async (c) => {
   return c.json({ message: 'check your email for a sign-in link' })
 })
 
+// GET only peeks — it deliberately never consumes the token. Email security
+// scanners routinely pre-fetch links in incoming mail; if a plain GET
+// consumed the token, the human's real click would always find it already
+// used. Instead this renders a landing page requiring an actual click
+// (a POST no scanner submits) before the token is consumed.
 authRoutes.get('/auth/verify', async (c) => {
   const token = c.req.query('token')
+  const invalidRedirect = () => c.redirect(`${c.env.APP_BASE_URL}/?authError=invalid_link`, 302)
+  if (!token) return invalidRedirect()
+
+  const tokenHash = await hashToken(token)
+  const pending = await peekMagicLink(c.env.DB, tokenHash)
+  if (!pending) return invalidRedirect()
+
+  return c.html(confirmSignInPage(pending.email, token))
+})
+
+authRoutes.post('/auth/verify', async (c) => {
+  const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)
+  const token = typeof body.token === 'string' ? body.token : undefined
   const invalidRedirect = () => c.redirect(`${c.env.APP_BASE_URL}/?authError=invalid_link`, 302)
   if (!token) return invalidRedirect()
 
