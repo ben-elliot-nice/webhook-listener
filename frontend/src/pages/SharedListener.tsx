@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { ApiError, type RequestDetail, getSharedRequests } from '../api'
+import { ApiError, type RequestDetail, getSharedRequests, recordSharedListenerVisit } from '../api'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
@@ -21,6 +21,9 @@ export function SharedListener() {
   const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
+  useEffect(() => {
+    if (token) recordSharedListenerVisit(token)
+  }, [token])
   const previousByRequestId = useMemo(() => {
     const map = new Map<number, RequestDetail>()
     for (let i = 0; i < requests.length - 1; i++) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { ApiError, getSharedProject, type SharedProjectListener } from '../api'
+import { ApiError, getSharedProject, recordSharedProjectVisit, type SharedProjectListener } from '../api'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
 
@@ -14,6 +14,9 @@ export function SharedProject() {
   const [loaded, setLoaded] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
+  useEffect(() => {
+    if (token) recordSharedProjectVisit(token)
+  }, [token])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!token) return false

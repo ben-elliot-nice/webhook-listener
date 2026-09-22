@@ -259,3 +259,13 @@ export function getSharedProjectListenerRequests(token: string, listenerId: stri
     credentials: 'include',
   }).then((r) => parseJsonOrThrow<RequestDetail[]>(r))
 }
+
+export async function recordSharedListenerVisit(token: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/shared/${token}/visit`, { method: 'POST', credentials: 'include' }).catch(() => {})
+}
+
+export async function recordSharedProjectVisit(token: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/shared/projects/${token}/visit`, { method: 'POST', credentials: 'include' }).catch(
+    () => {}
+  )
+}
