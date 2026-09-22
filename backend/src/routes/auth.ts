@@ -21,6 +21,15 @@ function domainOf(email: string): string {
   return email.split('@')[1]?.toLowerCase() ?? ''
 }
 
+// Only a same-origin relative path is allowed as a post-verify redirect
+// target — must start with exactly one "/" (not "//", which browsers treat
+// as protocol-relative) and contain no scheme before the first "/". Anything
+// else is treated as absent rather than rejecting the request outright.
+function safeReturnTo(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return null
+  return value
+}
+
 function cookieOptions(env: Env) {
   return {
     httpOnly: true,
@@ -34,7 +43,7 @@ function cookieOptions(env: Env) {
 export const authRoutes = new Hono<{ Bindings: Env }>()
 
 authRoutes.post('/auth/request-link', async (c) => {
-  const body = await c.req.json<{ email?: unknown }>().catch(() => ({}) as { email?: unknown })
+  const body = await c.req.json<{ email?: unknown; returnTo?: unknown }>().catch(() => ({}) as { email?: unknown; returnTo?: unknown })
   if (typeof body.email !== 'string' || !body.email.includes('@')) {
     return c.json({ error: 'a valid email is required' }, 400)
   }
@@ -52,7 +61,14 @@ authRoutes.post('/auth/request-link', async (c) => {
   const rawToken = crypto.randomUUID()
   const tokenHash = await hashToken(rawToken)
   const now = new Date()
-  await createMagicLink(c.env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + TOKEN_TTL_MS).toISOString())
+  await createMagicLink(
+    c.env.DB,
+    email,
+    tokenHash,
+    now.toISOString(),
+    new Date(now.getTime() + TOKEN_TTL_MS).toISOString(),
+    safeReturnTo(body.returnTo)
+  )
 
   const verifyUrl = `${c.env.HOOK_BASE_URL}/auth/verify?token=${rawToken}`
   await sendMagicLinkEmail(c.env, email, verifyUrl)
@@ -81,7 +97,7 @@ authRoutes.get('/auth/verify', async (c) => {
     maxAge: SESSION_TTL_SECONDS,
   })
 
-  return c.redirect(`${c.env.APP_BASE_URL}/`, 302)
+  return c.redirect(`${c.env.APP_BASE_URL}${consumed.returnTo ?? '/'}`, 302)
 })
 
 authRoutes.get('/auth/me', async (c) => {

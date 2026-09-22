@@ -46,12 +46,12 @@ describe('auth routes', () => {
     expect(second.status).toBe(429)
   })
 
-  async function requestAndExtractVerifyUrl(email: string): Promise<string> {
+  async function requestAndExtractVerifyUrl(email: string, returnTo?: string): Promise<string> {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     await app.request(
       '/auth/request-link',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) },
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, returnTo }) },
       env
     )
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
@@ -69,6 +69,31 @@ describe('auth routes', () => {
     expect(setCookie).toBeDefined()
     const cookieValue = setCookie!.split(';')[0].split('=')[1]
     expect(await verifyEmailSession(env.WL_SESSION_SECRET, cookieValue)).toBe('verifyme@nice.com')
+  })
+
+  it('GET /auth/verify redirects to the requested returnTo path after verifying', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('returnto@nice.com', '/shared/abc123')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/shared/abc123`)
+  })
+
+  it('GET /auth/verify falls back to "/" when no returnTo was supplied', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('noreturnto@nice.com')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
+    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/`)
+  })
+
+  it('GET /auth/verify falls back to "/" when returnTo is not a safe relative path', async () => {
+    const verifyUrl = await requestAndExtractVerifyUrl('badreturnto@nice.com', '//evil.com')
+    const token = new URL(verifyUrl).searchParams.get('token')!
+
+    const response = await app.request(`/auth/verify?token=${token}`, {}, env)
+    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/`)
   })
 
   it('GET /auth/verify redirects with authError for an invalid token', async () => {

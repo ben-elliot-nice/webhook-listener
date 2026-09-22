@@ -32,7 +32,24 @@ describe('magic-links.repo', () => {
     await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
 
     const result = await consumeMagicLink(env.DB, tokenHash)
-    expect(result).toEqual({ email })
+    expect(result).toEqual({ email, returnTo: null })
+  })
+
+  it('consumeMagicLink returns the stored returnTo path', async () => {
+    const email = 'consume-returnto@nice.com'
+    const tokenHash = await hashToken('raw-token-6')
+    const now = new Date()
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() + 60_000).toISOString(),
+      '/shared/xyz'
+    )
+
+    const result = await consumeMagicLink(env.DB, tokenHash)
+    expect(result).toEqual({ email, returnTo: '/shared/xyz' })
   })
 
   it('consumeMagicLink is single-use — a second call for the same token fails', async () => {
