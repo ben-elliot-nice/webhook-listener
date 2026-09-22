@@ -69,12 +69,12 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function requestMagicLink(email: string): Promise<{ message: string }> {
+export function requestMagicLink(email: string, returnTo?: string): Promise<{ message: string }> {
   return fetch(`${API_BASE_URL}/auth/request-link`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, returnTo }),
   }).then((r) => parseJsonOrThrow<{ message: string }>(r))
 }
 
