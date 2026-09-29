@@ -58,7 +58,7 @@ describe('create-and-send hook route', () => {
       { headers: await authCookieHeader(env, ownerEmail) },
       env
     )
-    const requests = (await requestsResponse.json()) as unknown[]
+    const { requests } = (await requestsResponse.json()) as { requests: unknown[] }
     expect(requests).toHaveLength(3)
   })
 
