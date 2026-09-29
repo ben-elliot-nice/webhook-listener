@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.0...v1.0.1) (2026-09-29)
+
+### Documentation
+
+* note the v1.0.0 release bootstrap reconciliation ([#11](https://github.com/ben-elliot-nice/webhook-listener/issues/11)) ([001c2b9](https://github.com/ben-elliot-nice/webhook-listener/commit/001c2b9e21f2fd85cf9e78d9464cf7aebf4ac660))
+
 ## 1.0.0 (2026-09-29)
 
 ### Features
