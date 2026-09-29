@@ -34,6 +34,35 @@ function parseQuery(url: URL): Record<string, string | string[]> {
   return query
 }
 
+class BodyTooLargeError extends Error {}
+
+async function readBodyWithLimit(request: Request, maxBytes: number): Promise<string | null> {
+  if (!request.body) return null
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel()
+      throw new BodyTooLargeError()
+    }
+    chunks.push(value)
+  }
+
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(merged)
+}
+
 export const hookRoute = new Hono<{ Bindings: Env }>()
 
 hookRoute.all('/hook/:id', async (c) => {
@@ -47,7 +76,15 @@ hookRoute.all('/hook/:id', async (c) => {
     return c.json({ error: 'payload too large' }, 413)
   }
 
-  const body = c.req.raw.body ? await c.req.raw.clone().text() : null
+  let body: string | null
+  try {
+    body = await readBodyWithLimit(c.req.raw, MAX_BODY_BYTES)
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      return c.json({ error: 'payload too large' }, 413)
+    }
+    throw err
+  }
 
   await insertRequest(c.env.DB, {
     listenerId: listener.id,
@@ -84,6 +121,16 @@ hookRoute.all('/hook/:projectId/:identifier', async (c) => {
     return c.json({ error: 'payload too large' }, 413)
   }
 
+  let body: string | null
+  try {
+    body = await readBodyWithLimit(c.req.raw, MAX_BODY_BYTES)
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      return c.json({ error: 'payload too large' }, 413)
+    }
+    throw err
+  }
+
   let listener = await getListenerByProjectAndSlug(c.env.DB, project.id, identifier)
   let status: 200 | 201 = listener ? 200 : 201
   if (!listener) {
@@ -106,8 +153,6 @@ hookRoute.all('/hook/:projectId/:identifier', async (c) => {
       if (!listener) throw err
     }
   }
-
-  const body = c.req.raw.body ? await c.req.raw.clone().text() : null
 
   await insertRequest(c.env.DB, {
     listenerId: listener.id,
