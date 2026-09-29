@@ -99,7 +99,7 @@ export function RequestRow({ request, previousRequest, diffOnly = false, onLoadF
   const diffBlob = previousRequest
     ? buildDiffBlob(
         prettyPrintBody(previousRequest.body, { indentWidth, compact }),
-        prettyPrintBody(request.body, { indentWidth, compact })
+        prettyPrintBody(effectiveBody, { indentWidth, compact })
       )
     : null
 
