@@ -1,6 +1,6 @@
 # Status — webhook-listener
 
-Live snapshot as of **2026-09-21**, verified by direct investigation (curl
+Live snapshot as of **2026-09-29**, verified by direct investigation (curl
 against the deployed Workers, `npm test`, `npm run build`) — not copied from
 a prior session's notes. Update this file when the picture changes rather
 than letting it drift; if you're not sure it's still accurate, re-verify
@@ -23,7 +23,7 @@ before trusting it.
 
 ## Build / test health
 
-- Backend: `cd backend && npm test` → **226/226 passing** (27 test files).
+- Backend: `cd backend && npm test` → **284/285 passing** (31 test files).
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors.
 - D1 migrations applied: `0001_init.sql` → `0009_magic_links.sql` (includes
   `0008_owner_email.sql` and `0009_magic_links.sql` from the email
@@ -116,6 +116,17 @@ In build order — each has a full design spec + implementation plan under
     `/hook/:projectId/:identifier` remain fully open, no session or email
     check, by design (design:
     `docs/superpowers/specs/2026-09-20-email-access-gate-design.md`).
+11. **Paginated request history + body-size hardening** — `/api/listeners/:id/requests`
+    and both `/api/shared/.../requests` endpoints now return `{ requests, nextCursor }`
+    (20 most-recent rows per page, infinite scroll on the frontend) instead of up to
+    200 full rows in one response; bodies over 256KB are truncated in list responses
+    with a "view full payload" fetch available per request; `hook.ts`'s 10MB capture
+    cap is now enforced via a streaming byte count, closing a bypass via chunked
+    transfer-encoding. Fixes a Cloudflare Worker memory-limit issue. Known limitation:
+    JSON/HAR export now reflects only what's currently loaded client-side (loaded
+    pages, and truncated bodies for oversized payloads) rather than always exporting
+    full history with full bodies — see
+    `docs/superpowers/specs/2026-09-29-requests-pagination-memory-design.md`.
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.

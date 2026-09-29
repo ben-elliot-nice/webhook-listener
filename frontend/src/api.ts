@@ -40,6 +40,8 @@ export interface RequestDetail {
   headers: Record<string, string>
   queryParams: Record<string, string | string[]>
   body: string | null
+  bodyTruncated: boolean
+  bodySize: number
   contentType: string | null
   sourceIp: string | null
   receivedAt: string
@@ -47,6 +49,24 @@ export interface RequestDetail {
 
 export interface CapturedRequest extends RequestDetail {
   listenerId: string
+}
+
+export interface RequestsPage<T> {
+  requests: T[]
+  nextCursor: number | null
+}
+
+export interface PageParams {
+  limit?: number
+  before?: number
+}
+
+function pageQuery({ limit, before }: PageParams): string {
+  const params = new URLSearchParams()
+  if (limit !== undefined) params.set('limit', String(limit))
+  if (before !== undefined) params.set('before', String(before))
+  const query = params.toString()
+  return query ? `?${query}` : ''
 }
 
 export interface ShareLink {
@@ -119,10 +139,10 @@ export function listProjects(): Promise<Project[]> {
   )
 }
 
-export function getRequests(id: string): Promise<CapturedRequest[]> {
-  return fetch(`${API_BASE_URL}/api/listeners/${id}/requests`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<CapturedRequest[]>(r)
-  )
+export function getRequests(id: string, page: PageParams = {}): Promise<RequestsPage<CapturedRequest>> {
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/requests${pageQuery(page)}`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<RequestsPage<CapturedRequest>>(r))
 }
 
 export async function deleteListener(id: string): Promise<void> {
@@ -148,10 +168,10 @@ export async function revokeShareLink(id: string): Promise<void> {
   }
 }
 
-export function getSharedRequests(token: string): Promise<RequestDetail[]> {
-  return fetch(`${API_BASE_URL}/api/shared/${token}/requests`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<RequestDetail[]>(r)
-  )
+export function getSharedRequests(token: string, page: PageParams = {}): Promise<RequestsPage<RequestDetail>> {
+  return fetch(`${API_BASE_URL}/api/shared/${token}/requests${pageQuery(page)}`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<RequestsPage<RequestDetail>>(r))
 }
 
 export interface SlugResult {
@@ -259,10 +279,15 @@ export function getSharedProject(token: string): Promise<SharedProjectData> {
   )
 }
 
-export function getSharedProjectListenerRequests(token: string, listenerId: string): Promise<RequestDetail[]> {
-  return fetch(`${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests`, {
-    credentials: 'include',
-  }).then((r) => parseJsonOrThrow<RequestDetail[]>(r))
+export function getSharedProjectListenerRequests(
+  token: string,
+  listenerId: string,
+  page: PageParams = {}
+): Promise<RequestsPage<RequestDetail>> {
+  return fetch(
+    `${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests${pageQuery(page)}`,
+    { credentials: 'include' }
+  ).then((r) => parseJsonOrThrow<RequestsPage<RequestDetail>>(r))
 }
 
 export async function recordSharedListenerVisit(token: string): Promise<void> {
@@ -297,4 +322,27 @@ export async function removeSharedWithMe(kind: 'listener' | 'project', token: st
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
+}
+
+export function getRequestBody(listenerId: string, requestId: number): Promise<{ body: string | null }> {
+  return fetch(`${API_BASE_URL}/api/listeners/${listenerId}/requests/${requestId}/body`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
+}
+
+export function getSharedRequestBody(token: string, requestId: number): Promise<{ body: string | null }> {
+  return fetch(`${API_BASE_URL}/api/shared/${token}/requests/${requestId}/body`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
+}
+
+export function getSharedProjectListenerRequestBody(
+  token: string,
+  listenerId: string,
+  requestId: number
+): Promise<{ body: string | null }> {
+  return fetch(
+    `${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests/${requestId}/body`,
+    { credentials: 'include' }
+  ).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
 }

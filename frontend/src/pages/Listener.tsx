@@ -7,6 +7,7 @@ import {
   deleteListener,
   getListener,
   getOrCreateShareLink,
+  getRequestBody,
   getRequests,
   removeSlug,
   revokeShareLink,
@@ -14,6 +15,7 @@ import {
   setLabel,
   setSlug,
 } from '../api'
+import { usePaginatedRequests } from '../hooks/usePaginatedRequests'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
@@ -28,8 +30,13 @@ export function Listener() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { width } = useSettings()
+  const fetchRequestsPage = useCallback(
+    (before?: number) => getRequests(id!, { before, limit: 20 }),
+    [id]
+  )
+  const { requests, hasMore, loadingMore, loadMore, refreshFirstPage } =
+    usePaginatedRequests<CapturedRequest>(fetchRequestsPage)
   const [listener, setListener] = useState<ListenerModel | null>(null)
-  const [requests, setRequests] = useState<CapturedRequest[]>([])
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -41,6 +48,7 @@ export function Listener() {
   const [headerCopied, setHeaderCopied] = useState(false)
   const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
   const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
   const previousByRequestId = useMemo(() => {
     // `requests` is newest-first, so the chronological predecessor of requests[i] is requests[i + 1]
@@ -54,9 +62,8 @@ export function Listener() {
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!id) return false
     try {
-      const [listenerData, requestData] = await Promise.all([getListener(id), getRequests(id)])
+      const [listenerData] = await Promise.all([getListener(id), refreshFirstPage()])
       setListener(listenerData)
-      setRequests(requestData)
       setError(null)
       consecutiveNotFoundRef.current = 0
       return true
@@ -72,7 +79,7 @@ export function Listener() {
       consecutiveNotFoundRef.current = 0
       return true
     }
-  }, [id])
+  }, [id, refreshFirstPage])
 
   useEffect(() => {
     consecutiveNotFoundRef.current = 0
@@ -91,6 +98,22 @@ export function Listener() {
       clearInterval(timer)
     }
   }, [refresh])
+
+  useEffect(() => {
+    if (!hasMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
 
   async function handleDelete() {
     if (!id) return
@@ -447,9 +470,21 @@ export function Listener() {
           ) : (
             <ul className="space-y-2">
               {filteredRequests.map((req) => (
-                <RequestRow key={req.id} request={req} previousRequest={previousByRequestId.get(req.id)} diffOnly={diffOnly} />
+                <RequestRow
+                  key={req.id}
+                  request={req}
+                  previousRequest={previousByRequestId.get(req.id)}
+                  diffOnly={diffOnly}
+                  onLoadFullBody={id ? (requestId) => getRequestBody(id, requestId).then((r) => r.body) : undefined}
+                />
               ))}
             </ul>
+          )}
+
+          {hasMore && (
+            <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+              {loadingMore ? 'Loading more…' : ''}
+            </div>
           )}
         </>
       )}

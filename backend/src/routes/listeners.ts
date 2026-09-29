@@ -20,7 +20,8 @@ import {
   LabelValidationError,
   type ListenerRecord,
 } from '../listeners.repo'
-import { getRequests } from '../requests.repo'
+import { getRequestsPage, getRequestById } from '../requests.repo'
+import { serializeRequestListItem, parsePageParams } from './requestListSerializer'
 
 function shareUrlFor(appBaseUrl: string, shareToken: string | null): string | null {
   return shareToken ? `${appBaseUrl}/shared/${shareToken}` : null
@@ -103,14 +104,27 @@ listenerRoutes.get('/api/listeners/:id/requests', async (c) => {
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
-  const requests = await getRequests(c.env.DB, listener.id)
-  return c.json(
-    requests.map((r) => ({
-      ...r,
-      headers: JSON.parse(r.headers),
-      queryParams: JSON.parse(r.queryParams),
-    }))
-  )
+  const { limit, before } = parsePageParams(c.req.query('limit'), c.req.query('before'))
+  const { requests, nextCursor } = await getRequestsPage(c.env.DB, listener.id, { limit, before })
+  return c.json({
+    requests: requests.map((r) => ({ ...serializeRequestListItem(r), listenerId: listener.id })),
+    nextCursor,
+  })
+})
+
+listenerRoutes.get('/api/listeners/:id/requests/:requestId/body', async (c) => {
+  const listener = await getListenerForOwner(c.env.DB, c.req.param('id'), c.get('email'))
+  if (!listener) {
+    return c.json({ error: 'listener not found' }, 404)
+  }
+  const requestId = Number(c.req.param('requestId'))
+  const record = Number.isInteger(requestId)
+    ? await getRequestById(c.env.DB, listener.id, requestId)
+    : undefined
+  if (!record) {
+    return c.json({ error: 'request not found' }, 404)
+  }
+  return c.json({ body: record.body })
 })
 
 listenerRoutes.delete('/api/listeners/:id', async (c) => {

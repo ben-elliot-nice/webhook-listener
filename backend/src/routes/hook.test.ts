@@ -76,6 +76,28 @@ describe('hook capture route', () => {
     expect(response.status).toBe(413)
   })
 
+  it('rejects an oversized body sent without a Content-Length header (chunked transfer)', async () => {
+    const chunkBytes = 1024 * 1024 // 1MB
+    const chunkCount = 11 // 11MB total, over the 10MB MAX_BODY_BYTES cap
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < chunkCount; i++) {
+          controller.enqueue(new Uint8Array(chunkBytes))
+        }
+        controller.close()
+      },
+    })
+
+    const request = new Request(`http://hook-test/hook/${listenerId}`, {
+      method: 'POST',
+      body: stream,
+    })
+    expect(request.headers.get('content-length')).toBeNull()
+
+    const response = await app.request(request, {}, env)
+    expect(response.status).toBe(413)
+  })
+
   it('a project-scoped listener whose slug collides with another listener\'s UUID does not shadow that listener\'s /hook/:id capture', async () => {
     const victimId = crypto.randomUUID()
     await createListener(env.DB, victimId, '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiError, type RequestDetail, getSharedRequests, recordSharedListenerVisit } from '../api'
+import { ApiError, type RequestDetail, getSharedRequestBody, getSharedRequests, recordSharedListenerVisit } from '../api'
+import { usePaginatedRequests } from '../hooks/usePaginatedRequests'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
 import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
@@ -14,7 +15,12 @@ const MAX_CONSECUTIVE_NOT_FOUND = 2
 export function SharedListener() {
   const { token } = useParams<{ token: string }>()
   const { width } = useSettings()
-  const [requests, setRequests] = useState<RequestDetail[]>([])
+  const fetchRequestsPage = useCallback(
+    (before?: number) => getSharedRequests(token!, { before, limit: 20 }),
+    [token]
+  )
+  const { requests, hasMore, loadingMore, loadMore, refreshFirstPage } =
+    usePaginatedRequests<RequestDetail>(fetchRequestsPage)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
@@ -35,8 +41,7 @@ export function SharedListener() {
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!token) return false
     try {
-      const requestData = await getSharedRequests(token)
-      setRequests(requestData)
+      await refreshFirstPage()
       setLoaded(true)
       setError(null)
       consecutiveNotFoundRef.current = 0
@@ -53,7 +58,7 @@ export function SharedListener() {
       consecutiveNotFoundRef.current = 0
       return true
     }
-  }, [token])
+  }, [token, refreshFirstPage])
 
   useEffect(() => {
     consecutiveNotFoundRef.current = 0
@@ -72,6 +77,24 @@ export function SharedListener() {
       clearInterval(timer)
     }
   }, [refresh])
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!hasMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
 
   function handleExportJson() {
     if (!token) return
@@ -155,9 +178,22 @@ export function SharedListener() {
           ) : (
             <ul className="space-y-2">
               {filteredRequests.map((req) => (
-                <RequestRow key={req.id} request={req} previousRequest={previousByRequestId.get(req.id)} diffOnly={diffOnly} />
+                <RequestRow
+                  key={req.id}
+                  request={req}
+                  previousRequest={previousByRequestId.get(req.id)}
+                  diffOnly={diffOnly}
+                  onLoadFullBody={
+                    token ? (requestId) => getSharedRequestBody(token, requestId).then((r) => r.body) : undefined
+                  }
+                />
               ))}
             </ul>
+          )}
+          {hasMore && (
+            <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+              {loadingMore ? 'Loading more…' : ''}
+            </div>
           )}
         </>
       )}
