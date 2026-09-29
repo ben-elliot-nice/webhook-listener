@@ -122,7 +122,7 @@ describe('shared project view', () => {
       env
     )
     expect(response.status).toBe(200)
-    const [captured] = (await response.json()) as { body: string; method: string }[]
+    const { requests: [captured] } = (await response.json()) as { requests: { body: string; method: string }[] }
     expect(captured.body).toBe(JSON.stringify({ foo: 'bar' }))
     expect(captured.method).toBe('POST')
   })
@@ -180,5 +180,66 @@ describe('shared project view', () => {
       env
     )
     expect(response.status).toBe(404)
+  })
+
+  describe('GET /api/shared/projects/:token/listeners/:listenerId/requests pagination', () => {
+    it('paginates and includes truncation fields, no listenerId key', async () => {
+      // beforeEach already sent one hook request; send 24 more for 25 total.
+      for (let i = 0; i < 24; i++) {
+        await app.request(`/hook/${projectId}/checkout-uat`, { method: 'POST', body: `payload-${i}` }, env)
+      }
+
+      const first = await app.request(
+        `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests`,
+        { headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      const firstBody = (await first.json()) as {
+        requests: (Record<string, unknown> & { bodyTruncated: boolean })[]
+        nextCursor: number | null
+      }
+      expect(firstBody.requests).toHaveLength(20)
+      expect(firstBody.nextCursor).not.toBeNull()
+      expect(firstBody.requests[0]).not.toHaveProperty('listenerId')
+      expect(firstBody.requests[0].bodyTruncated).toBe(false)
+
+      const second = await app.request(
+        `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests?before=${firstBody.nextCursor}`,
+        { headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      const secondBody = (await second.json()) as { requests: unknown[]; nextCursor: number | null }
+      expect(secondBody.requests).toHaveLength(5)
+      expect(secondBody.nextCursor).toBeNull()
+    })
+  })
+
+  describe('GET /api/shared/projects/:token/listeners/:listenerId/requests/:requestId/body', () => {
+    it('returns the full body for a known request', async () => {
+      const list = await app.request(
+        `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests`,
+        { headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      const listBody = (await list.json()) as { requests: { id: number }[] }
+      const requestId = listBody.requests[0].id
+
+      const detail = await app.request(
+        `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests/${requestId}/body`,
+        { headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      expect(detail.status).toBe(200)
+      expect(await detail.json()).toEqual({ body: JSON.stringify({ foo: 'bar' }) })
+    })
+
+    it('returns 404 for an unknown share token', async () => {
+      const response = await app.request(
+        `/api/shared/projects/does-not-exist/listeners/${listenerId}/requests/1/body`,
+        { headers: await authCookieHeader(env, viewerEmail) },
+        env
+      )
+      expect(response.status).toBe(404)
+    })
   })
 })

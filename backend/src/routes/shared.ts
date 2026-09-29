@@ -3,8 +3,9 @@ import type { Env } from '../env'
 import type { Variables } from '../app'
 import { getListenerByShareToken, getListener, getListenersByProject } from '../listeners.repo'
 import { getProjectByShareToken } from '../projects.repo'
-import { getRequests } from '../requests.repo'
+import { getRequestsPage, getRequestById } from '../requests.repo'
 import { recordSharedVisit, listSharedWithMe, removeSharedWithMe } from '../shared-with-me.repo'
+import { serializeRequestListItem, parsePageParams } from './requestListSerializer'
 
 export const sharedRoutes = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -13,19 +14,24 @@ sharedRoutes.get('/api/shared/:token/requests', async (c) => {
   if (!listener) {
     return c.json({ error: 'share link not found' }, 404)
   }
-  const requests = await getRequests(c.env.DB, listener.id)
-  return c.json(
-    requests.map((r) => ({
-      id: r.id,
-      method: r.method,
-      headers: JSON.parse(r.headers),
-      queryParams: JSON.parse(r.queryParams),
-      body: r.body,
-      contentType: r.contentType,
-      sourceIp: r.sourceIp,
-      receivedAt: r.receivedAt,
-    }))
-  )
+  const { limit, before } = parsePageParams(c.req.query('limit'), c.req.query('before'))
+  const { requests, nextCursor } = await getRequestsPage(c.env.DB, listener.id, { limit, before })
+  return c.json({ requests: requests.map(serializeRequestListItem), nextCursor })
+})
+
+sharedRoutes.get('/api/shared/:token/requests/:requestId/body', async (c) => {
+  const listener = await getListenerByShareToken(c.env.DB, c.req.param('token'))
+  if (!listener) {
+    return c.json({ error: 'share link not found' }, 404)
+  }
+  const requestId = Number(c.req.param('requestId'))
+  const record = Number.isInteger(requestId)
+    ? await getRequestById(c.env.DB, listener.id, requestId)
+    : undefined
+  if (!record) {
+    return c.json({ error: 'request not found' }, 404)
+  }
+  return c.json({ body: record.body })
 })
 
 sharedRoutes.get('/api/shared/projects/:token', async (c) => {
@@ -54,20 +60,32 @@ sharedRoutes.get('/api/shared/projects/:token/listeners/:listenerId/requests', a
   if (!listener || listener.projectId !== project.id) {
     return c.json({ error: 'listener not found' }, 404)
   }
-  const requests = await getRequests(c.env.DB, listener.id)
-  return c.json(
-    requests.map((r) => ({
-      id: r.id,
-      method: r.method,
-      headers: JSON.parse(r.headers),
-      queryParams: JSON.parse(r.queryParams),
-      body: r.body,
-      contentType: r.contentType,
-      sourceIp: r.sourceIp,
-      receivedAt: r.receivedAt,
-    }))
-  )
+  const { limit, before } = parsePageParams(c.req.query('limit'), c.req.query('before'))
+  const { requests, nextCursor } = await getRequestsPage(c.env.DB, listener.id, { limit, before })
+  return c.json({ requests: requests.map(serializeRequestListItem), nextCursor })
 })
+
+sharedRoutes.get(
+  '/api/shared/projects/:token/listeners/:listenerId/requests/:requestId/body',
+  async (c) => {
+    const project = await getProjectByShareToken(c.env.DB, c.req.param('token'))
+    if (!project) {
+      return c.json({ error: 'share link not found' }, 404)
+    }
+    const listener = await getListener(c.env.DB, c.req.param('listenerId'))
+    if (!listener || listener.projectId !== project.id) {
+      return c.json({ error: 'listener not found' }, 404)
+    }
+    const requestId = Number(c.req.param('requestId'))
+    const record = Number.isInteger(requestId)
+      ? await getRequestById(c.env.DB, listener.id, requestId)
+      : undefined
+    if (!record) {
+      return c.json({ error: 'request not found' }, 404)
+    }
+    return c.json({ body: record.body })
+  }
+)
 
 sharedRoutes.post('/api/shared/:token/visit', async (c) => {
   const listener = await getListenerByShareToken(c.env.DB, c.req.param('token'))
