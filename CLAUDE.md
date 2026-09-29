@@ -25,7 +25,7 @@ specs, it's stale — flag it.
   `migrations/` (applied via `wrangler d1 migrations`, not ad-hoc DDL).
 - `frontend/` — Vite/React SPA, deployed as a second, independent Worker.
 - `docs/superpowers/specs/` — one design doc per feature, each documenting
-  the *why*, not just the *what*. Read the relevant one before touching an
+  the _why_, not just the _what_. Read the relevant one before touching an
   area you don't already know well.
 - `docs/superpowers/plans/` — the file-by-file implementation plan that
   followed each spec.
@@ -58,9 +58,15 @@ PR, and merged into `main` — no more committing straight to `main`. This
 supersedes the earlier direct-to-main practice; if you see that described
 elsewhere (old commit messages, stale docs), it's outdated.
 
-**Commits:** Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`
-+ optional scope), e.g. `fix(backend): reject a slug that collides with
-another listener's UUID`.
+**Commits:** Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`,
+optionally with a scope), e.g. `fix(backend): reject a slug that collides
+with another listener's UUID`.
+
+Conventional Commits are now enforced, not just followed by convention:
+commitlint runs locally via a husky `commit-msg` hook and again in
+`.github/workflows/pr.yml` against every commit in a PR and the PR title
+itself (PRs are squash-merged, so the PR title becomes the commit
+semantic-release reads on `main`).
 
 ## Running it locally
 
@@ -109,6 +115,15 @@ you changed, not both reflexively.
 cd backend && npm run deploy   # wrangler deploy — webhook-api Worker
 cd frontend && npm run build && cd frontend && npx wrangler deploy   # webhook Worker (static assets)
 ```
+
+**As of the CI/release pipeline, these commands are no longer the normal
+path.** Every merge to `main` that includes a `feat`/`fix`/`perf`/`revert`/
+`docs`/`refactor` commit triggers `.github/workflows/release.yml`:
+semantic-release bumps the version, writes `CHANGELOG.md`, creates a GitHub
+Release, and then deploys both Workers automatically. The manual `npm run
+deploy` commands above remain available for an emergency/manual redeploy,
+but merging to `main` is normally sufficient — you don't need to run them
+yourself.
 
 - D1 migrations: `cd backend && npm run db:migrate:remote` (apply to the
   live database — `db:migrate:local` targets the Miniflare-local one).

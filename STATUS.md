@@ -33,7 +33,7 @@ before trusting it.
   database with `cd backend && npm run db:migrate:remote`. Both the
   backend and frontend Workers changed this round and should each be
   redeployed (`cd backend && npm run deploy`; `cd frontend && npm run
-  build && npx wrangler deploy`) — see "Deploying" in `CLAUDE.md` for the
+build && npx wrangler deploy`) — see "Deploying" in `CLAUDE.md` for the
   exact commands.
 
 ## Recent rebrand (deployed, not yet committed)
@@ -127,6 +127,17 @@ In build order — each has a full design spec + implementation plan under
     pages, and truncated bodies for oversized payloads) rather than always exporting
     full history with full bodies — see
     `docs/superpowers/specs/2026-09-29-requests-pagination-memory-design.md`.
+
+12. **CI checks + automated release management** — `.github/workflows/pr.yml`
+    runs commitlint, tests, build, and Prettier on every PR; `.github/workflows/release.yml`
+    runs semantic-release on every merge to `main`, bumping the semantic
+    version, writing `CHANGELOG.md`, cutting a GitHub Release, and deploying
+    both Workers. The version baseline starts at `1.0.0` on the first
+    automated release after this plan merges. `CHANGELOG.md` (created by that
+    first release run) is now the source of truth for what shipped when,
+    superseding manual note-taking in this file for that purpose going
+    forward — see `CLAUDE.md`'s "Deploying" and "Commits" sections and
+    `docs/superpowers/specs/2026-09-29-ci-release-automation-design.md`.
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
