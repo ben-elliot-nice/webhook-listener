@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 interface PageResult<T> {
   requests: T[]
@@ -26,19 +26,22 @@ export function usePaginatedRequests<T extends { id: number }>(
 ): UsePaginatedRequestsResult<T> {
   const [requests, setRequests] = useState<T[]>([])
   const [nextCursor, setNextCursor] = useState<number | null>(null)
-  const [hasLoadedFirstPage, setHasLoadedFirstPage] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const firstPageEstablishedRef = useRef(false)
 
   const refreshFirstPage = useCallback(async (): Promise<T[]> => {
     const page = await fetchPage(undefined)
     setRequests((current) => mergeById(current, page.requests))
-    // A poll's first-page fetch must not clobber a cursor that's already
-    // advanced past page 1 via loadMore — only the very first successful
-    // load establishes nextCursor from this call.
-    setNextCursor((current) => (hasLoadedFirstPage ? current : page.nextCursor))
-    setHasLoadedFirstPage(true)
+    // Establish nextCursor only on the very first successful load.
+    // Use a ref to guard against overlapping in-flight calls: if two
+    // refreshFirstPage calls are in flight, only the first one to reach
+    // this point will establish the cursor.
+    if (!firstPageEstablishedRef.current) {
+      firstPageEstablishedRef.current = true
+      setNextCursor(page.nextCursor)
+    }
     return page.requests
-  }, [fetchPage, hasLoadedFirstPage])
+  }, [fetchPage])
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (nextCursor === null || loadingMore) return
