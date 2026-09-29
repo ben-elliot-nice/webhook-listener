@@ -37,6 +37,27 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      # backend/.dev.vars is gitignored and per-machine (see CLAUDE.md) — it
+      # never exists on a CI runner. Without it, WL_SESSION_SECRET is empty
+      # and every HMAC-signing test fails. These are dummy, non-production
+      # values. Unlike the local-dev .dev.vars (which blanks
+      # SESSION_COOKIE_DOMAIN so cookies work on http://localhost in a real
+      # browser), CI runs headless tests only, so SESSION_COOKIE_DOMAIN is
+      # left at its real production-like value — matching wrangler.toml's
+      # default — so the cookie-Domain test actually exercises real
+      # behavior instead of the local-browser accommodation.
+      - name: Write test .dev.vars
+        working-directory: backend
+        run: |
+          cat > .dev.vars <<'EOF'
+          APP_BASE_URL=http://localhost:5173
+          HOOK_BASE_URL=http://localhost:8787
+          SESSION_COOKIE_DOMAIN=fde.nice-agentic.com
+          ALLOWED_EMAIL_DOMAINS=nice.com
+          WL_SESSION_SECRET=ci-test-secret-not-for-production
+          RESEND_API_KEY=ci-test-key-not-for-production
+          EOF
+
       - name: Run backend tests
         working-directory: backend
         run: npm test

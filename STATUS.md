@@ -138,6 +138,13 @@ In build order — each has a full design spec + implementation plan under
     superseding manual note-taking in this file for that purpose going
     forward — see `CLAUDE.md`'s "Deploying" and "Commits" sections and
     `docs/superpowers/specs/2026-09-29-ci-release-automation-design.md`.
+    Note: the very first automated release (`v1.0.0`) had its deploy step
+    fail because the `CLOUDFLARE_API_TOKEN` repo secret wasn't set before
+    the merge landed — it was reconciled by hand (manual deploy of both
+    Workers, manual GitHub Release creation) rather than by re-running the
+    pipeline, since semantic-release won't re-publish a version it already
+    tagged. The secret is now set, so this is a one-time bootstrapping
+    footnote, not an ongoing concern.
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
