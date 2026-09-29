@@ -31,16 +31,25 @@ export function pathKeyOf(path: PathSegment[]): string {
   return JSON.stringify(path)
 }
 
-function isContainer(value: unknown): value is Record<string, unknown> | unknown[] {
+function isContainer(
+  value: unknown,
+): value is Record<string, unknown> | unknown[] {
   return typeof value === 'object' && value !== null
 }
 
-function entriesOf(value: Record<string, unknown> | unknown[]): [PathSegment, unknown][] {
-  return Array.isArray(value) ? value.map((v, i) => [i, v]) : Object.entries(value)
+function entriesOf(
+  value: Record<string, unknown> | unknown[],
+): [PathSegment, unknown][] {
+  return Array.isArray(value)
+    ? value.map((v, i) => [i, v])
+    : Object.entries(value)
 }
 
 /** Every container path in the tree that has at least one entry — used for "collapse all". */
-export function collectContainerPaths(value: unknown, path: PathSegment[] = []): string[] {
+export function collectContainerPaths(
+  value: unknown,
+  path: PathSegment[] = [],
+): string[] {
   if (!isContainer(value)) return []
   const entries = entriesOf(value)
   if (entries.length === 0) return []
@@ -52,25 +61,46 @@ export function collectContainerPaths(value: unknown, path: PathSegment[] = []):
 }
 
 function containerSummary(value: Record<string, unknown> | unknown[]): string {
-  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? '' : 's'}`
+  if (Array.isArray(value))
+    return `${value.length} item${value.length === 1 ? '' : 's'}`
   const count = Object.keys(value).length
   return `${count} key${count === 1 ? '' : 's'}`
 }
 
-function Primitive({ value, colors, render }: { value: unknown; colors: JsonTreeColors; render: boolean }) {
+function Primitive({
+  value,
+  colors,
+  render,
+}: {
+  value: unknown
+  colors: JsonTreeColors
+  render: boolean
+}) {
   if (typeof value === 'string') {
     // render=false: full JSON escaping (accurate, matches raw wire format).
     // render=true: the raw string as-is, so real \n/\t become actual breaks
     // once the Line's white-space CSS is set to preserve them.
-    return <span style={{ color: colors.string }}>{render ? `"${value}"` : JSON.stringify(value)}</span>
+    return (
+      <span style={{ color: colors.string }}>
+        {render ? `"${value}"` : JSON.stringify(value)}
+      </span>
+    )
   }
-  if (typeof value === 'number') return <span style={{ color: colors.number }}>{value}</span>
-  if (typeof value === 'boolean') return <span style={{ color: colors.boolean }}>{String(value)}</span>
+  if (typeof value === 'number')
+    return <span style={{ color: colors.number }}>{value}</span>
+  if (typeof value === 'boolean')
+    return <span style={{ color: colors.boolean }}>{String(value)}</span>
   if (value === null) return <span style={{ color: colors.null }}>null</span>
   return <span style={{ color: colors.text }}>{String(value)}</span>
 }
 
-function KeyPrefix({ keyLabel, colors }: { keyLabel?: string; colors: JsonTreeColors }) {
+function KeyPrefix({
+  keyLabel,
+  colors,
+}: {
+  keyLabel?: string
+  colors: JsonTreeColors
+}) {
   if (keyLabel === undefined) return null
   return (
     <>
@@ -103,8 +133,12 @@ function Line({ depth, options, nextLine, arrow, children }: LineProps) {
   const striped = options.stripedRows && lineNumber % 2 === 0
 
   return (
-    <div className={`flex items-start${striped ? ` ${STRIPE_CLASSES[options.stripeIntensity]}` : ''}`}>
-      <span className="mr-1 inline-block w-4 shrink-0 select-none text-center text-slate-400">{arrow}</span>
+    <div
+      className={`flex items-start${striped ? ` ${STRIPE_CLASSES[options.stripeIntensity]}` : ''}`}
+    >
+      <span className="mr-1 inline-block w-4 shrink-0 select-none text-center text-slate-400">
+        {arrow}
+      </span>
       {options.showLineNumbers && (
         <span className="mr-3 min-w-[2.5em] shrink-0 select-none text-right text-slate-400 dark:text-slate-500">
           {lineNumber}
@@ -232,7 +266,13 @@ function JsonNode({
   )
 }
 
-export function JsonTree({ value, colors, collapsedPaths, onToggle, options }: JsonTreeProps) {
+export function JsonTree({
+  value,
+  colors,
+  collapsedPaths,
+  onToggle,
+  options,
+}: JsonTreeProps) {
   let counter = 0
   const nextLine = () => ++counter
 

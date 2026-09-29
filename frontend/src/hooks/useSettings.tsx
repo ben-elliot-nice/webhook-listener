@@ -1,4 +1,10 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
 import {
   DEFAULT_SETTINGS,
   loadSettings,
@@ -36,22 +42,32 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     ...settings,
     setTheme: (theme) => setSettings((s) => ({ ...s, theme })),
     setWidth: (width) => setSettings((s) => ({ ...s, width })),
-    setHighlightTheme: (highlightTheme) => setSettings((s) => ({ ...s, highlightTheme })),
-    setIndentWidth: (indentWidth) => setSettings((s) => ({ ...s, indentWidth })),
+    setHighlightTheme: (highlightTheme) =>
+      setSettings((s) => ({ ...s, highlightTheme })),
+    setIndentWidth: (indentWidth) =>
+      setSettings((s) => ({ ...s, indentWidth })),
     setCompact: (compact) => setSettings((s) => ({ ...s, compact })),
-    setLineNumbers: (lineNumbers) => setSettings((s) => ({ ...s, lineNumbers })),
+    setLineNumbers: (lineNumbers) =>
+      setSettings((s) => ({ ...s, lineNumbers })),
     setRender: (render) => setSettings((s) => ({ ...s, render })),
     setWrap: (wrap) => setSettings((s) => ({ ...s, wrap })),
-    setStripedRows: (stripedRows) => setSettings((s) => ({ ...s, stripedRows })),
-    setStripeIntensity: (stripeIntensity) => setSettings((s) => ({ ...s, stripeIntensity })),
+    setStripedRows: (stripedRows) =>
+      setSettings((s) => ({ ...s, stripedRows })),
+    setStripeIntensity: (stripeIntensity) =>
+      setSettings((s) => ({ ...s, stripeIntensity })),
   }
 
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
+  return (
+    <SettingsContext.Provider value={value}>
+      {children}
+    </SettingsContext.Provider>
+  )
 }
 
 export function useSettings(): SettingsContextValue {
   const ctx = useContext(SettingsContext)
-  if (!ctx) throw new Error('useSettings must be used within a SettingsProvider')
+  if (!ctx)
+    throw new Error('useSettings must be used within a SettingsProvider')
   return ctx
 }
 

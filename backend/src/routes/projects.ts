@@ -22,7 +22,10 @@ import {
 } from '../listeners.repo'
 import { serializeListener } from './listeners'
 
-function projectShareUrlFor(appBaseUrl: string, shareToken: string | null): string | null {
+function projectShareUrlFor(
+  appBaseUrl: string,
+  shareToken: string | null,
+): string | null {
   return shareToken ? `${appBaseUrl}/shared/projects/${shareToken}` : null
 }
 
@@ -52,14 +55,23 @@ projectRoutes.get('/api/projects', async (c) => {
 })
 
 projectRoutes.patch('/api/projects/:id/label', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
+  const project = await getProjectForOwner(
+    c.env.DB,
+    c.req.param('id'),
+    c.get('email'),
+  )
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
 
-  const body = await c.req.json<{ label?: unknown }>().catch(() => ({}) as { label?: unknown })
+  const body = await c.req
+    .json<{ label?: unknown }>()
+    .catch(() => ({}) as { label?: unknown })
   if (typeof body.label !== 'string') {
-    return c.json({ error: 'label is required (use an empty string to clear it)' }, 400)
+    return c.json(
+      { error: 'label is required (use an empty string to clear it)' },
+      400,
+    )
   }
 
   try {
@@ -74,16 +86,30 @@ projectRoutes.patch('/api/projects/:id/label', async (c) => {
 })
 
 projectRoutes.post('/api/projects/:id/share', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
+  const project = await getProjectForOwner(
+    c.env.DB,
+    c.req.param('id'),
+    c.get('email'),
+  )
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
-  const token = (await getOrCreateProjectShareToken(c.env.DB, project.id)) as string
-  return c.json({ shareToken: token, shareUrl: projectShareUrlFor(c.env.APP_BASE_URL, token) })
+  const token = (await getOrCreateProjectShareToken(
+    c.env.DB,
+    project.id,
+  )) as string
+  return c.json({
+    shareToken: token,
+    shareUrl: projectShareUrlFor(c.env.APP_BASE_URL, token),
+  })
 })
 
 projectRoutes.delete('/api/projects/:id/share', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
+  const project = await getProjectForOwner(
+    c.env.DB,
+    c.req.param('id'),
+    c.get('email'),
+  )
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -92,7 +118,11 @@ projectRoutes.delete('/api/projects/:id/share', async (c) => {
 })
 
 projectRoutes.delete('/api/projects/:id', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('id'), c.get('email'))
+  const project = await getProjectForOwner(
+    c.env.DB,
+    c.req.param('id'),
+    c.get('email'),
+  )
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
@@ -101,12 +131,18 @@ projectRoutes.delete('/api/projects/:id', async (c) => {
 })
 
 projectRoutes.post('/api/projects/:projectId/listeners', async (c) => {
-  const project = await getProjectForOwner(c.env.DB, c.req.param('projectId'), c.get('email'))
+  const project = await getProjectForOwner(
+    c.env.DB,
+    c.req.param('projectId'),
+    c.get('email'),
+  )
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
 
-  const body = await c.req.json<{ slug?: unknown }>().catch(() => ({}) as { slug?: unknown })
+  const body = await c.req
+    .json<{ slug?: unknown }>()
+    .catch(() => ({}) as { slug?: unknown })
   if (typeof body.slug !== 'string') {
     return c.json({ error: 'slug is required' }, 400)
   }
@@ -123,7 +159,10 @@ projectRoutes.post('/api/projects/:projectId/listeners', async (c) => {
 
   const existing = await getListenerByProjectAndSlug(c.env.DB, project.id, slug)
   if (existing) {
-    return c.json({ error: `identifier "${slug}" is already in use in this project` }, 409)
+    return c.json(
+      { error: `identifier "${slug}" is already in use in this project` },
+      409,
+    )
   }
 
   try {
@@ -134,12 +173,15 @@ projectRoutes.post('/api/projects/:projectId/listeners', async (c) => {
       null,
       project.ownerEmail,
       project.id,
-      slug
+      slug,
     )
     return c.json(serializeListener(c.env, listener), 201)
   } catch (err) {
     if (isUniqueConstraintError(err)) {
-      return c.json({ error: `identifier "${slug}" is already in use in this project` }, 409)
+      return c.json(
+        { error: `identifier "${slug}" is already in use in this project` },
+        409,
+      )
     }
     throw err
   }

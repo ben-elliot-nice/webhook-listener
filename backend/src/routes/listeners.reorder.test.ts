@@ -12,13 +12,13 @@ describe('POST /api/listeners/reorder', () => {
     const first = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     firstId = ((await first.json()) as { id: string }).id
     const second = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     secondId = ((await second.json()) as { id: string }).id
   })
@@ -28,7 +28,10 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({
           orderedItems: [
             { type: 'listener', id: secondId },
@@ -36,14 +39,14 @@ describe('POST /api/listeners/reorder', () => {
           ],
         }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(204)
 
     const listResponse = await app.request(
       '/api/listeners?sort=custom',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const body = (await listResponse.json()) as { id: string }[]
     expect(body.map((l) => l.id)).toEqual([secondId, firstId])
@@ -53,7 +56,7 @@ describe('POST /api/listeners/reorder', () => {
     const projectResponse = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const projectId = ((await projectResponse.json()) as { id: string }).id
 
@@ -61,7 +64,10 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({
           orderedItems: [
             { type: 'project', id: projectId },
@@ -70,14 +76,14 @@ describe('POST /api/listeners/reorder', () => {
           ],
         }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(204)
 
     const listResponse = await app.request(
       '/api/listeners?sort=custom',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listBody = (await listResponse.json()) as { id: string }[]
     expect(listBody.map((l) => l.id)).toEqual([firstId, secondId])
@@ -85,9 +91,12 @@ describe('POST /api/listeners/reorder', () => {
     const projectsResponse = await app.request(
       '/api/projects',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const projectsBody = (await projectsResponse.json()) as { id: string; sortPosition: number }[]
+    const projectsBody = (await projectsResponse.json()) as {
+      id: string
+      sortPosition: number
+    }[]
     expect(projectsBody[0]).toMatchObject({ id: projectId, sortPosition: 0 })
   })
 
@@ -96,14 +105,17 @@ describe('POST /api/listeners/reorder', () => {
     const other = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     const otherId = ((await other.json()) as { id: string }).id
     const response = await app.request(
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({
           orderedItems: [
             { type: 'listener', id: firstId },
@@ -111,7 +123,7 @@ describe('POST /api/listeners/reorder', () => {
           ],
         }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -121,14 +133,17 @@ describe('POST /api/listeners/reorder', () => {
     const otherProject = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     const otherProjectId = ((await otherProject.json()) as { id: string }).id
     const response = await app.request(
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({
           orderedItems: [
             { type: 'listener', id: firstId },
@@ -136,7 +151,7 @@ describe('POST /api/listeners/reorder', () => {
           ],
         }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -146,10 +161,13 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ orderedItems: 'not-an-array' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -159,10 +177,15 @@ describe('POST /api/listeners/reorder', () => {
       '/api/listeners/reorder',
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
-        body: JSON.stringify({ orderedItems: [{ type: 'bogus', id: firstId }] }),
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderedItems: [{ type: 'bogus', id: firstId }],
+        }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })

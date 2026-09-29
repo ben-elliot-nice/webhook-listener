@@ -35,7 +35,9 @@ function sortStorageKey(projectId: string): string {
 
 function loadStoredSort(projectId: string): SortMode {
   const stored = localStorage.getItem(sortStorageKey(projectId))
-  return SORT_OPTIONS.some((option) => option.value === stored) ? (stored as SortMode) : 'date'
+  return SORT_OPTIONS.some((option) => option.value === stored)
+    ? (stored as SortMode)
+    : 'date'
 }
 
 export function ProjectDetail() {
@@ -53,7 +55,10 @@ export function ProjectDetail() {
   const [createDraft, setCreateDraft] = useState('')
   const [sort, setSort] = useState<SortMode>('date')
   const [dragKey, setDragKey] = useState<string | null>(null)
-  const [dropIndicator, setDropIndicator] = useState<{ key: string; before: boolean } | null>(null)
+  const [dropIndicator, setDropIndicator] = useState<{
+    key: string
+    before: boolean
+  } | null>(null)
   const consecutiveNotFoundRef = useRef(0)
 
   useEffect(() => {
@@ -62,7 +67,10 @@ export function ProjectDetail() {
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!projectId) return false
-    const [projects, listeners] = await Promise.all([listProjects(), listListeners(sort)])
+    const [projects, listeners] = await Promise.all([
+      listProjects(),
+      listListeners(sort),
+    ])
     const found = projects.find((p) => p.id === projectId)
     if (!found) {
       consecutiveNotFoundRef.current += 1
@@ -130,7 +138,12 @@ export function ProjectDetail() {
 
   async function handleRevokeShare() {
     if (!projectId) return
-    if (!window.confirm('Revoke this share link? Anyone using it will lose access.')) return
+    if (
+      !window.confirm(
+        'Revoke this share link? Anyone using it will lose access.',
+      )
+    )
+      return
     try {
       await revokeProjectShareLink(projectId)
       await refresh()
@@ -162,7 +175,9 @@ export function ProjectDetail() {
       if (err instanceof ApiError && err.status === 409) {
         setError("That identifier's already in use in this project.")
       } else if (err instanceof ApiError && err.status === 400) {
-        setError('Identifier must be 3-63 characters after removing invalid characters.')
+        setError(
+          'Identifier must be 3-63 characters after removing invalid characters.',
+        )
       } else {
         setError('Failed to create listener.')
       }
@@ -193,7 +208,10 @@ export function ProjectDetail() {
     setDropIndicator(null)
     setChildren(current)
 
-    const orderedItems: ReorderItem[] = current.map((l) => ({ type: 'listener', id: l.id }))
+    const orderedItems: ReorderItem[] = current.map((l) => ({
+      type: 'listener',
+      id: l.id,
+    }))
     reorderItems(orderedItems).catch(() => {
       setChildren(previousChildren)
       setError('Failed to save the new order.')
@@ -202,7 +220,10 @@ export function ProjectDetail() {
 
   async function handleDelete() {
     if (!projectId) return
-    if (!window.confirm('Delete this project and all its listeners and history?')) return
+    if (
+      !window.confirm('Delete this project and all its listeners and history?')
+    )
+      return
     try {
       await deleteProject(projectId)
       navigate('/')
@@ -220,7 +241,9 @@ export function ProjectDetail() {
         >
           ← Back to listeners
         </Link>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Project not found.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Project not found.
+        </p>
       </main>
     )
   }
@@ -266,10 +289,17 @@ export function ProjectDetail() {
               placeholder="Project"
               className="rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700"
             />
-            <button type="submit" className="text-xs font-medium text-indigo-600">
+            <button
+              type="submit"
+              className="text-xs font-medium text-indigo-600"
+            >
               Save
             </button>
-            <button type="button" onClick={() => setEditingLabel(false)} className="text-xs text-slate-500 dark:text-slate-400">
+            <button
+              type="button"
+              onClick={() => setEditingLabel(false)}
+              className="text-xs text-slate-500 dark:text-slate-400"
+            >
               Cancel
             </button>
           </form>
@@ -289,15 +319,22 @@ export function ProjectDetail() {
       </div>
 
       {error && (
-        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+        <p
+          role="alert"
+          className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        >
           {error}
         </p>
       )}
 
       <div className="mb-6">
-        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Create-and-send URL template</p>
+        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+          Create-and-send URL template
+        </p>
         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.hookUrlTemplate}</code>
+          <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
+            {project.hookUrlTemplate}
+          </code>
           <button
             onClick={handleCopy}
             aria-label="Copy create-and-send URL template"
@@ -312,11 +349,17 @@ export function ProjectDetail() {
       </div>
 
       <div className="mb-6">
-        {project.shareUrl && <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Share link (read-only)</p>}
+        {project.shareUrl && (
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            Share link (read-only)
+          </p>
+        )}
         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           {project.shareUrl ? (
             <>
-              <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{project.shareUrl}</code>
+              <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
+                {project.shareUrl}
+              </code>
               <button
                 onClick={handleCopyShare}
                 aria-label="Copy share link"
@@ -343,7 +386,9 @@ export function ProjectDetail() {
       </div>
 
       <div className="mb-6">
-        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Create a listener now</p>
+        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+          Create a listener now
+        </p>
         <form onSubmit={handleCreateChild} className="flex items-center gap-2">
           <input
             value={createDraft}
@@ -362,7 +407,11 @@ export function ProjectDetail() {
       </div>
 
       {children.length > 0 && (
-        <div className="mb-2 flex items-center gap-1" role="group" aria-label="Sort listeners">
+        <div
+          className="mb-2 flex items-center gap-1"
+          role="group"
+          aria-label="Sort listeners"
+        >
           {SORT_OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -380,13 +429,17 @@ export function ProjectDetail() {
       )}
       {children.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          No requests yet — point your test script at the URL above (with a real identifier in place of{' '}
-          <code>&lt;identifier&gt;</code>) to get started.
+          No requests yet — point your test script at the URL above (with a real
+          identifier in place of <code>&lt;identifier&gt;</code>) to get
+          started.
         </div>
       ) : (
         <ul className="space-y-2">
           {children.map((listener) => {
-            const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
+            const primaryText =
+              listener.label ||
+              listener.slug ||
+              new Date(listener.createdAt).toLocaleString()
             return (
               <li
                 key={listener.id}
@@ -407,7 +460,11 @@ export function ProjectDetail() {
                   const before = e.clientY < rect.top + rect.height / 2
                   setDropIndicator({ key: listener.id, before })
                 }}
-                onDragLeave={() => setDropIndicator((current) => (current?.key === listener.id ? null : current))}
+                onDragLeave={() =>
+                  setDropIndicator((current) =>
+                    current?.key === listener.id ? null : current,
+                  )
+                }
                 onDrop={() => handleDrop(listener.id)}
                 className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
                   dropIndicator?.key === listener.id
@@ -418,7 +475,10 @@ export function ProjectDetail() {
                 }`}
               >
                 {sort === 'custom' && (
-                  <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
+                  <span
+                    className="cursor-grab text-slate-400 dark:text-slate-400"
+                    aria-hidden="true"
+                  >
                     ⠿
                   </span>
                 )}
@@ -432,7 +492,13 @@ export function ProjectDetail() {
                   }
                 >
                   <span className="flex items-center gap-2 font-medium">
-                    <img src="/favicon.png" alt="" aria-hidden="true" draggable={false} className="h-4 w-4" />
+                    <img
+                      src="/favicon.png"
+                      alt=""
+                      aria-hidden="true"
+                      draggable={false}
+                      className="h-4 w-4"
+                    />
                     {primaryText}
                   </span>
                   <span className="block text-xs text-slate-400 dark:text-slate-400">

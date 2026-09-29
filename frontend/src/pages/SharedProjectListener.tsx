@@ -10,7 +10,13 @@ import {
 import { usePaginatedRequests } from '../hooks/usePaginatedRequests'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
-import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
+import {
+  ALL,
+  filterRequests,
+  uniqueContentTypes,
+  uniqueMethods,
+  type RequestFilter,
+} from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
@@ -19,23 +25,37 @@ const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 export function SharedProjectListener() {
-  const { token, listenerId } = useParams<{ token: string; listenerId: string }>()
+  const { token, listenerId } = useParams<{
+    token: string
+    listenerId: string
+  }>()
   const { width } = useSettings()
   const fetchRequestsPage = useCallback(
-    (before?: number) => getSharedProjectListenerRequests(token!, listenerId!, { before, limit: 20 }),
-    [token, listenerId]
+    (before?: number) =>
+      getSharedProjectListenerRequests(token!, listenerId!, {
+        before,
+        limit: 20,
+      }),
+    [token, listenerId],
   )
   const { requests, hasMore, loadingMore, loadMore, refreshFirstPage } =
     usePaginatedRequests<RequestDetail>(fetchRequestsPage)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
+  const [filter, setFilter] = useState<RequestFilter>({
+    method: ALL,
+    contentType: ALL,
+    search: '',
+  })
   const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
   useEffect(() => {
     if (token) recordSharedProjectVisit(token)
   }, [token])
-  const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
+  const filteredRequests = useMemo(
+    () => filterRequests(requests, filter),
+    [requests, filter],
+  )
   const previousByRequestId = useMemo(() => {
     const map = new Map<number, RequestDetail>()
     for (let i = 0; i < requests.length - 1; i++) {
@@ -96,7 +116,7 @@ export function SharedProjectListener() {
           loadMore()
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: '200px' },
     )
     observer.observe(node)
     return () => observer.disconnect()
@@ -104,12 +124,20 @@ export function SharedProjectListener() {
 
   function handleExportJson() {
     if (!listenerId) return
-    downloadFile(`webhook-shared-${listenerId}.json`, toJsonExport(filteredRequests), 'application/json')
+    downloadFile(
+      `webhook-shared-${listenerId}.json`,
+      toJsonExport(filteredRequests),
+      'application/json',
+    )
   }
 
   function handleExportHar() {
     if (!listenerId) return
-    downloadFile(`webhook-shared-${listenerId}.har`, toHarExport(filteredRequests), 'application/json')
+    downloadFile(
+      `webhook-shared-${listenerId}.har`,
+      toHarExport(filteredRequests),
+      'application/json',
+    )
   }
 
   return (
@@ -120,10 +148,15 @@ export function SharedProjectListener() {
       >
         ← Back to project
       </Link>
-      <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">Shared listener (read-only)</h1>
+      <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">
+        Shared listener (read-only)
+      </h1>
 
       {error && (
-        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+        <p
+          role="alert"
+          className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        >
           {error}
         </p>
       )}
@@ -131,7 +164,10 @@ export function SharedProjectListener() {
       {!loaded && !error && (
         <ul className="space-y-2" aria-label="Loading requests">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="h-12 animate-pulse rounded-lg bg-slate-200" />
+            <li
+              key={i}
+              className="h-12 animate-pulse rounded-lg bg-slate-200"
+            />
           ))}
         </ul>
       )}
@@ -191,7 +227,12 @@ export function SharedProjectListener() {
                   diffOnly={diffOnly}
                   onLoadFullBody={
                     token && listenerId
-                      ? (requestId) => getSharedProjectListenerRequestBody(token, listenerId, requestId).then((r) => r.body)
+                      ? (requestId) =>
+                          getSharedProjectListenerRequestBody(
+                            token,
+                            listenerId,
+                            requestId,
+                          ).then((r) => r.body)
                       : undefined
                   }
                 />
@@ -199,7 +240,10 @@ export function SharedProjectListener() {
             </ul>
           )}
           {hasMore && (
-            <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            <div
+              ref={sentinelRef}
+              className="py-4 text-center text-xs text-slate-400 dark:text-slate-500"
+            >
               {loadingMore ? 'Loading more…' : ''}
             </div>
           )}

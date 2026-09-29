@@ -4,7 +4,10 @@ import { app } from '../app'
 import { verifyEmailSession } from '../auth/session'
 
 function stubResendOk() {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
+  )
 }
 
 async function postVerify(token: string) {
@@ -15,7 +18,7 @@ async function postVerify(token: string) {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: `token=${encodeURIComponent(token)}`,
     },
-    env
+    env,
   )
 }
 
@@ -27,8 +30,12 @@ describe('auth routes', () => {
   it('POST /auth/request-link rejects a non-allow-listed domain with 400', async () => {
     const response = await app.request(
       '/auth/request-link',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'person@evil.com' }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'person@evil.com' }),
+      },
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -37,8 +44,12 @@ describe('auth routes', () => {
     stubResendOk()
     const response = await app.request(
       '/auth/request-link',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'person@nice.com' }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'person@nice.com' }),
+      },
+      env,
     )
     expect(response.status).toBe(200)
   })
@@ -47,24 +58,41 @@ describe('auth routes', () => {
     stubResendOk()
     await app.request(
       '/auth/request-link',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'ratelimited@nice.com' }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'ratelimited@nice.com' }),
+      },
+      env,
     )
     const second = await app.request(
       '/auth/request-link',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'ratelimited@nice.com' }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'ratelimited@nice.com' }),
+      },
+      env,
     )
     expect(second.status).toBe(429)
   })
 
-  async function requestAndExtractVerifyUrl(email: string, returnTo?: string): Promise<string> {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+  async function requestAndExtractVerifyUrl(
+    email: string,
+    returnTo?: string,
+  ): Promise<string> {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     await app.request(
       '/auth/request-link',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, returnTo }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, returnTo }),
+      },
+      env,
     )
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     const match = body.html.match(/href="([^"]+)"/)
@@ -75,7 +103,11 @@ describe('auth routes', () => {
     const verifyUrl = await requestAndExtractVerifyUrl('scanner@nice.com')
     const token = new URL(verifyUrl).searchParams.get('token')!
 
-    const getResponse = await app.request(`/auth/verify?token=${token}`, {}, env)
+    const getResponse = await app.request(
+      `/auth/verify?token=${token}`,
+      {},
+      env,
+    )
     expect(getResponse.status).toBe(200)
     expect(getResponse.headers.get('content-type')).toContain('text/html')
     const html = await getResponse.text()
@@ -90,7 +122,11 @@ describe('auth routes', () => {
   })
 
   it('GET /auth/verify redirects with authError for an invalid token', async () => {
-    const response = await app.request('/auth/verify?token=not-a-real-token', {}, env)
+    const response = await app.request(
+      '/auth/verify?token=not-a-real-token',
+      {},
+      env,
+    )
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toContain('authError=invalid_link')
   })
@@ -101,19 +137,28 @@ describe('auth routes', () => {
 
     const response = await postVerify(token)
     expect(response.status).toBe(302)
-    const setCookie = response.headers.getSetCookie().find((c) => c.startsWith('wl_email_session='))
+    const setCookie = response.headers
+      .getSetCookie()
+      .find((c) => c.startsWith('wl_email_session='))
     expect(setCookie).toBeDefined()
     const cookieValue = setCookie!.split(';')[0].split('=')[1]
-    expect(await verifyEmailSession(env.WL_SESSION_SECRET, cookieValue)).toBe('verifyme@nice.com')
+    expect(await verifyEmailSession(env.WL_SESSION_SECRET, cookieValue)).toBe(
+      'verifyme@nice.com',
+    )
   })
 
   it('POST /auth/verify redirects to the requested returnTo path after verifying', async () => {
-    const verifyUrl = await requestAndExtractVerifyUrl('returnto@nice.com', '/shared/abc123')
+    const verifyUrl = await requestAndExtractVerifyUrl(
+      'returnto@nice.com',
+      '/shared/abc123',
+    )
     const token = new URL(verifyUrl).searchParams.get('token')!
 
     const response = await postVerify(token)
     expect(response.status).toBe(302)
-    expect(response.headers.get('location')).toBe(`${env.APP_BASE_URL}/shared/abc123`)
+    expect(response.headers.get('location')).toBe(
+      `${env.APP_BASE_URL}/shared/abc123`,
+    )
   })
 
   it('POST /auth/verify falls back to "/" when no returnTo was supplied', async () => {
@@ -125,7 +170,10 @@ describe('auth routes', () => {
   })
 
   it('POST /auth/verify falls back to "/" when returnTo is not a safe relative path', async () => {
-    const verifyUrl = await requestAndExtractVerifyUrl('badreturnto@nice.com', '//evil.com')
+    const verifyUrl = await requestAndExtractVerifyUrl(
+      'badreturnto@nice.com',
+      '//evil.com',
+    )
     const token = new URL(verifyUrl).searchParams.get('token')!
 
     const response = await postVerify(token)
@@ -156,7 +204,11 @@ describe('auth routes', () => {
       .find((c) => c.startsWith('wl_email_session='))!
       .split(';')[0]
 
-    const meResponse = await app.request('/auth/me', { headers: { cookie: cookieValue } }, env)
+    const meResponse = await app.request(
+      '/auth/me',
+      { headers: { cookie: cookieValue } },
+      env,
+    )
     expect(meResponse.status).toBe(200)
     expect(await meResponse.json()).toEqual({ email: 'me@nice.com' })
   })
@@ -169,7 +221,9 @@ describe('auth routes', () => {
   it('POST /auth/logout clears the cookie', async () => {
     const response = await app.request('/auth/logout', { method: 'POST' }, env)
     expect(response.status).toBe(204)
-    const setCookie = response.headers.getSetCookie().find((c) => c.startsWith('wl_email_session='))
+    const setCookie = response.headers
+      .getSetCookie()
+      .find((c) => c.startsWith('wl_email_session='))
     expect(setCookie).toMatch(/Max-Age=0/i)
   })
 })

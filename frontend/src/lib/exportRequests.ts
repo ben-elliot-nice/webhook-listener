@@ -22,21 +22,30 @@ export function toJsonExport(requests: RequestDetail[]): string {
       body: safeParse(req.body),
     })),
     null,
-    2
+    2,
   )
 }
 
-function toHeaderEntries(headers: Record<string, string>): { name: string; value: string }[] {
+function toHeaderEntries(
+  headers: Record<string, string>,
+): { name: string; value: string }[] {
   return Object.entries(headers).map(([name, value]) => ({ name, value }))
 }
 
-function toQueryEntries(queryParams: Record<string, string | string[]>): { name: string; value: string }[] {
+function toQueryEntries(
+  queryParams: Record<string, string | string[]>,
+): { name: string; value: string }[] {
   return Object.entries(queryParams).flatMap(([name, value]) =>
-    Array.isArray(value) ? value.map((v) => ({ name, value: v })) : [{ name, value }]
+    Array.isArray(value)
+      ? value.map((v) => ({ name, value: v }))
+      : [{ name, value }],
   )
 }
 
-export function toHarExport(requests: RequestDetail[], hookUrl: string = 'http://webhook-listener.invalid/hook/redacted'): string {
+export function toHarExport(
+  requests: RequestDetail[],
+  hookUrl: string = 'http://webhook-listener.invalid/hook/redacted',
+): string {
   const har = {
     log: {
       version: '1.2',
@@ -51,7 +60,13 @@ export function toHarExport(requests: RequestDetail[], hookUrl: string = 'http:/
           headers: toHeaderEntries(req.headers),
           queryString: toQueryEntries(req.queryParams),
           postData: req.body
-            ? { mimeType: req.contentType ?? 'application/octet-stream', text: prettyPrintBody(req.body, { indentWidth: 2, compact: false }) }
+            ? {
+                mimeType: req.contentType ?? 'application/octet-stream',
+                text: prettyPrintBody(req.body, {
+                  indentWidth: 2,
+                  compact: false,
+                }),
+              }
             : undefined,
           headersSize: -1,
           bodySize: req.body?.length ?? 0,
@@ -73,7 +88,11 @@ export function toHarExport(requests: RequestDetail[], hookUrl: string = 'http:/
   return JSON.stringify(har, null, 2)
 }
 
-export function downloadFile(filename: string, contents: string, mimeType: string): void {
+export function downloadFile(
+  filename: string,
+  contents: string,
+  mimeType: string,
+): void {
   const blob = new Blob([contents], { type: mimeType })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

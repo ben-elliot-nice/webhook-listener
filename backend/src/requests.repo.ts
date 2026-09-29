@@ -16,12 +16,15 @@ export type NewRequest = Omit<RequestRecord, 'id'>
 
 const RETENTION_LIMIT = 200
 
-export async function insertRequest(db: Env['DB'], req: NewRequest): Promise<void> {
+export async function insertRequest(
+  db: Env['DB'],
+  req: NewRequest,
+): Promise<void> {
   const insert = db
     .prepare(
       `INSERT INTO requests
         (listener_id, method, headers, query_params, body, content_type, source_ip, received_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       req.listenerId,
@@ -31,7 +34,7 @@ export async function insertRequest(db: Env['DB'], req: NewRequest): Promise<voi
       req.body,
       req.contentType,
       req.sourceIp,
-      req.receivedAt
+      req.receivedAt,
     )
 
   const prune = db
@@ -43,7 +46,7 @@ export async function insertRequest(db: Env['DB'], req: NewRequest): Promise<voi
            WHERE listener_id = ?
            ORDER BY received_at DESC, id DESC
            LIMIT ?
-         )`
+         )`,
     )
     .bind(req.listenerId, req.listenerId, RETENTION_LIMIT)
 
@@ -73,14 +76,17 @@ const SELECT_COLUMNS = `
   received_at AS receivedAt
 `
 
-export async function getRequests(db: Env['DB'], listenerId: string): Promise<RequestRecord[]> {
+export async function getRequests(
+  db: Env['DB'],
+  listenerId: string,
+): Promise<RequestRecord[]> {
   const { results } = await db
     .prepare(
       `SELECT ${SELECT_COLUMNS}
       FROM requests
       WHERE listener_id = ?
       ORDER BY received_at DESC, id DESC
-      LIMIT ?`
+      LIMIT ?`,
     )
     .bind(listenerId, RETENTION_LIMIT)
     .all<RequestRecord>()
@@ -90,7 +96,7 @@ export async function getRequests(db: Env['DB'], listenerId: string): Promise<Re
 export async function getRequestsPage(
   db: Env['DB'],
   listenerId: string,
-  options: { limit: number; before?: number }
+  options: { limit: number; before?: number },
 ): Promise<RequestsPage> {
   const before = options.before ?? null
   const { results } = await db
@@ -100,22 +106,25 @@ export async function getRequestsPage(
       WHERE listener_id = ?
         AND (?2 IS NULL OR id < ?2)
       ORDER BY received_at DESC, id DESC
-      LIMIT ?3`
+      LIMIT ?3`,
     )
     .bind(listenerId, before, options.limit)
     .all<RequestRecord>()
 
-  const nextCursor = results.length === options.limit ? results[results.length - 1].id : null
+  const nextCursor =
+    results.length === options.limit ? results[results.length - 1].id : null
   return { requests: results, nextCursor }
 }
 
 export async function getRequestById(
   db: Env['DB'],
   listenerId: string,
-  requestId: number
+  requestId: number,
 ): Promise<RequestRecord | undefined> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM requests WHERE listener_id = ? AND id = ?`)
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM requests WHERE listener_id = ? AND id = ?`,
+    )
     .bind(listenerId, requestId)
     .first<RequestRecord>()
   return row ?? undefined

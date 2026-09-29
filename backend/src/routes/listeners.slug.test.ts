@@ -12,7 +12,7 @@ describe('listener slug management', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
@@ -23,13 +23,20 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'Stripe_Prod' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(200)
-    const body = (await response.json()) as { slug: string; webhookToken: string; hookUrl: string }
+    const body = (await response.json()) as {
+      slug: string
+      webhookToken: string
+      hookUrl: string
+    }
     expect(body.slug).toBe('stripe-prod')
     expect(body.webhookToken).toBeTypeOf('string')
     expect(body.hookUrl).toBe(`${env.HOOK_BASE_URL}/hook/stripe-prod`)
@@ -40,15 +47,18 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'my-slug' }),
       },
-      env
+      env,
     )
     const response = await app.request(
       `/api/listeners/${listenerId}`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const body = (await response.json()) as Record<string, unknown>
     expect(body.slug).toBe('my-slug')
@@ -60,26 +70,32 @@ describe('listener slug management', () => {
     const other = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     await app.request(
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'taken' }),
       },
-      env
+      env,
     )
     const otherBody = (await other.json()) as { id: string }
     const response = await app.request(
       `/api/listeners/${otherBody.id}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, otherEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'taken' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(409)
   })
@@ -89,10 +105,13 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'ab' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -102,10 +121,13 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, otherEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'stolen' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -115,26 +137,33 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'rotate-target' }),
       },
-      env
+      env,
     )
-    const { webhookToken: originalToken } = (await setResponse.json()) as { webhookToken: string }
+    const { webhookToken: originalToken } = (await setResponse.json()) as {
+      webhookToken: string
+    }
 
     const rotateResponse = await app.request(
       `/api/listeners/${listenerId}/slug/rotate-token`,
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     expect(rotateResponse.status).toBe(200)
-    const { webhookToken: newToken } = (await rotateResponse.json()) as { webhookToken: string }
+    const { webhookToken: newToken } = (await rotateResponse.json()) as {
+      webhookToken: string
+    }
     expect(newToken).not.toBe(originalToken)
 
     const oldTokenRequest = await app.request(
       '/hook/rotate-target',
       { method: 'POST', headers: { 'x-webhook-token': originalToken } },
-      env
+      env,
     )
     expect(oldTokenRequest.status).toBe(404)
   })
@@ -143,7 +172,7 @@ describe('listener slug management', () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/slug/rotate-token`,
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -153,30 +182,37 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerId}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'remove-target' }),
       },
-      env
+      env,
     )
     const removeResponse = await app.request(
       `/api/listeners/${listenerId}/slug`,
       { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     expect(removeResponse.status).toBe(204)
 
-    const uuidHookResponse = await app.request(`/hook/${listenerId}`, { method: 'POST' }, env)
+    const uuidHookResponse = await app.request(
+      `/hook/${listenerId}`,
+      { method: 'POST' },
+      env,
+    )
     expect(uuidHookResponse.status).toBe(200)
   })
 
-  it('rejects setting a slug to another listener\'s UUID, and leaves that listener\'s hook URL working', async () => {
+  it("rejects setting a slug to another listener's UUID, and leaves that listener's hook URL working", async () => {
     // listenerId/ownerEmail is listener A, with no slug set (so its hook URL is its bare UUID).
     const listenerA = listenerId
 
     const other = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     const listenerB = ((await other.json()) as { id: string }).id
 
@@ -185,15 +221,22 @@ describe('listener slug management', () => {
       `/api/listeners/${listenerB}/slug`,
       {
         method: 'PUT',
-        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, otherEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: listenerA }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(409)
 
     // Listener A's UUID hook URL must still resolve to listener A (no token needed).
-    const hookResponse = await app.request(`/hook/${listenerA}`, { method: 'POST' }, env)
+    const hookResponse = await app.request(
+      `/hook/${listenerA}`,
+      { method: 'POST' },
+      env,
+    )
     expect(hookResponse.status).toBe(200)
   })
 })

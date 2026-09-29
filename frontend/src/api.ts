@@ -89,7 +89,10 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function requestMagicLink(email: string, returnTo?: string): Promise<{ message: string }> {
+export function requestMagicLink(
+  email: string,
+  returnTo?: string,
+): Promise<{ message: string }> {
   return fetch(`${API_BASE_URL}/auth/request-link`, {
     method: 'POST',
     credentials: 'include',
@@ -99,63 +102,80 @@ export function requestMagicLink(email: string, returnTo?: string): Promise<{ me
 }
 
 export function getMe(): Promise<{ email: string }> {
-  return fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include' }).then((r) => parseJsonOrThrow<{ email: string }>(r))
+  return fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include' }).then(
+    (r) => parseJsonOrThrow<{ email: string }>(r),
+  )
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
 }
 
 export function createListener(): Promise<Listener> {
-  return fetch(`${API_BASE_URL}/api/listeners`, { method: 'POST', credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<Listener>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/listeners`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<Listener>(r))
 }
 
 export function getListener(id: string): Promise<Listener> {
-  return fetch(`${API_BASE_URL}/api/listeners/${id}`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<Listener>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/listeners/${id}`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<Listener>(r))
 }
 
 export function listListeners(sort: SortMode = 'date'): Promise<Listener[]> {
-  return fetch(`${API_BASE_URL}/api/listeners?sort=${sort}`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<Listener[]>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/listeners?sort=${sort}`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<Listener[]>(r))
 }
 
 export function createProject(): Promise<Project> {
-  return fetch(`${API_BASE_URL}/api/projects`, { method: 'POST', credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<Project>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/projects`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<Project>(r))
 }
 
 export function listProjects(): Promise<Project[]> {
-  return fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<Project[]>(r)
+  return fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' }).then(
+    (r) => parseJsonOrThrow<Project[]>(r),
   )
 }
 
-export function getRequests(id: string, page: PageParams = {}): Promise<RequestsPage<CapturedRequest>> {
-  return fetch(`${API_BASE_URL}/api/listeners/${id}/requests${pageQuery(page)}`, {
-    credentials: 'include',
-  }).then((r) => parseJsonOrThrow<RequestsPage<CapturedRequest>>(r))
+export function getRequests(
+  id: string,
+  page: PageParams = {},
+): Promise<RequestsPage<CapturedRequest>> {
+  return fetch(
+    `${API_BASE_URL}/api/listeners/${id}/requests${pageQuery(page)}`,
+    {
+      credentials: 'include',
+    },
+  ).then((r) => parseJsonOrThrow<RequestsPage<CapturedRequest>>(r))
 }
 
 export async function deleteListener(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/listeners/${id}`, { method: 'DELETE', credentials: 'include' })
+  const response = await fetch(`${API_BASE_URL}/api/listeners/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
 }
 
 export function getOrCreateShareLink(id: string): Promise<ShareLink> {
-  return fetch(`${API_BASE_URL}/api/listeners/${id}/share`, { method: 'POST', credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<ShareLink>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/listeners/${id}/share`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<ShareLink>(r))
 }
 
 export async function revokeShareLink(id: string): Promise<void> {
@@ -168,10 +188,16 @@ export async function revokeShareLink(id: string): Promise<void> {
   }
 }
 
-export function getSharedRequests(token: string, page: PageParams = {}): Promise<RequestsPage<RequestDetail>> {
-  return fetch(`${API_BASE_URL}/api/shared/${token}/requests${pageQuery(page)}`, {
-    credentials: 'include',
-  }).then((r) => parseJsonOrThrow<RequestsPage<RequestDetail>>(r))
+export function getSharedRequests(
+  token: string,
+  page: PageParams = {},
+): Promise<RequestsPage<RequestDetail>> {
+  return fetch(
+    `${API_BASE_URL}/api/shared/${token}/requests${pageQuery(page)}`,
+    {
+      credentials: 'include',
+    },
+  ).then((r) => parseJsonOrThrow<RequestsPage<RequestDetail>>(r))
 }
 
 export interface SlugResult {
@@ -189,7 +215,9 @@ export function setSlug(id: string, slug: string): Promise<SlugResult> {
   }).then((r) => parseJsonOrThrow<SlugResult>(r))
 }
 
-export function rotateWebhookToken(id: string): Promise<{ webhookToken: string }> {
+export function rotateWebhookToken(
+  id: string,
+): Promise<{ webhookToken: string }> {
   return fetch(`${API_BASE_URL}/api/listeners/${id}/slug/rotate-token`, {
     method: 'POST',
     credentials: 'include',
@@ -206,7 +234,10 @@ export async function removeSlug(id: string): Promise<void> {
   }
 }
 
-export function setLabel(id: string, label: string): Promise<{ label: string | null }> {
+export function setLabel(
+  id: string,
+  label: string,
+): Promise<{ label: string | null }> {
   return fetch(`${API_BASE_URL}/api/listeners/${id}/label`, {
     method: 'PATCH',
     credentials: 'include',
@@ -227,7 +258,10 @@ export async function reorderItems(orderedItems: ReorderItem[]): Promise<void> {
   }
 }
 
-export function setProjectLabel(id: string, label: string): Promise<{ label: string | null }> {
+export function setProjectLabel(
+  id: string,
+  label: string,
+): Promise<{ label: string | null }> {
   return fetch(`${API_BASE_URL}/api/projects/${id}/label`, {
     method: 'PATCH',
     credentials: 'include',
@@ -237,9 +271,10 @@ export function setProjectLabel(id: string, label: string): Promise<{ label: str
 }
 
 export function getOrCreateProjectShareLink(id: string): Promise<ShareLink> {
-  return fetch(`${API_BASE_URL}/api/projects/${id}/share`, { method: 'POST', credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<ShareLink>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/projects/${id}/share`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<ShareLink>(r))
 }
 
 export async function revokeProjectShareLink(id: string): Promise<void> {
@@ -253,13 +288,19 @@ export async function revokeProjectShareLink(id: string): Promise<void> {
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, { method: 'DELETE', credentials: 'include' })
+  const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
 }
 
-export function createProjectListener(projectId: string, slug: string): Promise<Listener> {
+export function createProjectListener(
+  projectId: string,
+  slug: string,
+): Promise<Listener> {
   return fetch(`${API_BASE_URL}/api/projects/${projectId}/listeners`, {
     method: 'POST',
     credentials: 'include',
@@ -274,30 +315,34 @@ export interface SharedProjectData {
 }
 
 export function getSharedProject(token: string): Promise<SharedProjectData> {
-  return fetch(`${API_BASE_URL}/api/shared/projects/${token}`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<SharedProjectData>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/shared/projects/${token}`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<SharedProjectData>(r))
 }
 
 export function getSharedProjectListenerRequests(
   token: string,
   listenerId: string,
-  page: PageParams = {}
+  page: PageParams = {},
 ): Promise<RequestsPage<RequestDetail>> {
   return fetch(
     `${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests${pageQuery(page)}`,
-    { credentials: 'include' }
+    { credentials: 'include' },
   ).then((r) => parseJsonOrThrow<RequestsPage<RequestDetail>>(r))
 }
 
 export async function recordSharedListenerVisit(token: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/api/shared/${token}/visit`, { method: 'POST', credentials: 'include' }).catch(() => {})
+  await fetch(`${API_BASE_URL}/api/shared/${token}/visit`, {
+    method: 'POST',
+    credentials: 'include',
+  }).catch(() => {})
 }
 
 export async function recordSharedProjectVisit(token: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/api/shared/projects/${token}/visit`, { method: 'POST', credentials: 'include' }).catch(
-    () => {}
-  )
+  await fetch(`${API_BASE_URL}/api/shared/projects/${token}/visit`, {
+    method: 'POST',
+    credentials: 'include',
+  }).catch(() => {})
 }
 
 export interface SharedWithMeEntry {
@@ -309,40 +354,58 @@ export interface SharedWithMeEntry {
 }
 
 export function listSharedWithMe(): Promise<SharedWithMeEntry[]> {
-  return fetch(`${API_BASE_URL}/api/shared-with-me`, { credentials: 'include' }).then((r) =>
-    parseJsonOrThrow<SharedWithMeEntry[]>(r)
-  )
+  return fetch(`${API_BASE_URL}/api/shared-with-me`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<SharedWithMeEntry[]>(r))
 }
 
-export async function removeSharedWithMe(kind: 'listener' | 'project', token: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/shared-with-me/${kind}/${token}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
+export async function removeSharedWithMe(
+  kind: 'listener' | 'project',
+  token: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/shared-with-me/${kind}/${token}`,
+    {
+      method: 'DELETE',
+      credentials: 'include',
+    },
+  )
   if (!response.ok && response.status !== 204) {
     throw new ApiError(response.status)
   }
 }
 
-export function getRequestBody(listenerId: string, requestId: number): Promise<{ body: string | null }> {
-  return fetch(`${API_BASE_URL}/api/listeners/${listenerId}/requests/${requestId}/body`, {
-    credentials: 'include',
-  }).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
+export function getRequestBody(
+  listenerId: string,
+  requestId: number,
+): Promise<{ body: string | null }> {
+  return fetch(
+    `${API_BASE_URL}/api/listeners/${listenerId}/requests/${requestId}/body`,
+    {
+      credentials: 'include',
+    },
+  ).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
 }
 
-export function getSharedRequestBody(token: string, requestId: number): Promise<{ body: string | null }> {
-  return fetch(`${API_BASE_URL}/api/shared/${token}/requests/${requestId}/body`, {
-    credentials: 'include',
-  }).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
+export function getSharedRequestBody(
+  token: string,
+  requestId: number,
+): Promise<{ body: string | null }> {
+  return fetch(
+    `${API_BASE_URL}/api/shared/${token}/requests/${requestId}/body`,
+    {
+      credentials: 'include',
+    },
+  ).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
 }
 
 export function getSharedProjectListenerRequestBody(
   token: string,
   listenerId: string,
-  requestId: number
+  requestId: number,
 ): Promise<{ body: string | null }> {
   return fetch(
     `${API_BASE_URL}/api/shared/projects/${token}/listeners/${listenerId}/requests/${requestId}/body`,
-    { credentials: 'include' }
+    { credentials: 'include' },
   ).then((r) => parseJsonOrThrow<{ body: string | null }>(r))
 }

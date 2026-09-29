@@ -35,10 +35,16 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 function loadStoredSort(): SortMode {
   const stored = localStorage.getItem(SORT_STORAGE_KEY)
-  return SORT_OPTIONS.some((option) => option.value === stored) ? (stored as SortMode) : 'date'
+  return SORT_OPTIONS.some((option) => option.value === stored)
+    ? (stored as SortMode)
+    : 'date'
 }
 
-function mergeItems(sort: SortMode, listeners: Listener[], projects: Project[]): HomeItem[] {
+function mergeItems(
+  sort: SortMode,
+  listeners: Listener[],
+  projects: Project[],
+): HomeItem[] {
   if (sort === 'custom') {
     const standalone = listeners.filter((l) => l.projectId === null)
     return mergeHomeItemsByCustom(standalone, projects)
@@ -49,11 +55,15 @@ function mergeItems(sort: SortMode, listeners: Listener[], projects: Project[]):
 }
 
 function itemKey(item: HomeItem): string {
-  return item.kind === 'listener' ? `listener:${item.listener.id}` : `project:${item.project.id}`
+  return item.kind === 'listener'
+    ? `listener:${item.listener.id}`
+    : `project:${item.project.id}`
 }
 
 function toReorderItem(item: HomeItem): ReorderItem {
-  return item.kind === 'listener' ? { type: 'listener', id: item.listener.id } : { type: 'project', id: item.project.id }
+  return item.kind === 'listener'
+    ? { type: 'listener', id: item.listener.id }
+    : { type: 'project', id: item.project.id }
 }
 
 export function Home() {
@@ -67,7 +77,10 @@ export function Home() {
   const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeEntry[]>([])
   const [sort, setSort] = useState<SortMode>(loadStoredSort)
   const [dragKey, setDragKey] = useState<string | null>(null)
-  const [dropIndicator, setDropIndicator] = useState<{ key: string; before: boolean } | null>(null)
+  const [dropIndicator, setDropIndicator] = useState<{
+    key: string
+    before: boolean
+  } | null>(null)
 
   useEffect(() => {
     Promise.all([listListeners(sort), listProjects()])
@@ -96,8 +109,15 @@ export function Home() {
     localStorage.setItem(SORT_STORAGE_KEY, next)
   }
 
-  function handleRemoveSharedWithMe(kind: 'listener' | 'project', token: string) {
-    setSharedWithMe((current) => current.filter((entry) => !(entry.kind === kind && entry.token === token)))
+  function handleRemoveSharedWithMe(
+    kind: 'listener' | 'project',
+    token: string,
+  ) {
+    setSharedWithMe((current) =>
+      current.filter(
+        (entry) => !(entry.kind === kind && entry.token === token),
+      ),
+    )
     removeSharedWithMe(kind, token).catch(() => {
       // Best-effort optimistic removal; a failed DELETE just means the entry
       // reappears on the next Home load, which is an acceptable degradation
@@ -131,7 +151,8 @@ export function Home() {
 
   function handleDrop(targetKey: string) {
     if (!dragKey || dragKey === targetKey) return
-    const before = dropIndicator?.key === targetKey ? dropIndicator.before : true
+    const before =
+      dropIndicator?.key === targetKey ? dropIndicator.before : true
     const current = [...items]
     const fromIndex = current.findIndex((item) => itemKey(item) === dragKey)
     if (fromIndex === -1) return
@@ -186,9 +207,12 @@ export function Home() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Webhook Listener</h1>
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+        Webhook Listener
+      </h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Create a unique URL, send it webhook payloads, and watch them arrive here.
+        Create a unique URL, send it webhook payloads, and watch them arrive
+        here.
       </p>
       <div className="mt-6 flex gap-2">
         <button
@@ -207,13 +231,20 @@ export function Home() {
         </button>
       </div>
       {error && (
-        <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+        <p
+          role="alert"
+          className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        >
           {error}
         </p>
       )}
       {items.length > 0 && (
         <>
-          <div className="mb-2 mt-8 flex items-center gap-1" role="group" aria-label="Sort listeners">
+          <div
+            className="mb-2 mt-8 flex items-center gap-1"
+            role="group"
+            aria-label="Sort listeners"
+          >
             {SORT_OPTIONS.map((option) => (
               <button
                 key={option.value}
@@ -253,7 +284,11 @@ export function Home() {
                       const before = e.clientY < rect.top + rect.height / 2
                       setDropIndicator({ key, before })
                     }}
-                    onDragLeave={() => setDropIndicator((current) => (current?.key === key ? null : current))}
+                    onDragLeave={() =>
+                      setDropIndicator((current) =>
+                        current?.key === key ? null : current,
+                      )
+                    }
                     onDrop={() => handleDrop(key)}
                     className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
                       dropIndicator?.key === key
@@ -264,7 +299,10 @@ export function Home() {
                     }`}
                   >
                     {sort === 'custom' && (
-                      <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
+                      <span
+                        className="cursor-grab text-slate-400 dark:text-slate-400"
+                        aria-hidden="true"
+                      >
                         ⠿
                       </span>
                     )}
@@ -291,7 +329,10 @@ export function Home() {
 
               const { listener } = item
               const hasNameOrSlug = Boolean(listener.label || listener.slug)
-              const primaryText = listener.label || listener.slug || new Date(listener.createdAt).toLocaleString()
+              const primaryText =
+                listener.label ||
+                listener.slug ||
+                new Date(listener.createdAt).toLocaleString()
               return (
                 <li
                   key={key}
@@ -312,7 +353,11 @@ export function Home() {
                     const before = e.clientY < rect.top + rect.height / 2
                     setDropIndicator({ key, before })
                   }}
-                  onDragLeave={() => setDropIndicator((current) => (current?.key === key ? null : current))}
+                  onDragLeave={() =>
+                    setDropIndicator((current) =>
+                      current?.key === key ? null : current,
+                    )
+                  }
                   onDrop={() => handleDrop(key)}
                   className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
                     dropIndicator?.key === key
@@ -323,7 +368,10 @@ export function Home() {
                   }`}
                 >
                   {sort === 'custom' && (
-                    <span className="cursor-grab text-slate-400 dark:text-slate-400" aria-hidden="true">
+                    <span
+                      className="cursor-grab text-slate-400 dark:text-slate-400"
+                      aria-hidden="true"
+                    >
                       ⠿
                     </span>
                   )}
@@ -337,7 +385,13 @@ export function Home() {
                     }
                   >
                     <span className="flex items-center gap-2 font-medium">
-                      <img src="/favicon.png" alt="" aria-hidden="true" draggable={false} className="h-4 w-4" />
+                      <img
+                        src="/favicon.png"
+                        alt=""
+                        aria-hidden="true"
+                        draggable={false}
+                        className="h-4 w-4"
+                      />
                       {primaryText}
                     </span>
                     {hasNameOrSlug && (
@@ -354,10 +408,15 @@ export function Home() {
       )}
       {sharedWithMe.length > 0 && (
         <div className="mt-10">
-          <h2 className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">Shared with me</h2>
+          <h2 className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+            Shared with me
+          </h2>
           <ul className="space-y-2">
             {sharedWithMe.map((entry) => (
-              <li key={`${entry.kind}:${entry.token}`} className="flex items-center gap-2">
+              <li
+                key={`${entry.kind}:${entry.token}`}
+                className="flex items-center gap-2"
+              >
                 <a
                   href={entry.url}
                   className="block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -371,7 +430,9 @@ export function Home() {
                   </span>
                 </a>
                 <button
-                  onClick={() => handleRemoveSharedWithMe(entry.kind, entry.token)}
+                  onClick={() =>
+                    handleRemoveSharedWithMe(entry.kind, entry.token)
+                  }
                   aria-label="Remove from shared with me"
                   className="rounded-md px-2 py-1 text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
                 >

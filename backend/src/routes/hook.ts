@@ -36,7 +36,10 @@ function parseQuery(url: URL): Record<string, string | string[]> {
 
 class BodyTooLargeError extends Error {}
 
-async function readBodyWithLimit(request: Request, maxBytes: number): Promise<string | null> {
+async function readBodyWithLimit(
+  request: Request,
+  maxBytes: number,
+): Promise<string | null> {
   if (!request.body) return null
 
   const reader = request.body.getReader()
@@ -66,7 +69,11 @@ async function readBodyWithLimit(request: Request, maxBytes: number): Promise<st
 export const hookRoute = new Hono<{ Bindings: Env }>()
 
 hookRoute.all('/hook/:id', async (c) => {
-  const listener = await resolveListenerForHook(c.env.DB, c.req.param('id'), c.req.header('x-webhook-token'))
+  const listener = await resolveListenerForHook(
+    c.env.DB,
+    c.req.param('id'),
+    c.req.header('x-webhook-token'),
+  )
   if (!listener) {
     return c.json({ error: 'listener not found' }, 404)
   }
@@ -131,7 +138,11 @@ hookRoute.all('/hook/:projectId/:identifier', async (c) => {
     throw err
   }
 
-  let listener = await getListenerByProjectAndSlug(c.env.DB, project.id, identifier)
+  let listener = await getListenerByProjectAndSlug(
+    c.env.DB,
+    project.id,
+    identifier,
+  )
   let status: 200 | 201 = listener ? 200 : 201
   if (!listener) {
     try {
@@ -142,13 +153,17 @@ hookRoute.all('/hook/:projectId/:identifier', async (c) => {
         project.ownerSession,
         project.ownerEmail,
         project.id,
-        identifier
+        identifier,
       )
     } catch (err) {
       if (!isUniqueConstraintError(err)) throw err
       // Lost the race to a concurrent first-call creating the same
       // (projectId, identifier) pair — the winner's row now exists, use it.
-      listener = await getListenerByProjectAndSlug(c.env.DB, project.id, identifier)
+      listener = await getListenerByProjectAndSlug(
+        c.env.DB,
+        project.id,
+        identifier,
+      )
       status = 200
       if (!listener) throw err
     }

@@ -14,7 +14,7 @@ describe('app', () => {
     const response = await app.request(
       '/does-not-exist',
       { headers: await authCookieHeader(env, 'owner@nice.com') },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -24,13 +24,22 @@ describe('error handling preserves CORS headers', () => {
   it('returns 500 with CORS headers intact when a route handler throws', async () => {
     const response = await app.request(
       '/api/__boom',
-      { headers: { Origin: env.APP_BASE_URL, ...(await authCookieHeader(env, 'owner@nice.com')) } },
-      env
+      {
+        headers: {
+          Origin: env.APP_BASE_URL,
+          ...(await authCookieHeader(env, 'owner@nice.com')),
+        },
+      },
+      env,
     )
 
     expect(response.status).toBe(500)
-    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
-    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      env.APP_BASE_URL,
+    )
+    expect(response.headers.get('access-control-allow-credentials')).toBe(
+      'true',
+    )
     expect(await response.json()).toEqual({ error: 'internal server error' })
   })
 })
@@ -40,20 +49,28 @@ describe('CORS on /api/*', () => {
     const response = await app.request(
       '/api/listeners',
       { headers: { Origin: env.APP_BASE_URL } },
-      env
+      env,
     )
-    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
-    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      env.APP_BASE_URL,
+    )
+    expect(response.headers.get('access-control-allow-credentials')).toBe(
+      'true',
+    )
   })
 
   it('does not reflect back a foreign Origin', async () => {
     const response = await app.request(
       '/api/listeners',
       { headers: { Origin: 'https://evil.example.com' } },
-      env
+      env,
     )
-    expect(response.headers.get('access-control-allow-origin')).not.toBe('https://evil.example.com')
-    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
+    expect(response.headers.get('access-control-allow-origin')).not.toBe(
+      'https://evil.example.com',
+    )
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      env.APP_BASE_URL,
+    )
   })
 })
 
@@ -67,19 +84,27 @@ describe('CORS on /auth/*', () => {
     const response = await app.request(
       '/auth/me',
       { headers: { Origin: env.APP_BASE_URL } },
-      env
+      env,
     )
-    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
-    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      env.APP_BASE_URL,
+    )
+    expect(response.headers.get('access-control-allow-credentials')).toBe(
+      'true',
+    )
   })
 
   it('does not reflect back a foreign Origin', async () => {
     const response = await app.request(
       '/auth/me',
       { headers: { Origin: 'https://evil.example.com' } },
-      env
+      env,
     )
-    expect(response.headers.get('access-control-allow-origin')).not.toBe('https://evil.example.com')
-    expect(response.headers.get('access-control-allow-origin')).toBe(env.APP_BASE_URL)
+    expect(response.headers.get('access-control-allow-origin')).not.toBe(
+      'https://evil.example.com',
+    )
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      env.APP_BASE_URL,
+    )
   })
 })

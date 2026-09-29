@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { env } from 'cloudflare:test'
-import { hasPendingMagicLink, createMagicLink, consumeMagicLink, peekMagicLink } from './magic-links.repo'
+import {
+  hasPendingMagicLink,
+  createMagicLink,
+  consumeMagicLink,
+  peekMagicLink,
+} from './magic-links.repo'
 import { hashToken } from './auth/tokens'
 
 describe('magic-links.repo', () => {
@@ -13,7 +18,13 @@ describe('magic-links.repo', () => {
     const email = 'pending@nice.com'
     const tokenHash = await hashToken('raw-token-1')
     const now = new Date()
-    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() + 60_000).toISOString(),
+    )
     expect(await hasPendingMagicLink(env.DB, email)).toBe(true)
   })
 
@@ -21,7 +32,13 @@ describe('magic-links.repo', () => {
     const email = 'expired@nice.com'
     const tokenHash = await hashToken('raw-token-2')
     const now = new Date()
-    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() - 1000).toISOString())
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() - 1000).toISOString(),
+    )
     expect(await hasPendingMagicLink(env.DB, email)).toBe(false)
   })
 
@@ -29,7 +46,13 @@ describe('magic-links.repo', () => {
     const email = 'consume@nice.com'
     const tokenHash = await hashToken('raw-token-3')
     const now = new Date()
-    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() + 60_000).toISOString(),
+    )
 
     const result = await consumeMagicLink(env.DB, tokenHash)
     expect(result).toEqual({ email, returnTo: null })
@@ -45,7 +68,7 @@ describe('magic-links.repo', () => {
       tokenHash,
       now.toISOString(),
       new Date(now.getTime() + 60_000).toISOString(),
-      '/shared/xyz'
+      '/shared/xyz',
     )
 
     const result = await consumeMagicLink(env.DB, tokenHash)
@@ -56,7 +79,13 @@ describe('magic-links.repo', () => {
     const email = 'single-use@nice.com'
     const tokenHash = await hashToken('raw-token-4')
     const now = new Date()
-    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() + 60_000).toISOString(),
+    )
 
     await consumeMagicLink(env.DB, tokenHash)
     const second = await consumeMagicLink(env.DB, tokenHash)
@@ -66,14 +95,23 @@ describe('magic-links.repo', () => {
   it('consumeMagicLink returns undefined for an expired token', async () => {
     const tokenHash = await hashToken('raw-token-5')
     const now = new Date()
-    await createMagicLink(env.DB, 'expired2@nice.com', tokenHash, now.toISOString(), new Date(now.getTime() - 1000).toISOString())
+    await createMagicLink(
+      env.DB,
+      'expired2@nice.com',
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() - 1000).toISOString(),
+    )
 
     const result = await consumeMagicLink(env.DB, tokenHash)
     expect(result).toBeUndefined()
   })
 
   it('consumeMagicLink returns undefined for an unknown token', async () => {
-    const result = await consumeMagicLink(env.DB, await hashToken('never-created'))
+    const result = await consumeMagicLink(
+      env.DB,
+      await hashToken('never-created'),
+    )
     expect(result).toBeUndefined()
   })
 
@@ -81,7 +119,13 @@ describe('magic-links.repo', () => {
     const email = 'peek@nice.com'
     const tokenHash = await hashToken('raw-token-7')
     const now = new Date()
-    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() + 60_000).toISOString(),
+    )
 
     const peeked = await peekMagicLink(env.DB, tokenHash)
     expect(peeked).toEqual({ email })
@@ -95,7 +139,13 @@ describe('magic-links.repo', () => {
     const email = 'peek-used@nice.com'
     const tokenHash = await hashToken('raw-token-8')
     const now = new Date()
-    await createMagicLink(env.DB, email, tokenHash, now.toISOString(), new Date(now.getTime() + 60_000).toISOString())
+    await createMagicLink(
+      env.DB,
+      email,
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() + 60_000).toISOString(),
+    )
     await consumeMagicLink(env.DB, tokenHash)
 
     expect(await peekMagicLink(env.DB, tokenHash)).toBeUndefined()
@@ -104,12 +154,20 @@ describe('magic-links.repo', () => {
   it('peekMagicLink returns undefined for an expired token', async () => {
     const tokenHash = await hashToken('raw-token-9')
     const now = new Date()
-    await createMagicLink(env.DB, 'peek-expired@nice.com', tokenHash, now.toISOString(), new Date(now.getTime() - 1000).toISOString())
+    await createMagicLink(
+      env.DB,
+      'peek-expired@nice.com',
+      tokenHash,
+      now.toISOString(),
+      new Date(now.getTime() - 1000).toISOString(),
+    )
 
     expect(await peekMagicLink(env.DB, tokenHash)).toBeUndefined()
   })
 
   it('peekMagicLink returns undefined for an unknown token', async () => {
-    expect(await peekMagicLink(env.DB, await hashToken('never-created-2'))).toBeUndefined()
+    expect(
+      await peekMagicLink(env.DB, await hashToken('never-created-2')),
+    ).toBeUndefined()
   })
 })

@@ -23,10 +23,12 @@ export async function createListener(
   db: Env['DB'],
   id: string,
   createdAt: string,
-  ownerEmail: string
+  ownerEmail: string,
 ): Promise<ListenerRecord> {
   await db
-    .prepare('INSERT INTO listeners (id, created_at, owner_email) VALUES (?, ?, ?)')
+    .prepare(
+      'INSERT INTO listeners (id, created_at, owner_email) VALUES (?, ?, ?)',
+    )
     .bind(id, createdAt, ownerEmail)
     .run()
   return {
@@ -47,18 +49,25 @@ export async function createListener(
 export async function getListenerByProjectAndSlug(
   db: Env['DB'],
   projectId: string,
-  slug: string
+  slug: string,
 ): Promise<ListenerRecord | undefined> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? AND slug = ?`)
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? AND slug = ?`,
+    )
     .bind(projectId, slug)
     .first<ListenerRecord>()
   return row ?? undefined
 }
 
-export async function getListenersByProject(db: Env['DB'], projectId: string): Promise<ListenerRecord[]> {
+export async function getListenersByProject(
+  db: Env['DB'],
+  projectId: string,
+): Promise<ListenerRecord[]> {
   const { results } = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? ORDER BY created_at DESC, id DESC`)
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? ORDER BY created_at DESC, id DESC`,
+    )
     .bind(projectId)
     .all<ListenerRecord>()
   return results
@@ -71,11 +80,11 @@ export async function createProjectListener(
   ownerSession: string | null,
   ownerEmail: string | null,
   projectId: string,
-  slug: string
+  slug: string,
 ): Promise<ListenerRecord> {
   await db
     .prepare(
-      'INSERT INTO listeners (id, created_at, owner_session, owner_email, project_id, slug) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO listeners (id, created_at, owner_session, owner_email, project_id, slug) VALUES (?, ?, ?, ?, ?, ?)',
     )
     .bind(id, createdAt, ownerSession, ownerEmail, projectId, slug)
     .run()
@@ -94,7 +103,10 @@ export async function createProjectListener(
   }
 }
 
-export async function getListener(db: Env['DB'], id: string): Promise<ListenerRecord | undefined> {
+export async function getListener(
+  db: Env['DB'],
+  id: string,
+): Promise<ListenerRecord | undefined> {
   const row = await db
     .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE id = ?`)
     .bind(id)
@@ -105,10 +117,12 @@ export async function getListener(db: Env['DB'], id: string): Promise<ListenerRe
 export async function getListenerForOwner(
   db: Env['DB'],
   id: string,
-  email: string
+  email: string,
 ): Promise<ListenerRecord | undefined> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE id = ? AND owner_email = ?`)
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE id = ? AND owner_email = ?`,
+    )
     .bind(id, email)
     .first<ListenerRecord>()
   return row ?? undefined
@@ -127,10 +141,12 @@ export async function getListenersForOwner(
   db: Env['DB'],
   email: string,
   limit: number,
-  sort: SortMode = 'date'
+  sort: SortMode = 'date',
 ): Promise<ListenerRecord[]> {
   const { results } = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE owner_email = ? ORDER BY ${SORT_CLAUSES[sort]} LIMIT ?`)
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE owner_email = ? ORDER BY ${SORT_CLAUSES[sort]} LIMIT ?`,
+    )
     .bind(email, limit)
     .all<ListenerRecord>()
   return results
@@ -141,15 +157,29 @@ export interface ReorderItem {
   id: string
 }
 
-export async function reorderItems(db: Env['DB'], email: string, items: ReorderItem[]): Promise<boolean> {
+export async function reorderItems(
+  db: Env['DB'],
+  email: string,
+  items: ReorderItem[],
+): Promise<boolean> {
   if (items.length === 0) return false
 
-  const listenerIds = items.filter((item) => item.type === 'listener').map((item) => item.id)
-  const projectIds = items.filter((item) => item.type === 'project').map((item) => item.id)
+  const listenerIds = items
+    .filter((item) => item.type === 'listener')
+    .map((item) => item.id)
+  const projectIds = items
+    .filter((item) => item.type === 'project')
+    .map((item) => item.id)
 
   const [ownedListeners, ownedProjects] = await Promise.all([
-    db.prepare('SELECT id FROM listeners WHERE owner_email = ?').bind(email).all<{ id: string }>(),
-    db.prepare('SELECT id FROM projects WHERE owner_email = ?').bind(email).all<{ id: string }>(),
+    db
+      .prepare('SELECT id FROM listeners WHERE owner_email = ?')
+      .bind(email)
+      .all<{ id: string }>(),
+    db
+      .prepare('SELECT id FROM projects WHERE owner_email = ?')
+      .bind(email)
+      .all<{ id: string }>(),
   ])
   const ownedListenerIds = new Set(ownedListeners.results.map((r) => r.id))
   const ownedProjectIds = new Set(ownedProjects.results.map((r) => r.id))
@@ -159,15 +189,25 @@ export async function reorderItems(db: Env['DB'], email: string, items: ReorderI
 
   const statements = items.map((item, index) =>
     item.type === 'listener'
-      ? db.prepare('UPDATE listeners SET sort_position = ? WHERE id = ?').bind(index, item.id)
-      : db.prepare('UPDATE projects SET sort_position = ? WHERE id = ?').bind(index, item.id)
+      ? db
+          .prepare('UPDATE listeners SET sort_position = ? WHERE id = ?')
+          .bind(index, item.id)
+      : db
+          .prepare('UPDATE projects SET sort_position = ? WHERE id = ?')
+          .bind(index, item.id),
   )
   await db.batch(statements)
   return true
 }
 
-export async function deleteListener(db: Env['DB'], id: string): Promise<boolean> {
-  const result = await db.prepare('DELETE FROM listeners WHERE id = ?').bind(id).run()
+export async function deleteListener(
+  db: Env['DB'],
+  id: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM listeners WHERE id = ?')
+    .bind(id)
+    .run()
   return (result.meta.changes ?? 0) > 0
 }
 
@@ -176,22 +216,37 @@ export async function deleteListener(db: Env['DB'], id: string): Promise<boolean
 // both write, with the last write winning. Accepted at this app's personal
 // scale, same trade-off the original synchronous-only comment flagged, now
 // under D1's async model instead of better-sqlite3's single-threaded one.
-export async function getOrCreateShareToken(db: Env['DB'], id: string): Promise<string | undefined> {
+export async function getOrCreateShareToken(
+  db: Env['DB'],
+  id: string,
+): Promise<string | undefined> {
   const listener = await getListener(db, id)
   if (!listener) return undefined
   if (listener.shareToken) return listener.shareToken
 
   const token = crypto.randomUUID()
-  await db.prepare('UPDATE listeners SET share_token = ? WHERE id = ?').bind(token, id).run()
+  await db
+    .prepare('UPDATE listeners SET share_token = ? WHERE id = ?')
+    .bind(token, id)
+    .run()
   return token
 }
 
-export async function revokeShareToken(db: Env['DB'], id: string): Promise<boolean> {
-  const result = await db.prepare('UPDATE listeners SET share_token = NULL WHERE id = ?').bind(id).run()
+export async function revokeShareToken(
+  db: Env['DB'],
+  id: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('UPDATE listeners SET share_token = NULL WHERE id = ?')
+    .bind(id)
+    .run()
   return (result.meta.changes ?? 0) > 0
 }
 
-export async function getListenerByShareToken(db: Env['DB'], token: string): Promise<ListenerRecord | undefined> {
+export async function getListenerByShareToken(
+  db: Env['DB'],
+  token: string,
+): Promise<ListenerRecord | undefined> {
   const row = await db
     .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE share_token = ?`)
     .bind(token)
@@ -218,19 +273,21 @@ export class SlugConflictError extends Error {}
 export function assertValidSlug(slug: string): void {
   if (slug.length < MIN_SLUG_LENGTH || slug.length > MAX_SLUG_LENGTH) {
     throw new SlugValidationError(
-      `slug must be between ${MIN_SLUG_LENGTH} and ${MAX_SLUG_LENGTH} characters after normalization`
+      `slug must be between ${MIN_SLUG_LENGTH} and ${MAX_SLUG_LENGTH} characters after normalization`,
     )
   }
 }
 
 export function isUniqueConstraintError(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('UNIQUE constraint failed')
+  return (
+    err instanceof Error && err.message.includes('UNIQUE constraint failed')
+  )
 }
 
 export async function setListenerSlug(
   db: Env['DB'],
   id: string,
-  rawSlug: string
+  rawSlug: string,
 ): Promise<{ slug: string; webhookToken: string }> {
   const slug = normalizeSlug(rawSlug)
   assertValidSlug(slug)
@@ -244,7 +301,10 @@ export async function setListenerSlug(
   // listeners — a project-scoped listener's slug can never shadow another
   // listener's /hook/:id lookup.
   if (!listener?.projectId) {
-    const idCollision = await db.prepare('SELECT id FROM listeners WHERE id = ? AND id != ?').bind(slug, id).first()
+    const idCollision = await db
+      .prepare('SELECT id FROM listeners WHERE id = ? AND id != ?')
+      .bind(slug, id)
+      .first()
     if (idCollision) {
       throw new SlugConflictError(`slug "${slug}" is already in use`)
     }
@@ -253,7 +313,10 @@ export async function setListenerSlug(
   const webhookToken = listener?.webhookToken ?? crypto.randomUUID()
 
   try {
-    await db.prepare('UPDATE listeners SET slug = ?, webhook_token = ? WHERE id = ?').bind(slug, webhookToken, id).run()
+    await db
+      .prepare('UPDATE listeners SET slug = ?, webhook_token = ? WHERE id = ?')
+      .bind(slug, webhookToken, id)
+      .run()
   } catch (err) {
     if (isUniqueConstraintError(err)) {
       throw new SlugConflictError(`slug "${slug}" is already in use`)
@@ -264,24 +327,43 @@ export async function setListenerSlug(
   return { slug, webhookToken }
 }
 
-export async function getListenerBySlug(db: Env['DB'], slug: string): Promise<ListenerRecord | undefined> {
+export async function getListenerBySlug(
+  db: Env['DB'],
+  slug: string,
+): Promise<ListenerRecord | undefined> {
   const row = await db
-    .prepare(`SELECT ${SELECT_COLUMNS} FROM listeners WHERE slug = ? AND project_id IS NULL`)
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE slug = ? AND project_id IS NULL`,
+    )
     .bind(slug)
     .first<ListenerRecord>()
   return row ?? undefined
 }
 
-export async function rotateWebhookToken(db: Env['DB'], id: string): Promise<string | undefined> {
+export async function rotateWebhookToken(
+  db: Env['DB'],
+  id: string,
+): Promise<string | undefined> {
   const listener = await getListener(db, id)
   if (!listener?.slug) return undefined
   const token = crypto.randomUUID()
-  await db.prepare('UPDATE listeners SET webhook_token = ? WHERE id = ?').bind(token, id).run()
+  await db
+    .prepare('UPDATE listeners SET webhook_token = ? WHERE id = ?')
+    .bind(token, id)
+    .run()
   return token
 }
 
-export async function removeListenerSlug(db: Env['DB'], id: string): Promise<boolean> {
-  const result = await db.prepare('UPDATE listeners SET slug = NULL, webhook_token = NULL WHERE id = ?').bind(id).run()
+export async function removeListenerSlug(
+  db: Env['DB'],
+  id: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      'UPDATE listeners SET slug = NULL, webhook_token = NULL WHERE id = ?',
+    )
+    .bind(id)
+    .run()
   return (result.meta.changes ?? 0) > 0
 }
 
@@ -289,24 +371,34 @@ const MAX_LABEL_LENGTH = 100
 
 export class LabelValidationError extends Error {}
 
-export async function setListenerLabel(db: Env['DB'], id: string, rawLabel: string): Promise<string | null> {
+export async function setListenerLabel(
+  db: Env['DB'],
+  id: string,
+  rawLabel: string,
+): Promise<string | null> {
   const trimmed = rawLabel.trim()
   if (trimmed.length > MAX_LABEL_LENGTH) {
-    throw new LabelValidationError(`label must be ${MAX_LABEL_LENGTH} characters or fewer`)
+    throw new LabelValidationError(
+      `label must be ${MAX_LABEL_LENGTH} characters or fewer`,
+    )
   }
   const value = trimmed.length > 0 ? trimmed : null
-  await db.prepare('UPDATE listeners SET label = ? WHERE id = ?').bind(value, id).run()
+  await db
+    .prepare('UPDATE listeners SET label = ? WHERE id = ?')
+    .bind(value, id)
+    .run()
   return value
 }
 
 export async function resolveListenerForHook(
   db: Env['DB'],
   pathParam: string,
-  providedToken: string | undefined
+  providedToken: string | undefined,
 ): Promise<ListenerRecord | undefined> {
   const bySlug = await getListenerBySlug(db, pathParam)
   if (bySlug) {
-    if (!bySlug.webhookToken || providedToken !== bySlug.webhookToken) return undefined
+    if (!bySlug.webhookToken || providedToken !== bySlug.webhookToken)
+      return undefined
     return bySlug
   }
 

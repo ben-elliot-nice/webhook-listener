@@ -13,7 +13,11 @@ export function buildDiffBlob(oldText: string, newText: string): DiffBlob {
   const lineTags: DiffLineTag[] = []
 
   for (const part of parts) {
-    const tag: DiffLineTag = part.added ? 'added' : part.removed ? 'removed' : 'unchanged'
+    const tag: DiffLineTag = part.added
+      ? 'added'
+      : part.removed
+        ? 'removed'
+        : 'unchanged'
     const partLines = part.value.split('\n')
     if (partLines[partLines.length - 1] === '') {
       partLines.pop()

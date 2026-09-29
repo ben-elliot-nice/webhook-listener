@@ -19,7 +19,10 @@ export function App() {
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
             <Route path="/shared/:token" element={<SharedListener />} />
             <Route path="/shared/projects/:token" element={<SharedProject />} />
-            <Route path="/shared/projects/:token/:listenerId" element={<SharedProjectListener />} />
+            <Route
+              path="/shared/projects/:token/:listenerId"
+              element={<SharedProjectListener />}
+            />
           </Route>
         </Routes>
       </BrowserRouter>

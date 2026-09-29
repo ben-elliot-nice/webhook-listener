@@ -6,14 +6,18 @@ describe('mergeSessionIntoEmail', () => {
   it('reassigns a matching listener to the email and clears its owner_session', async () => {
     const sessionId = crypto.randomUUID()
     const listenerId = crypto.randomUUID()
-    await env.DB.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
+    await env.DB.prepare(
+      'INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)',
+    )
       .bind(listenerId, new Date().toISOString(), sessionId)
       .run()
     const listener = { id: listenerId }
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'claimed@nice.com')
 
-    const updated = await env.DB.prepare('SELECT owner_email, owner_session FROM listeners WHERE id = ?')
+    const updated = await env.DB.prepare(
+      'SELECT owner_email, owner_session FROM listeners WHERE id = ?',
+    )
       .bind(listener.id)
       .first<{ owner_email: string | null; owner_session: string | null }>()
     expect(updated?.owner_email).toBe('claimed@nice.com')
@@ -23,13 +27,17 @@ describe('mergeSessionIntoEmail', () => {
   it('reassigns a matching project to the email and clears its owner_session', async () => {
     const sessionId = crypto.randomUUID()
     const projectId = crypto.randomUUID()
-    await env.DB.prepare('INSERT INTO projects (id, created_at, owner_session) VALUES (?, ?, ?)')
+    await env.DB.prepare(
+      'INSERT INTO projects (id, created_at, owner_session) VALUES (?, ?, ?)',
+    )
       .bind(projectId, new Date().toISOString(), sessionId)
       .run()
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'claimed@nice.com')
 
-    const updated = await env.DB.prepare('SELECT owner_email, owner_session FROM projects WHERE id = ?')
+    const updated = await env.DB.prepare(
+      'SELECT owner_email, owner_session FROM projects WHERE id = ?',
+    )
       .bind(projectId)
       .first<{ owner_email: string | null; owner_session: string | null }>()
     expect(updated?.owner_email).toBe('claimed@nice.com')
@@ -40,14 +48,18 @@ describe('mergeSessionIntoEmail', () => {
     const sessionId = crypto.randomUUID()
     const otherSessionId = crypto.randomUUID()
     const listenerId = crypto.randomUUID()
-    await env.DB.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
+    await env.DB.prepare(
+      'INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)',
+    )
       .bind(listenerId, new Date().toISOString(), otherSessionId)
       .run()
     const listener = { id: listenerId }
 
     await mergeSessionIntoEmail(env.DB, sessionId, 'claimed@nice.com')
 
-    const untouched = await env.DB.prepare('SELECT owner_email, owner_session FROM listeners WHERE id = ?')
+    const untouched = await env.DB.prepare(
+      'SELECT owner_email, owner_session FROM listeners WHERE id = ?',
+    )
       .bind(listener.id)
       .first<{ owner_email: string | null; owner_session: string | null }>()
     expect(untouched?.owner_email).toBeNull()
@@ -57,7 +69,9 @@ describe('mergeSessionIntoEmail', () => {
   it('is a no-op the second time it is called for the same session (already claimed)', async () => {
     const sessionId = crypto.randomUUID()
     const listenerId = crypto.randomUUID()
-    await env.DB.prepare('INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)')
+    await env.DB.prepare(
+      'INSERT INTO listeners (id, created_at, owner_session) VALUES (?, ?, ?)',
+    )
       .bind(listenerId, new Date().toISOString(), sessionId)
       .run()
     const listener = { id: listenerId }
@@ -65,7 +79,9 @@ describe('mergeSessionIntoEmail', () => {
     await mergeSessionIntoEmail(env.DB, sessionId, 'first@nice.com')
     await mergeSessionIntoEmail(env.DB, sessionId, 'second@nice.com')
 
-    const updated = await env.DB.prepare('SELECT owner_email, owner_session FROM listeners WHERE id = ?')
+    const updated = await env.DB.prepare(
+      'SELECT owner_email, owner_session FROM listeners WHERE id = ?',
+    )
       .bind(listener.id)
       .first<{ owner_email: string | null; owner_session: string | null }>()
     expect(updated?.owner_email).toBe('first@nice.com')

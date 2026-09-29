@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiError, type RequestDetail, getSharedRequestBody, getSharedRequests, recordSharedListenerVisit } from '../api'
+import {
+  ApiError,
+  type RequestDetail,
+  getSharedRequestBody,
+  getSharedRequests,
+  recordSharedListenerVisit,
+} from '../api'
 import { usePaginatedRequests } from '../hooks/usePaginatedRequests'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
-import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
+import {
+  ALL,
+  filterRequests,
+  uniqueContentTypes,
+  uniqueMethods,
+  type RequestFilter,
+} from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
@@ -17,16 +29,23 @@ export function SharedListener() {
   const { width } = useSettings()
   const fetchRequestsPage = useCallback(
     (before?: number) => getSharedRequests(token!, { before, limit: 20 }),
-    [token]
+    [token],
   )
   const { requests, hasMore, loadingMore, loadMore, refreshFirstPage } =
     usePaginatedRequests<RequestDetail>(fetchRequestsPage)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
+  const [filter, setFilter] = useState<RequestFilter>({
+    method: ALL,
+    contentType: ALL,
+    search: '',
+  })
   const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
-  const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
+  const filteredRequests = useMemo(
+    () => filterRequests(requests, filter),
+    [requests, filter],
+  )
   useEffect(() => {
     if (token) recordSharedListenerVisit(token)
   }, [token])
@@ -90,7 +109,7 @@ export function SharedListener() {
           loadMore()
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: '200px' },
     )
     observer.observe(node)
     return () => observer.disconnect()
@@ -98,12 +117,20 @@ export function SharedListener() {
 
   function handleExportJson() {
     if (!token) return
-    downloadFile(`webhook-shared-${token}.json`, toJsonExport(filteredRequests), 'application/json')
+    downloadFile(
+      `webhook-shared-${token}.json`,
+      toJsonExport(filteredRequests),
+      'application/json',
+    )
   }
 
   function handleExportHar() {
     if (!token) return
-    downloadFile(`webhook-shared-${token}.har`, toHarExport(filteredRequests), 'application/json')
+    downloadFile(
+      `webhook-shared-${token}.har`,
+      toHarExport(filteredRequests),
+      'application/json',
+    )
   }
 
   return (
@@ -114,10 +141,15 @@ export function SharedListener() {
       >
         ← Back to home
       </Link>
-      <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">Shared listener (read-only)</h1>
+      <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">
+        Shared listener (read-only)
+      </h1>
 
       {error && (
-        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+        <p
+          role="alert"
+          className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        >
           {error}
         </p>
       )}
@@ -125,7 +157,10 @@ export function SharedListener() {
       {!loaded && !error && (
         <ul className="space-y-2" aria-label="Loading requests">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="h-12 animate-pulse rounded-lg bg-slate-200" />
+            <li
+              key={i}
+              className="h-12 animate-pulse rounded-lg bg-slate-200"
+            />
           ))}
         </ul>
       )}
@@ -184,14 +219,22 @@ export function SharedListener() {
                   previousRequest={previousByRequestId.get(req.id)}
                   diffOnly={diffOnly}
                   onLoadFullBody={
-                    token ? (requestId) => getSharedRequestBody(token, requestId).then((r) => r.body) : undefined
+                    token
+                      ? (requestId) =>
+                          getSharedRequestBody(token, requestId).then(
+                            (r) => r.body,
+                          )
+                      : undefined
                   }
                 />
               ))}
             </ul>
           )}
           {hasMore && (
-            <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            <div
+              ref={sentinelRef}
+              className="py-4 text-center text-xs text-slate-400 dark:text-slate-500"
+            >
               {loadingMore ? 'Loading more…' : ''}
             </div>
           )}

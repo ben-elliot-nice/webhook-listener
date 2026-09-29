@@ -3,7 +3,12 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import type { Env } from '../env'
 import { hashToken } from '../auth/tokens'
 import { signEmailSession, verifyEmailSession } from '../auth/session'
-import { hasPendingMagicLink, createMagicLink, consumeMagicLink, peekMagicLink } from '../magic-links.repo'
+import {
+  hasPendingMagicLink,
+  createMagicLink,
+  consumeMagicLink,
+  peekMagicLink,
+} from '../magic-links.repo'
 import { mergeSessionIntoEmail } from '../ownership-merge'
 import { sendMagicLinkEmail } from '../email'
 
@@ -26,7 +31,12 @@ function domainOf(email: string): string {
 // as protocol-relative) and contain no scheme before the first "/". Anything
 // else is treated as absent rather than rejecting the request outright.
 function safeReturnTo(value: unknown): string | null {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return null
+  if (
+    typeof value !== 'string' ||
+    !value.startsWith('/') ||
+    value.startsWith('//')
+  )
+    return null
   return value
 }
 
@@ -78,7 +88,9 @@ function cookieOptions(env: Env) {
 export const authRoutes = new Hono<{ Bindings: Env }>()
 
 authRoutes.post('/auth/request-link', async (c) => {
-  const body = await c.req.json<{ email?: unknown; returnTo?: unknown }>().catch(() => ({}) as { email?: unknown; returnTo?: unknown })
+  const body = await c.req
+    .json<{ email?: unknown; returnTo?: unknown }>()
+    .catch(() => ({}) as { email?: unknown; returnTo?: unknown })
   if (typeof body.email !== 'string' || !body.email.includes('@')) {
     return c.json({ error: 'a valid email is required' }, 400)
   }
@@ -86,11 +98,17 @@ authRoutes.post('/auth/request-link', async (c) => {
   const email = body.email.trim().toLowerCase()
   const domains = allowedDomains(c.env)
   if (!domains.includes(domainOf(email))) {
-    return c.json({ error: `email domain must be one of: ${domains.join(', ')}` }, 400)
+    return c.json(
+      { error: `email domain must be one of: ${domains.join(', ')}` },
+      400,
+    )
   }
 
   if (await hasPendingMagicLink(c.env.DB, email)) {
-    return c.json({ error: 'a link was already sent to this address — check your email' }, 429)
+    return c.json(
+      { error: 'a link was already sent to this address — check your email' },
+      429,
+    )
   }
 
   const rawToken = crypto.randomUUID()
@@ -102,7 +120,7 @@ authRoutes.post('/auth/request-link', async (c) => {
     tokenHash,
     now.toISOString(),
     new Date(now.getTime() + TOKEN_TTL_MS).toISOString(),
-    safeReturnTo(body.returnTo)
+    safeReturnTo(body.returnTo),
   )
 
   const verifyUrl = `${c.env.HOOK_BASE_URL}/auth/verify?token=${rawToken}`
@@ -118,7 +136,8 @@ authRoutes.post('/auth/request-link', async (c) => {
 // (a POST no scanner submits) before the token is consumed.
 authRoutes.get('/auth/verify', async (c) => {
   const token = c.req.query('token')
-  const invalidRedirect = () => c.redirect(`${c.env.APP_BASE_URL}/?authError=invalid_link`, 302)
+  const invalidRedirect = () =>
+    c.redirect(`${c.env.APP_BASE_URL}/?authError=invalid_link`, 302)
   if (!token) return invalidRedirect()
 
   const tokenHash = await hashToken(token)
@@ -129,9 +148,12 @@ authRoutes.get('/auth/verify', async (c) => {
 })
 
 authRoutes.post('/auth/verify', async (c) => {
-  const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)
+  const body = await c.req
+    .parseBody()
+    .catch(() => ({}) as Record<string, unknown>)
   const token = typeof body.token === 'string' ? body.token : undefined
-  const invalidRedirect = () => c.redirect(`${c.env.APP_BASE_URL}/?authError=invalid_link`, 302)
+  const invalidRedirect = () =>
+    c.redirect(`${c.env.APP_BASE_URL}/?authError=invalid_link`, 302)
   if (!token) return invalidRedirect()
 
   const tokenHash = await hashToken(token)
@@ -143,8 +165,14 @@ authRoutes.post('/auth/verify', async (c) => {
     await mergeSessionIntoEmail(c.env.DB, sessionId, consumed.email)
   }
 
-  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
-  const cookieValue = await signEmailSession(c.env.WL_SESSION_SECRET, consumed.email, expiresAt)
+  const expiresAt = new Date(
+    Date.now() + SESSION_TTL_SECONDS * 1000,
+  ).toISOString()
+  const cookieValue = await signEmailSession(
+    c.env.WL_SESSION_SECRET,
+    consumed.email,
+    expiresAt,
+  )
   setCookie(c, EMAIL_SESSION_COOKIE_NAME, cookieValue, {
     ...cookieOptions(c.env),
     maxAge: SESSION_TTL_SECONDS,
@@ -155,7 +183,9 @@ authRoutes.post('/auth/verify', async (c) => {
 
 authRoutes.get('/auth/me', async (c) => {
   const cookieValue = getCookie(c, EMAIL_SESSION_COOKIE_NAME)
-  const email = cookieValue ? await verifyEmailSession(c.env.WL_SESSION_SECRET, cookieValue) : null
+  const email = cookieValue
+    ? await verifyEmailSession(c.env.WL_SESSION_SECRET, cookieValue)
+    : null
   if (!email) return c.json({ error: 'unauthorized' }, 401)
   return c.json({ email })
 })

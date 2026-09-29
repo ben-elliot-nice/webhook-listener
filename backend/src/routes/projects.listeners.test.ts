@@ -11,7 +11,7 @@ describe('manual listener creation inside a project', () => {
     const created = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
@@ -22,16 +22,25 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'checkout-uat' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(201)
-    const body = (await response.json()) as { slug: string; projectId: string; hookUrl: string }
+    const body = (await response.json()) as {
+      slug: string
+      projectId: string
+      hookUrl: string
+    }
     expect(body.slug).toBe('checkout-uat')
     expect(body.projectId).toBe(projectId)
-    expect(body.hookUrl).toBe(`${env.HOOK_BASE_URL}/hook/${projectId}/checkout-uat`)
+    expect(body.hookUrl).toBe(
+      `${env.HOOK_BASE_URL}/hook/${projectId}/checkout-uat`,
+    )
   })
 
   it('the created listener has no webhook token (project id is the only gate)', async () => {
@@ -39,28 +48,36 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'checkout-uat-2' }),
       },
-      env
+      env,
     )
     const body = (await response.json()) as { id: string }
     const listResponse = await app.request(
       '/api/listeners',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const listeners = (await listResponse.json()) as { id: string; slug: string | null }[]
+    const listeners = (await listResponse.json()) as {
+      id: string
+      slug: string | null
+    }[]
     expect(listeners.find((l) => l.id === body.id)?.slug).toBe('checkout-uat-2')
 
     const hookResponse = await app.request(
       `/hook/${projectId}/checkout-uat-2`,
       { method: 'POST' },
-      env
+      env,
     )
     expect(hookResponse.status).toBe(200)
 
-    const row = await env.DB.prepare('SELECT webhook_token FROM listeners WHERE id = ?')
+    const row = await env.DB.prepare(
+      'SELECT webhook_token FROM listeners WHERE id = ?',
+    )
       .bind(body.id)
       .first<{ webhook_token: string | null }>()
     expect(row?.webhook_token).toBeNull()
@@ -68,7 +85,10 @@ describe('manual listener creation inside a project', () => {
 
   it('a forced race between two near-simultaneous creates resolves to exactly one listener and a 409 for the loser', async () => {
     const slug = 'race-condition-create'
-    const requestHeaders = { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' }
+    const requestHeaders = {
+      ...(await authCookieHeader(env, ownerEmail)),
+      'content-type': 'application/json',
+    }
     const fire = () =>
       app.request(
         `/api/projects/${projectId}/listeners`,
@@ -77,7 +97,7 @@ describe('manual listener creation inside a project', () => {
           headers: requestHeaders,
           body: JSON.stringify({ slug }),
         },
-        env
+        env,
       )
 
     const [first, second] = await Promise.all([fire(), fire()])
@@ -85,7 +105,7 @@ describe('manual listener creation inside a project', () => {
     expect(statuses).toEqual([201, 409])
 
     const rows = await env.DB.prepare(
-      'SELECT id FROM listeners WHERE project_id = ? AND slug = ?'
+      'SELECT id FROM listeners WHERE project_id = ? AND slug = ?',
     )
       .bind(projectId, slug)
       .all()
@@ -97,15 +117,18 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'checkout-uat-3' }),
       },
-      env
+      env,
     )
     const hookResponse = await app.request(
       `/hook/${projectId}/checkout-uat-3`,
       { method: 'POST' },
-      env
+      env,
     )
     expect(hookResponse.status).toBe(200)
   })
@@ -115,19 +138,25 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'dup-case' }),
       },
-      env
+      env,
     )
     const response = await app.request(
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'dup-case' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(409)
   })
@@ -137,10 +166,13 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'ab' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -151,10 +183,13 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, otherEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'checkout-uat-4' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -164,25 +199,31 @@ describe('manual listener creation inside a project', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'shared-name' }),
       },
-      env
+      env,
     )
     const secondProject = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const secondProjectId = ((await secondProject.json()) as { id: string }).id
     const response = await app.request(
       `/api/projects/${secondProjectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'shared-name' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(201)
   })

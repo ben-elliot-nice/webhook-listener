@@ -14,7 +14,11 @@ describe('session cookie', () => {
     const first = await app.request('/does-not-exist', {}, env)
     const sessionId = extractSessionId(first)
 
-    const second = await app.request('/does-not-exist', { headers: cookieHeader({ wl_session_id: sessionId }) }, env)
+    const second = await app.request(
+      '/does-not-exist',
+      { headers: cookieHeader({ wl_session_id: sessionId }) },
+      env,
+    )
     const setCookies = second.headers.getSetCookie()
     expect(setCookies.some((c) => c.startsWith('wl_session_id='))).toBe(false)
   })
@@ -29,7 +33,7 @@ describe('session cookie', () => {
     const response = await app.request(
       '/does-not-exist',
       { headers: cookieHeader({ wl_session_id: 'not-a-uuid' }) },
-      env
+      env,
     )
     const sessionId = extractSessionId(response)
     expect(sessionId).not.toBe('not-a-uuid')
@@ -37,12 +41,16 @@ describe('session cookie', () => {
 
   it('sets HttpOnly, Secure, SameSite=Lax, a ~1yr Max-Age, and the configured Domain', async () => {
     const response = await app.request('/does-not-exist', {}, env)
-    const setCookie = response.headers.getSetCookie().find((c) => c.startsWith('wl_session_id='))
+    const setCookie = response.headers
+      .getSetCookie()
+      .find((c) => c.startsWith('wl_session_id='))
     expect(setCookie).toBeDefined()
     expect(setCookie).toMatch(/HttpOnly/i)
     expect(setCookie).toMatch(/Secure/i)
     expect(setCookie).toMatch(/SameSite=Lax/i)
     expect(setCookie).toMatch(/Max-Age=31536000/i)
-    expect(setCookie).toMatch(new RegExp(`Domain=${env.SESSION_COOKIE_DOMAIN}`, 'i'))
+    expect(setCookie).toMatch(
+      new RegExp(`Domain=${env.SESSION_COOKIE_DOMAIN}`, 'i'),
+    )
   })
 })

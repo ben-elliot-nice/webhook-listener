@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { serializeRequestListItem, parsePageParams, BODY_PREVIEW_BYTES } from './requestListSerializer'
+import {
+  serializeRequestListItem,
+  parsePageParams,
+  BODY_PREVIEW_BYTES,
+} from './requestListSerializer'
 import type { RequestRecord } from '../requests.repo'
 
 function makeRow(overrides: Partial<RequestRecord> = {}): RequestRecord {

@@ -24,11 +24,15 @@ const FALLBACK: JsonTreeColors = {
  * theme set, so we can pull matching colors out of whichever theme the
  * highlighter is currently using to keep the tree view visually consistent.
  */
-export function extractJsonTreeColors(theme: Record<string, any> | undefined): JsonTreeColors {
+export function extractJsonTreeColors(
+  theme: Record<string, any> | undefined,
+): JsonTreeColors {
   if (!theme) return FALLBACK
   const colorOf = (name: string): string | undefined => theme[name]?.color
   const base =
-    colorOf('code[class*="language-"]') ?? colorOf('pre[class*="language-"]') ?? undefined
+    colorOf('code[class*="language-"]') ??
+    colorOf('pre[class*="language-"]') ??
+    undefined
 
   return {
     key: colorOf('property') ?? base ?? FALLBACK.key,

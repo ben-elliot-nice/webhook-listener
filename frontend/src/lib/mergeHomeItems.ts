@@ -1,13 +1,20 @@
 import type { Listener, Project } from '../api'
 
-export type HomeItem = { kind: 'listener'; listener: Listener } | { kind: 'project'; project: Project }
+export type HomeItem =
+  | { kind: 'listener'; listener: Listener }
+  | { kind: 'project'; project: Project }
 
-function byCreatedAtDesc(a: { createdAt: string }, b: { createdAt: string }): number {
+function byCreatedAtDesc(
+  a: { createdAt: string },
+  b: { createdAt: string },
+): number {
   return b.createdAt.localeCompare(a.createdAt)
 }
 
 function createdAtOf(item: HomeItem): string {
-  return item.kind === 'listener' ? item.listener.createdAt : item.project.createdAt
+  return item.kind === 'listener'
+    ? item.listener.createdAt
+    : item.project.createdAt
 }
 
 // Walks the already-sorted flat listener array (which includes project-scoped
@@ -17,7 +24,7 @@ function createdAtOf(item: HomeItem): string {
 // children yet are returned separately, since they never appear in the array.
 function collapseProjectChildren(
   sortedListeners: Listener[],
-  projects: Project[]
+  projects: Project[],
 ): { items: HomeItem[]; emptyProjects: Project[] } {
   const projectById = new Map(projects.map((p) => [p.id, p]))
   const seen = new Set<string>()
@@ -38,11 +45,16 @@ function collapseProjectChildren(
 }
 
 // Standard merge of two sequences already sorted by createdAt descending.
-function mergeSortedByCreatedAt(items: HomeItem[], emptyProjects: Project[]): HomeItem[] {
-  const projectItems: HomeItem[] = [...emptyProjects].sort(byCreatedAtDesc).map((project) => ({
-    kind: 'project',
-    project,
-  }))
+function mergeSortedByCreatedAt(
+  items: HomeItem[],
+  emptyProjects: Project[],
+): HomeItem[] {
+  const projectItems: HomeItem[] = [...emptyProjects]
+    .sort(byCreatedAtDesc)
+    .map((project) => ({
+      kind: 'project',
+      project,
+    }))
   const merged: HomeItem[] = []
   let i = 0
   let j = 0
@@ -56,8 +68,14 @@ function mergeSortedByCreatedAt(items: HomeItem[], emptyProjects: Project[]): Ho
   return [...merged, ...items.slice(i), ...projectItems.slice(j)]
 }
 
-export function mergeHomeItemsByDate(sortedListeners: Listener[], projects: Project[]): HomeItem[] {
-  const { items, emptyProjects } = collapseProjectChildren(sortedListeners, projects)
+export function mergeHomeItemsByDate(
+  sortedListeners: Listener[],
+  projects: Project[],
+): HomeItem[] {
+  const { items, emptyProjects } = collapseProjectChildren(
+    sortedListeners,
+    projects,
+  )
   return mergeSortedByCreatedAt(items, emptyProjects)
 }
 
@@ -68,17 +86,34 @@ export function mergeHomeItemsByDate(sortedListeners: Listener[], projects: Proj
 // positioned correctly by collapseProjectChildren (it inherits its best
 // child's rank); an empty project has no name, so it belongs in the fallback
 // tail, merged there by createdAt.
-export function mergeHomeItemsByName(sortedListeners: Listener[], projects: Project[]): HomeItem[] {
-  const { items, emptyProjects } = collapseProjectChildren(sortedListeners, projects)
+export function mergeHomeItemsByName(
+  sortedListeners: Listener[],
+  projects: Project[],
+): HomeItem[] {
+  const { items, emptyProjects } = collapseProjectChildren(
+    sortedListeners,
+    projects,
+  )
   if (emptyProjects.length === 0) return items
 
-  const boundary = items.findIndex((item) => item.kind === 'listener' && !(item.listener.label || item.listener.slug))
+  const boundary = items.findIndex(
+    (item) =>
+      item.kind === 'listener' && !(item.listener.label || item.listener.slug),
+  )
   if (boundary === -1) {
-    return [...items, ...[...emptyProjects].sort(byCreatedAtDesc).map((project) => ({ kind: 'project', project }) as HomeItem)]
+    return [
+      ...items,
+      ...[...emptyProjects]
+        .sort(byCreatedAtDesc)
+        .map((project) => ({ kind: 'project', project }) as HomeItem),
+    ]
   }
 
   const named = items.slice(0, boundary)
-  const unnamedTail = mergeSortedByCreatedAt(items.slice(boundary), emptyProjects)
+  const unnamedTail = mergeSortedByCreatedAt(
+    items.slice(boundary),
+    emptyProjects,
+  )
   return [...named, ...unnamedTail]
 }
 
@@ -90,32 +125,58 @@ export function mergeHomeItemsByName(sortedListeners: Listener[], projects: Proj
 // themselves by createdAt — the same place a never-hit listener would
 // roughly land, close enough for a rarely-hit corner of a rarely-used sort
 // mode.
-export function mergeHomeItemsByActivity(sortedListeners: Listener[], projects: Project[]): HomeItem[] {
-  const { items, emptyProjects } = collapseProjectChildren(sortedListeners, projects)
+export function mergeHomeItemsByActivity(
+  sortedListeners: Listener[],
+  projects: Project[],
+): HomeItem[] {
+  const { items, emptyProjects } = collapseProjectChildren(
+    sortedListeners,
+    projects,
+  )
   if (emptyProjects.length === 0) return items
-  return [...items, ...[...emptyProjects].sort(byCreatedAtDesc).map((project) => ({ kind: 'project', project }) as HomeItem)]
+  return [
+    ...items,
+    ...[...emptyProjects]
+      .sort(byCreatedAtDesc)
+      .map((project) => ({ kind: 'project', project }) as HomeItem),
+  ]
 }
 
 // Custom mode ignores child listeners entirely — every project, empty or
 // not, uses its own persisted sortPosition (or createdAt fallback), merged
 // against standalone listeners' own sortPosition. Mirrors the backend's
 // `(sort_position IS NULL), sort_position ASC, created_at DESC` fallback.
-export function mergeHomeItemsByCustom(standaloneListeners: Listener[], projects: Project[]): HomeItem[] {
+export function mergeHomeItemsByCustom(
+  standaloneListeners: Listener[],
+  projects: Project[],
+): HomeItem[] {
   const items: HomeItem[] = [
-    ...standaloneListeners.map((listener) => ({ kind: 'listener', listener }) as HomeItem),
+    ...standaloneListeners.map(
+      (listener) => ({ kind: 'listener', listener }) as HomeItem,
+    ),
     ...projects.map((project) => ({ kind: 'project', project }) as HomeItem),
   ]
 
-  function keyOf(item: HomeItem): { sortPosition: number | null; createdAt: string } {
+  function keyOf(item: HomeItem): {
+    sortPosition: number | null
+    createdAt: string
+  } {
     return item.kind === 'listener'
-      ? { sortPosition: item.listener.sortPosition, createdAt: item.listener.createdAt }
-      : { sortPosition: item.project.sortPosition, createdAt: item.project.createdAt }
+      ? {
+          sortPosition: item.listener.sortPosition,
+          createdAt: item.listener.createdAt,
+        }
+      : {
+          sortPosition: item.project.sortPosition,
+          createdAt: item.project.createdAt,
+        }
   }
 
   return [...items].sort((a, b) => {
     const ka = keyOf(a)
     const kb = keyOf(b)
-    if (ka.sortPosition === null && kb.sortPosition === null) return kb.createdAt.localeCompare(ka.createdAt)
+    if (ka.sortPosition === null && kb.sortPosition === null)
+      return kb.createdAt.localeCompare(ka.createdAt)
     if (ka.sortPosition === null) return 1
     if (kb.sortPosition === null) return -1
     return ka.sortPosition - kb.sortPosition

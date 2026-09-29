@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { loadHighlightTheme } from '../lib/highlightThemes'
 
-export function useHighlightTheme(name: string): Record<string, any> | undefined {
+export function useHighlightTheme(
+  name: string,
+): Record<string, any> | undefined {
   const [theme, setTheme] = useState<Record<string, any> | undefined>(undefined)
 
   useEffect(() => {

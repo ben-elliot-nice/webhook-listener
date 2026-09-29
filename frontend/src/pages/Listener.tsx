@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -18,7 +25,13 @@ import {
 import { usePaginatedRequests } from '../hooks/usePaginatedRequests'
 import { RequestRow } from '../components/RequestRow'
 import { RequestFilters } from '../components/RequestFilters'
-import { ALL, filterRequests, uniqueContentTypes, uniqueMethods, type RequestFilter } from '../lib/filterRequests'
+import {
+  ALL,
+  filterRequests,
+  uniqueContentTypes,
+  uniqueMethods,
+  type RequestFilter,
+} from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
@@ -32,7 +45,7 @@ export function Listener() {
   const { width } = useSettings()
   const fetchRequestsPage = useCallback(
     (before?: number) => getRequests(id!, { before, limit: 20 }),
-    [id]
+    [id],
   )
   const { requests, hasMore, loadingMore, loadMore, refreshFirstPage } =
     usePaginatedRequests<CapturedRequest>(fetchRequestsPage)
@@ -40,7 +53,11 @@ export function Listener() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
-  const [filter, setFilter] = useState<RequestFilter>({ method: ALL, contentType: ALL, search: '' })
+  const [filter, setFilter] = useState<RequestFilter>({
+    method: ALL,
+    contentType: ALL,
+    search: '',
+  })
   const [labelDraft, setLabelDraft] = useState('')
   const [editingLabel, setEditingLabel] = useState(false)
   const [slugDraft, setSlugDraft] = useState('')
@@ -49,7 +66,10 @@ export function Listener() {
   const [diffOnly, setDiffOnly] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  const filteredRequests = useMemo(() => filterRequests(requests, filter), [requests, filter])
+  const filteredRequests = useMemo(
+    () => filterRequests(requests, filter),
+    [requests, filter],
+  )
   const previousByRequestId = useMemo(() => {
     // `requests` is newest-first, so the chronological predecessor of requests[i] is requests[i + 1]
     const map = new Map<number, CapturedRequest>()
@@ -62,7 +82,10 @@ export function Listener() {
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!id) return false
     try {
-      const [listenerData] = await Promise.all([getListener(id), refreshFirstPage()])
+      const [listenerData] = await Promise.all([
+        getListener(id),
+        refreshFirstPage(),
+      ])
       setListener(listenerData)
       setError(null)
       consecutiveNotFoundRef.current = 0
@@ -109,7 +132,7 @@ export function Listener() {
           loadMore()
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: '200px' },
     )
     observer.observe(node)
     return () => observer.disconnect()
@@ -149,7 +172,12 @@ export function Listener() {
 
   async function handleRevokeShare() {
     if (!id) return
-    if (!window.confirm('Revoke this share link? Anyone using it will lose access.')) return
+    if (
+      !window.confirm(
+        'Revoke this share link? Anyone using it will lose access.',
+      )
+    )
+      return
     try {
       await revokeShareLink(id)
       await refresh()
@@ -171,12 +199,20 @@ export function Listener() {
 
   function handleExportJson() {
     if (!id) return
-    downloadFile(`webhook-${id}.json`, toJsonExport(filteredRequests), 'application/json')
+    downloadFile(
+      `webhook-${id}.json`,
+      toJsonExport(filteredRequests),
+      'application/json',
+    )
   }
 
   function handleExportHar() {
     if (!id || !listener) return
-    downloadFile(`webhook-${id}.har`, toHarExport(filteredRequests, listener.hookUrl), 'application/json')
+    downloadFile(
+      `webhook-${id}.har`,
+      toHarExport(filteredRequests, listener.hookUrl),
+      'application/json',
+    )
   }
 
   async function handleSaveLabel() {
@@ -202,7 +238,9 @@ export function Listener() {
       if (err instanceof ApiError && err.status === 409) {
         setError('That slug is already in use.')
       } else if (err instanceof ApiError && err.status === 400) {
-        setError('Slug must be 3-63 characters after removing invalid characters.')
+        setError(
+          'Slug must be 3-63 characters after removing invalid characters.',
+        )
       } else {
         setError('Failed to set slug.')
       }
@@ -211,7 +249,12 @@ export function Listener() {
 
   async function handleRotateToken() {
     if (!id) return
-    if (!window.confirm('Rotate the webhook token? The old token will stop working immediately.')) return
+    if (
+      !window.confirm(
+        'Rotate the webhook token? The old token will stop working immediately.',
+      )
+    )
+      return
     try {
       const result = await rotateWebhookToken(id)
       setWebhookToken(result.webhookToken)
@@ -222,7 +265,12 @@ export function Listener() {
 
   async function handleRemoveSlug() {
     if (!id) return
-    if (!window.confirm('Remove this slug? The listener will revert to its original UUID hook URL.')) return
+    if (
+      !window.confirm(
+        'Remove this slug? The listener will revert to its original UUID hook URL.',
+      )
+    )
+      return
     try {
       await removeSlug(id)
       setWebhookToken(null)
@@ -235,7 +283,9 @@ export function Listener() {
   async function handleCopyHeaderJson() {
     if (!webhookToken) return
     try {
-      await navigator.clipboard.writeText(JSON.stringify({ 'X-Webhook-Token': webhookToken }, null, 2))
+      await navigator.clipboard.writeText(
+        JSON.stringify({ 'X-Webhook-Token': webhookToken }, null, 2),
+      )
       setHeaderCopied(true)
       setTimeout(() => setHeaderCopied(false), 1500)
     } catch {
@@ -269,10 +319,17 @@ export function Listener() {
                 placeholder="Listener"
                 className="rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700"
               />
-              <button type="submit" className="text-xs font-medium text-indigo-600">
+              <button
+                type="submit"
+                className="text-xs font-medium text-indigo-600"
+              >
                 Save
               </button>
-              <button type="button" onClick={() => setEditingLabel(false)} className="text-xs text-slate-500 dark:text-slate-400">
+              <button
+                type="button"
+                onClick={() => setEditingLabel(false)}
+                className="text-xs text-slate-500 dark:text-slate-400"
+              >
                 Cancel
               </button>
             </form>
@@ -299,9 +356,13 @@ export function Listener() {
 
       {listener && !listener.slug && (
         <div className="mb-6">
-          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Webhook URL</p>
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            Webhook URL
+          </p>
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{listener.hookUrl}</code>
+            <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
+              {listener.hookUrl}
+            </code>
             <button
               onClick={handleCopy}
               aria-label="Copy webhook URL"
@@ -315,11 +376,15 @@ export function Listener() {
 
       {listener && (
         <div className="mb-6">
-          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Custom slug</p>
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            Custom slug
+          </p>
           {listener.slug ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{listener.hookUrl}</code>
+                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
+                  {listener.hookUrl}
+                </code>
                 <button
                   onClick={handleCopy}
                   aria-label="Copy webhook URL"
@@ -339,7 +404,9 @@ export function Listener() {
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500 dark:text-slate-400">Token hidden — rotate it to get a fresh one to copy.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Token hidden — rotate it to get a fresh one to copy.
+                </p>
               )}
               <div className="flex gap-2">
                 <button
@@ -377,11 +444,17 @@ export function Listener() {
 
       {listener && (
         <div className="mb-6">
-          {listener.shareUrl && <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Share link (read-only)</p>}
+          {listener.shareUrl && (
+            <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+              Share link (read-only)
+            </p>
+          )}
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             {listener.shareUrl ? (
               <>
-                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{listener.shareUrl}</code>
+                <code className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
+                  {listener.shareUrl}
+                </code>
                 <button
                   onClick={handleCopyShare}
                   aria-label="Copy share link"
@@ -409,7 +482,10 @@ export function Listener() {
       )}
 
       {error && (
-        <p role="alert" className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+        <p
+          role="alert"
+          className="mb-6 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        >
           {error}
         </p>
       )}
@@ -417,7 +493,10 @@ export function Listener() {
       {!listener && !error && (
         <ul className="space-y-2" aria-label="Loading requests">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="h-12 animate-pulse rounded-lg bg-slate-200" />
+            <li
+              key={i}
+              className="h-12 animate-pulse rounded-lg bg-slate-200"
+            />
           ))}
         </ul>
       )}
@@ -475,14 +554,22 @@ export function Listener() {
                   request={req}
                   previousRequest={previousByRequestId.get(req.id)}
                   diffOnly={diffOnly}
-                  onLoadFullBody={id ? (requestId) => getRequestBody(id, requestId).then((r) => r.body) : undefined}
+                  onLoadFullBody={
+                    id
+                      ? (requestId) =>
+                          getRequestBody(id, requestId).then((r) => r.body)
+                      : undefined
+                  }
                 />
               ))}
             </ul>
           )}
 
           {hasMore && (
-            <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            <div
+              ref={sentinelRef}
+              className="py-4 text-center text-xs text-slate-400 dark:text-slate-500"
+            >
               {loadingMore ? 'Loading more…' : ''}
             </div>
           )}

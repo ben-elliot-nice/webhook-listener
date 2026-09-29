@@ -22,7 +22,7 @@ function mergeById<T extends { id: number }>(current: T[], incoming: T[]): T[] {
 }
 
 export function usePaginatedRequests<T extends { id: number }>(
-  fetchPage: (before?: number) => Promise<PageResult<T>>
+  fetchPage: (before?: number) => Promise<PageResult<T>>,
 ): UsePaginatedRequestsResult<T> {
   const [requests, setRequests] = useState<T[]>([])
   const [nextCursor, setNextCursor] = useState<number | null>(null)
@@ -55,5 +55,11 @@ export function usePaginatedRequests<T extends { id: number }>(
     }
   }, [fetchPage, nextCursor, loadingMore])
 
-  return { requests, hasMore: nextCursor !== null, loadingMore, loadMore, refreshFirstPage }
+  return {
+    requests,
+    hasMore: nextCursor !== null,
+    loadingMore,
+    loadMore,
+    refreshFirstPage,
+  }
 }

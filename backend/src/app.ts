@@ -13,7 +13,8 @@ export type Variables = { sessionId: string; email: string }
 
 const SESSION_COOKIE_NAME = 'wl_session_id'
 const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL_SESSION_COOKIE_NAME = 'wl_email_session'
 
 export const app = new Hono<{ Bindings: Env; Variables: Variables }>()
@@ -23,7 +24,7 @@ app.use(
   cors({
     origin: (_origin, c) => c.env.APP_BASE_URL,
     credentials: true,
-  })
+  }),
 )
 
 app.use(
@@ -31,7 +32,7 @@ app.use(
   cors({
     origin: (_origin, c) => c.env.APP_BASE_URL,
     credentials: true,
-  })
+  }),
 )
 
 app.use('*', async (c, next) => {
@@ -54,7 +55,9 @@ app.use('*', async (c, next) => {
     secure: true,
     path: '/',
     maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
-    ...(c.env.SESSION_COOKIE_DOMAIN ? { domain: c.env.SESSION_COOKIE_DOMAIN } : {}),
+    ...(c.env.SESSION_COOKIE_DOMAIN
+      ? { domain: c.env.SESSION_COOKIE_DOMAIN }
+      : {}),
   })
   c.set('sessionId', sessionId)
   await next()
@@ -67,7 +70,9 @@ app.use('*', async (c, next) => {
   }
 
   const cookieValue = getCookie(c, EMAIL_SESSION_COOKIE_NAME)
-  const email = cookieValue ? await verifyEmailSession(c.env.WL_SESSION_SECRET, cookieValue) : null
+  const email = cookieValue
+    ? await verifyEmailSession(c.env.WL_SESSION_SECRET, cookieValue)
+    : null
   if (!email) {
     return c.json({ error: 'unauthorized' }, 401)
   }

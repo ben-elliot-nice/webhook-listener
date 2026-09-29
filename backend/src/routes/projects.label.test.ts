@@ -11,7 +11,7 @@ describe('project label management', () => {
     const created = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
@@ -22,13 +22,18 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: '  UAT batch  ' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(200)
-    expect((await response.json()) as { label: string }).toEqual({ label: 'UAT batch' })
+    expect((await response.json()) as { label: string }).toEqual({
+      label: 'UAT batch',
+    })
   })
 
   it('clears a label with an empty string', async () => {
@@ -36,21 +41,29 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'Something' }),
       },
-      env
+      env,
     )
     const response = await app.request(
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: '' }),
       },
-      env
+      env,
     )
-    expect((await response.json()) as { label: string | null }).toEqual({ label: null })
+    expect((await response.json()) as { label: string | null }).toEqual({
+      label: null,
+    })
   })
 
   it('returns 400 for a label over 100 characters', async () => {
@@ -58,10 +71,13 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'x'.repeat(101) }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -72,10 +88,13 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, otherEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'nope' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -85,12 +104,19 @@ describe('project label management', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'UAT batch' }),
       },
-      env
+      env,
     )
-    const list = await app.request('/api/projects', { headers: await authCookieHeader(env, ownerEmail) }, env)
+    const list = await app.request(
+      '/api/projects',
+      { headers: await authCookieHeader(env, ownerEmail) },
+      env,
+    )
     const body = (await list.json()) as { id: string; label: string | null }[]
     expect(body.find((p) => p.id === projectId)?.label).toBe('UAT batch')
   })

@@ -7,7 +7,12 @@ interface RequestFiltersProps {
   contentTypeOptions: string[]
 }
 
-export function RequestFilters({ filter, onChange, methodOptions, contentTypeOptions }: RequestFiltersProps) {
+export function RequestFilters({
+  filter,
+  onChange,
+  methodOptions,
+  contentTypeOptions,
+}: RequestFiltersProps) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <select

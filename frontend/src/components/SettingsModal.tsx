@@ -18,7 +18,13 @@ const STRIPE_INTENSITY_OPTIONS: { value: StripeIntensity; label: string }[] = [
   { value: 'strong', label: 'Strong' },
 ]
 
-function SectionHeading({ children, first = false }: { children: string; first?: boolean }) {
+function SectionHeading({
+  children,
+  first = false,
+}: {
+  children: string
+  first?: boolean
+}) {
   return (
     <p
       className={`mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 ${
@@ -108,13 +114,18 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   } = useSettings()
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
       <div
         className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-lg dark:bg-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Settings</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            Settings
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close settings"
@@ -128,7 +139,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <SectionHeading first>Appearance</SectionHeading>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-700 dark:text-slate-300">Theme</span>
+              <span className="text-sm text-slate-700 dark:text-slate-300">
+                Theme
+              </span>
               <ButtonGroup
                 options={[
                   { value: 'light' as const, label: 'Light' },
@@ -139,8 +152,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-700 dark:text-slate-300">Width</span>
-              <ButtonGroup options={WIDTH_OPTIONS} value={width} onChange={setWidth} />
+              <span className="text-sm text-slate-700 dark:text-slate-300">
+                Width
+              </span>
+              <ButtonGroup
+                options={WIDTH_OPTIONS}
+                value={width}
+                onChange={setWidth}
+              />
             </div>
           </div>
         </section>
@@ -167,22 +186,53 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <SectionHeading>Code Formatting</SectionHeading>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-700 dark:text-slate-300">Indent</span>
-              <ButtonGroup options={[{ value: 2 as const, label: '2' }, { value: 4 as const, label: '4' }]} value={indentWidth} onChange={setIndentWidth} />
+              <span className="text-sm text-slate-700 dark:text-slate-300">
+                Indent
+              </span>
+              <ButtonGroup
+                options={[
+                  { value: 2 as const, label: '2' },
+                  { value: 4 as const, label: '4' },
+                ]}
+                value={indentWidth}
+                onChange={setIndentWidth}
+              />
             </div>
-            <ToggleRow label="Compact" checked={compact} onChange={setCompact} />
-            <ToggleRow label="Wrap long lines" checked={wrap} onChange={setWrap} />
-            <ToggleRow label="Render escaped whitespace" checked={render} onChange={setRender} />
+            <ToggleRow
+              label="Compact"
+              checked={compact}
+              onChange={setCompact}
+            />
+            <ToggleRow
+              label="Wrap long lines"
+              checked={wrap}
+              onChange={setWrap}
+            />
+            <ToggleRow
+              label="Render escaped whitespace"
+              checked={render}
+              onChange={setRender}
+            />
           </div>
         </section>
 
         <section>
           <SectionHeading>Line Display</SectionHeading>
           <div className="space-y-2">
-            <ToggleRow label="Line numbers" checked={lineNumbers} onChange={setLineNumbers} />
-            <ToggleRow label="Alternate row striping" checked={stripedRows} onChange={setStripedRows} />
+            <ToggleRow
+              label="Line numbers"
+              checked={lineNumbers}
+              onChange={setLineNumbers}
+            />
+            <ToggleRow
+              label="Alternate row striping"
+              checked={stripedRows}
+              onChange={setStripedRows}
+            />
             <div className="ml-3 flex items-center justify-between border-l border-slate-200 pl-3 dark:border-slate-700">
-              <span className="text-sm text-slate-500 dark:text-slate-400">Stripe intensity</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                Stripe intensity
+              </span>
               <ButtonGroup
                 options={STRIPE_INTENSITY_OPTIONS}
                 value={stripeIntensity}

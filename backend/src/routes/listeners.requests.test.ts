@@ -10,15 +10,19 @@ describe('GET /api/listeners/:id/requests pagination', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listener = (await created.json()) as { id: string }
 
     for (let i = 0; i < count; i++) {
       await app.request(
         `/hook/${listener.id}`,
-        { method: 'POST', body: `payload-${i}`, headers: { 'content-type': 'text/plain' } },
-        env
+        {
+          method: 'POST',
+          body: `payload-${i}`,
+          headers: { 'content-type': 'text/plain' },
+        },
+        env,
       )
     }
     return listener.id
@@ -29,10 +33,13 @@ describe('GET /api/listeners/:id/requests pagination', () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/requests`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(200)
-    const body = (await response.json()) as { requests: { id: number }[]; nextCursor: number | null }
+    const body = (await response.json()) as {
+      requests: { id: number }[]
+      nextCursor: number | null
+    }
     expect(body.requests).toHaveLength(20)
     expect(body.nextCursor).not.toBeNull()
   })
@@ -40,15 +47,25 @@ describe('GET /api/listeners/:id/requests pagination', () => {
   it('pages through with `before` and reaches nextCursor null', async () => {
     const listenerId = await createListenerWithRequests(25)
     const headers = await authCookieHeader(env, ownerEmail)
-    const first = await app.request(`/api/listeners/${listenerId}/requests?limit=20`, { headers }, env)
-    const firstBody = (await first.json()) as { requests: { id: number }[]; nextCursor: number | null }
+    const first = await app.request(
+      `/api/listeners/${listenerId}/requests?limit=20`,
+      { headers },
+      env,
+    )
+    const firstBody = (await first.json()) as {
+      requests: { id: number }[]
+      nextCursor: number | null
+    }
 
     const second = await app.request(
       `/api/listeners/${listenerId}/requests?limit=20&before=${firstBody.nextCursor}`,
       { headers },
-      env
+      env,
     )
-    const secondBody = (await second.json()) as { requests: { id: number }[]; nextCursor: number | null }
+    const secondBody = (await second.json()) as {
+      requests: { id: number }[]
+      nextCursor: number | null
+    }
     expect(secondBody.requests).toHaveLength(5)
     expect(secondBody.nextCursor).toBeNull()
   })
@@ -58,10 +75,14 @@ describe('GET /api/listeners/:id/requests pagination', () => {
     const response = await app.request(
       `/api/listeners/${listenerId}/requests`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const body = (await response.json()) as {
-      requests: { listenerId: string; bodyTruncated: boolean; bodySize: number }[]
+      requests: {
+        listenerId: string
+        bodyTruncated: boolean
+        bodySize: number
+      }[]
     }
     expect(body.requests[0].listenerId).toBe(listenerId)
     expect(body.requests[0].bodyTruncated).toBe(false)
@@ -77,20 +98,28 @@ describe('GET /api/listeners/:id/requests/:requestId/body', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listener = (await created.json()) as { id: string }
-    await app.request(`/hook/${listener.id}`, { method: 'POST', body: 'the-full-body' }, env)
+    await app.request(
+      `/hook/${listener.id}`,
+      { method: 'POST', body: 'the-full-body' },
+      env,
+    )
 
     const headers = await authCookieHeader(env, ownerEmail)
-    const list = await app.request(`/api/listeners/${listener.id}/requests`, { headers }, env)
+    const list = await app.request(
+      `/api/listeners/${listener.id}/requests`,
+      { headers },
+      env,
+    )
     const listBody = (await list.json()) as { requests: { id: number }[] }
     const requestId = listBody.requests[0].id
 
     const detail = await app.request(
       `/api/listeners/${listener.id}/requests/${requestId}/body`,
       { headers },
-      env
+      env,
     )
     expect(detail.status).toBe(200)
     expect(await detail.json()).toEqual({ body: 'the-full-body' })
@@ -100,7 +129,7 @@ describe('GET /api/listeners/:id/requests/:requestId/body', () => {
     const response = await app.request(
       `/api/listeners/${crypto.randomUUID()}/requests/1/body`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -109,13 +138,13 @@ describe('GET /api/listeners/:id/requests/:requestId/body', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listener = (await created.json()) as { id: string }
     const response = await app.request(
       `/api/listeners/${listener.id}/requests/999999/body`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -124,21 +153,26 @@ describe('GET /api/listeners/:id/requests/:requestId/body', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listener = (await created.json()) as { id: string }
-    await app.request(`/hook/${listener.id}`, { method: 'POST', body: 'secret' }, env)
+    await app.request(
+      `/hook/${listener.id}`,
+      { method: 'POST', body: 'secret' },
+      env,
+    )
     const list = await app.request(
       `/api/listeners/${listener.id}/requests`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const requestId = ((await list.json()) as { requests: { id: number }[] }).requests[0].id
+    const requestId = ((await list.json()) as { requests: { id: number }[] })
+      .requests[0].id
 
     const response = await app.request(
       `/api/listeners/${listener.id}/requests/${requestId}/body`,
       { headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })

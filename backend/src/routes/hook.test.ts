@@ -9,7 +9,12 @@ describe('hook capture route', () => {
   const listenerId = 'hook-test-listener'
 
   beforeEach(async () => {
-    await createListener(env.DB, listenerId, '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
+    await createListener(
+      env.DB,
+      listenerId,
+      '2024-01-01T00:00:00.000Z',
+      'owner-a@nice.com',
+    )
   })
 
   it('captures a POST payload and returns 200', async () => {
@@ -20,7 +25,7 @@ describe('hook capture route', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ foo: 'bar' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(200)
 
@@ -34,7 +39,7 @@ describe('hook capture route', () => {
     await app.request(
       `/hook/${listenerId}?foo=bar`,
       { method: 'GET', headers: { 'x-custom-header': 'value' } },
-      env
+      env,
     )
 
     const [captured] = await getRequests(env.DB, listenerId)
@@ -43,7 +48,11 @@ describe('hook capture route', () => {
   })
 
   it('returns 404 for an unknown listener', async () => {
-    const response = await app.request('/hook/does-not-exist', { method: 'POST' }, env)
+    const response = await app.request(
+      '/hook/does-not-exist',
+      { method: 'POST' },
+      env,
+    )
     expect(response.status).toBe(404)
   })
 
@@ -52,10 +61,13 @@ describe('hook capture route', () => {
       `/hook/${listenerId}`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json', cookie: 'session_id=some-secret-value' },
+        headers: {
+          'content-type': 'application/json',
+          cookie: 'session_id=some-secret-value',
+        },
         body: JSON.stringify({ foo: 'bar' }),
       },
-      env
+      env,
     )
 
     const [captured] = await getRequests(env.DB, listenerId)
@@ -69,9 +81,12 @@ describe('hook capture route', () => {
       `/hook/${listenerId}`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/octet-stream', 'content-length': String(11 * 1024 * 1024) },
+        headers: {
+          'content-type': 'application/octet-stream',
+          'content-length': String(11 * 1024 * 1024),
+        },
       },
-      env
+      env,
     )
     expect(response.status).toBe(413)
   })
@@ -98,14 +113,22 @@ describe('hook capture route', () => {
     expect(response.status).toBe(413)
   })
 
-  it('a project-scoped listener whose slug collides with another listener\'s UUID does not shadow that listener\'s /hook/:id capture', async () => {
+  it("a project-scoped listener whose slug collides with another listener's UUID does not shadow that listener's /hook/:id capture", async () => {
     const victimId = crypto.randomUUID()
-    await createListener(env.DB, victimId, '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
+    await createListener(
+      env.DB,
+      victimId,
+      '2024-01-01T00:00:00.000Z',
+      'owner-a@nice.com',
+    )
 
     const projectResponse = await app.request(
       '/api/projects',
-      { method: 'POST', headers: await authCookieHeader(env, 'owner-a@nice.com') },
-      env
+      {
+        method: 'POST',
+        headers: await authCookieHeader(env, 'owner-a@nice.com'),
+      },
+      env,
     )
     const projectId = ((await projectResponse.json()) as { id: string }).id
 
@@ -113,7 +136,11 @@ describe('hook capture route', () => {
     await app.request(`/hook/${projectId}/${victimId}`, { method: 'POST' }, env)
 
     // The victim's bare-id hook URL must still resolve and capture — not 404.
-    const response = await app.request(`/hook/${victimId}`, { method: 'POST', body: 'still-alive' }, env)
+    const response = await app.request(
+      `/hook/${victimId}`,
+      { method: 'POST', body: 'still-alive' },
+      env,
+    )
     expect(response.status).toBe(200)
 
     const [captured] = await getRequests(env.DB, victimId)
@@ -123,17 +150,29 @@ describe('hook capture route', () => {
 
 describe('hook capture route — slug + token', () => {
   it('captures via the slug URL when the correct token is provided', async () => {
-    await createListener(env.DB, 'hook-slug-listener-1', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
-    const { slug, webhookToken } = await setListenerSlug(env.DB, 'hook-slug-listener-1', 'slug-hook-1')
+    await createListener(
+      env.DB,
+      'hook-slug-listener-1',
+      '2024-01-01T00:00:00.000Z',
+      'owner-a@nice.com',
+    )
+    const { slug, webhookToken } = await setListenerSlug(
+      env.DB,
+      'hook-slug-listener-1',
+      'slug-hook-1',
+    )
 
     const response = await app.request(
       `/hook/${slug}`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-webhook-token': webhookToken },
+        headers: {
+          'content-type': 'application/json',
+          'x-webhook-token': webhookToken,
+        },
         body: JSON.stringify({ ok: true }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(200)
 
@@ -142,8 +181,17 @@ describe('hook capture route — slug + token', () => {
   })
 
   it('returns 404 for the slug URL with a missing token', async () => {
-    await createListener(env.DB, 'hook-slug-listener-2', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
-    const { slug } = await setListenerSlug(env.DB, 'hook-slug-listener-2', 'slug-hook-2')
+    await createListener(
+      env.DB,
+      'hook-slug-listener-2',
+      '2024-01-01T00:00:00.000Z',
+      'owner-a@nice.com',
+    )
+    const { slug } = await setListenerSlug(
+      env.DB,
+      'hook-slug-listener-2',
+      'slug-hook-2',
+    )
 
     const response = await app.request(`/hook/${slug}`, { method: 'POST' }, env)
     expect(response.status).toBe(404)
@@ -151,22 +199,40 @@ describe('hook capture route — slug + token', () => {
   })
 
   it('returns 404 for the slug URL with a wrong token', async () => {
-    await createListener(env.DB, 'hook-slug-listener-3', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
-    const { slug } = await setListenerSlug(env.DB, 'hook-slug-listener-3', 'slug-hook-3')
+    await createListener(
+      env.DB,
+      'hook-slug-listener-3',
+      '2024-01-01T00:00:00.000Z',
+      'owner-a@nice.com',
+    )
+    const { slug } = await setListenerSlug(
+      env.DB,
+      'hook-slug-listener-3',
+      'slug-hook-3',
+    )
 
     const response = await app.request(
       `/hook/${slug}`,
       { method: 'POST', headers: { 'x-webhook-token': 'wrong-token' } },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
 
   it('returns 404 for the UUID hook URL once a slug has been set', async () => {
-    await createListener(env.DB, 'hook-slug-listener-4', '2024-01-01T00:00:00.000Z', 'owner-a@nice.com')
+    await createListener(
+      env.DB,
+      'hook-slug-listener-4',
+      '2024-01-01T00:00:00.000Z',
+      'owner-a@nice.com',
+    )
     await setListenerSlug(env.DB, 'hook-slug-listener-4', 'slug-hook-4')
 
-    const response = await app.request(`/hook/hook-slug-listener-4`, { method: 'POST' }, env)
+    const response = await app.request(
+      `/hook/hook-slug-listener-4`,
+      { method: 'POST' },
+      env,
+    )
     expect(response.status).toBe(404)
   })
 })

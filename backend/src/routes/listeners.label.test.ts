@@ -11,7 +11,7 @@ describe('listener label management', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
@@ -22,20 +22,27 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: '  Stripe prod  ' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(200)
-    expect((await response.json()) as { label: string }).toEqual({ label: 'Stripe prod' })
+    expect((await response.json()) as { label: string }).toEqual({
+      label: 'Stripe prod',
+    })
 
     const getResponse = await app.request(
       `/api/listeners/${listenerId}`,
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    expect((await getResponse.json() as { label: string }).label).toBe('Stripe prod')
+    expect(((await getResponse.json()) as { label: string }).label).toBe(
+      'Stripe prod',
+    )
   })
 
   it('clears a label with an empty string', async () => {
@@ -43,21 +50,29 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'Something' }),
       },
-      env
+      env,
     )
     const response = await app.request(
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: '' }),
       },
-      env
+      env,
     )
-    expect((await response.json()) as { label: string | null }).toEqual({ label: null })
+    expect((await response.json()) as { label: string | null }).toEqual({
+      label: null,
+    })
   })
 
   it('returns 400 for a label over 100 characters', async () => {
@@ -65,10 +80,13 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'x'.repeat(101) }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(400)
   })
@@ -79,10 +97,13 @@ describe('listener label management', () => {
       `/api/listeners/${listenerId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, otherEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, otherEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'nope' }),
       },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })

@@ -1,4 +1,6 @@
-export function cookieHeader(cookies?: Record<string, string>): Record<string, string> {
+export function cookieHeader(
+  cookies?: Record<string, string>,
+): Record<string, string> {
   if (!cookies) return {}
   return {
     cookie: Object.entries(cookies)

@@ -38,7 +38,9 @@ export function serializeRequestListItem(row: RequestRecord): RequestListItem {
     method: row.method,
     headers: JSON.parse(row.headers),
     queryParams: JSON.parse(row.queryParams),
-    body: truncated ? truncateToBytes(row.body as string, BODY_PREVIEW_BYTES) : row.body,
+    body: truncated
+      ? truncateToBytes(row.body as string, BODY_PREVIEW_BYTES)
+      : row.body,
     bodyTruncated: truncated,
     bodySize,
     contentType: row.contentType,
@@ -49,14 +51,19 @@ export function serializeRequestListItem(row: RequestRecord): RequestListItem {
 
 export function parsePageParams(
   rawLimit: string | undefined,
-  rawBefore: string | undefined
+  rawBefore: string | undefined,
 ): { limit: number; before?: number } {
   const parsedLimit = Number(rawLimit)
   const limit =
-    Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : DEFAULT_LIMIT
+    Number.isInteger(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, MAX_LIMIT)
+      : DEFAULT_LIMIT
 
   const parsedBefore = Number(rawBefore)
-  const before = Number.isInteger(parsedBefore) && parsedBefore > 0 ? parsedBefore : undefined
+  const before =
+    Number.isInteger(parsedBefore) && parsedBefore > 0
+      ? parsedBefore
+      : undefined
 
   return before === undefined ? { limit } : { limit, before }
 }

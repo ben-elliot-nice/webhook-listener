@@ -8,15 +8,26 @@ export interface RequestFilter {
 
 export const ALL = 'All'
 
-export function filterRequests(requests: RequestDetail[], filter: RequestFilter): RequestDetail[] {
+export function filterRequests(
+  requests: RequestDetail[],
+  filter: RequestFilter,
+): RequestDetail[] {
   const search = filter.search.trim().toLowerCase()
 
   return requests.filter((req) => {
     if (filter.method !== ALL && req.method !== filter.method) return false
-    if (filter.contentType !== ALL && (req.contentType ?? 'none') !== filter.contentType) return false
+    if (
+      filter.contentType !== ALL &&
+      (req.contentType ?? 'none') !== filter.contentType
+    )
+      return false
 
     if (search) {
-      const haystack = [req.body ?? '', JSON.stringify(req.headers), JSON.stringify(req.queryParams)]
+      const haystack = [
+        req.body ?? '',
+        JSON.stringify(req.headers),
+        JSON.stringify(req.queryParams),
+      ]
         .join(' ')
         .toLowerCase()
       if (!haystack.includes(search)) return false

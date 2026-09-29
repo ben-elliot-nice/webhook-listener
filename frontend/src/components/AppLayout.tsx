@@ -29,7 +29,9 @@ export function AppLayout() {
         <div className="flex items-center gap-3">
           {email && (
             <>
-              <span className="text-sm text-slate-500 dark:text-slate-400">signed in as {email}</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                signed in as {email}
+              </span>
               <button
                 onClick={handleSignOut}
                 className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"

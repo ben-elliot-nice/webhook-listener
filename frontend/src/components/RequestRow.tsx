@@ -8,7 +8,11 @@ import { useHighlightTheme } from '../hooks/useHighlightTheme'
 import { getThemeBackground } from '../lib/highlightThemes'
 import { buildDiffBlob, diffLineClassName } from '../lib/diffHighlight'
 import { extractJsonTreeColors } from '../lib/jsonTreeColors'
-import { collectContainerPaths, JsonTree, type JsonTreeOptions } from './JsonTree'
+import {
+  collectContainerPaths,
+  JsonTree,
+  type JsonTreeOptions,
+} from './JsonTree'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -20,7 +24,8 @@ const METHOD_STYLES: Record<string, string> = {
   DELETE: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
 }
 
-const DEFAULT_METHOD_STYLE = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+const DEFAULT_METHOD_STYLE =
+  'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
 
 function safeParse(body: string | null): unknown {
   if (!body) return body
@@ -46,7 +51,12 @@ interface RequestRowProps {
   onLoadFullBody?: (requestId: number) => Promise<string | null>
 }
 
-export function RequestRow({ request, previousRequest, diffOnly = false, onLoadFullBody }: RequestRowProps) {
+export function RequestRow({
+  request,
+  previousRequest,
+  diffOnly = false,
+  onLoadFullBody,
+}: RequestRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -55,11 +65,24 @@ export function RequestRow({ request, previousRequest, diffOnly = false, onLoadF
   const [loadingFullBody, setLoadingFullBody] = useState(false)
   const effectiveBody = fullBody ?? request.body
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
-  const { highlightTheme, indentWidth, compact, lineNumbers, render, wrap, stripedRows, stripeIntensity } =
-    useSettings()
+  const {
+    highlightTheme,
+    indentWidth,
+    compact,
+    lineNumbers,
+    render,
+    wrap,
+    stripedRows,
+    stripeIntensity,
+  } = useSettings()
   const loadedTheme = useHighlightTheme(highlightTheme)
-  const panelBackground = loadedTheme ? getThemeBackground(loadedTheme) : 'transparent'
-  const treeColors = useMemo(() => extractJsonTreeColors(loadedTheme), [loadedTheme])
+  const panelBackground = loadedTheme
+    ? getThemeBackground(loadedTheme)
+    : 'transparent'
+  const treeColors = useMemo(
+    () => extractJsonTreeColors(loadedTheme),
+    [loadedTheme],
+  )
   const treeOptions: JsonTreeOptions = {
     indentWidth,
     showLineNumbers: lineNumbers,
@@ -99,7 +122,7 @@ export function RequestRow({ request, previousRequest, diffOnly = false, onLoadF
   const diffBlob = previousRequest
     ? buildDiffBlob(
         prettyPrintBody(previousRequest.body, { indentWidth, compact }),
-        prettyPrintBody(effectiveBody, { indentWidth, compact })
+        prettyPrintBody(effectiveBody, { indentWidth, compact }),
       )
     : null
 
@@ -132,20 +155,34 @@ export function RequestRow({ request, previousRequest, diffOnly = false, onLoadF
         onClick={() => !diffOnly && setExpanded((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
       >
-        <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${methodStyle}`}>
+        <span
+          className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${methodStyle}`}
+        >
           {request.method}
         </span>
         <span className="flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
           {request.contentType ?? 'no content-type'}
         </span>
-        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{formatTimestamp(request.receivedAt)}</span>
-        {!diffOnly && <span className="shrink-0 text-slate-400 dark:text-slate-500">{expanded ? '−' : '+'}</span>}
+        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+          {formatTimestamp(request.receivedAt)}
+        </span>
+        {!diffOnly && (
+          <span className="shrink-0 text-slate-400 dark:text-slate-500">
+            {expanded ? '−' : '+'}
+          </span>
+        )}
       </button>
       {(diffOnly || expanded) && (
-        <div className="rounded-b-lg border-t border-slate-200 dark:border-slate-700" style={{ background: panelBackground }}>
+        <div
+          className="rounded-b-lg border-t border-slate-200 dark:border-slate-700"
+          style={{ background: panelBackground }}
+        >
           {request.bodyTruncated && !fullBody && (
             <div className="flex items-center gap-2 px-4 pt-2 text-xs text-amber-700 dark:text-amber-400">
-              <span>Payload too large to preview in full ({Math.round(request.bodySize / 1024)} KB).</span>
+              <span>
+                Payload too large to preview in full (
+                {Math.round(request.bodySize / 1024)} KB).
+              </span>
               <button
                 onClick={handleLoadFullBody}
                 disabled={loadingFullBody}
@@ -189,16 +226,24 @@ export function RequestRow({ request, previousRequest, diffOnly = false, onLoadF
               </button>
             </div>
           )}
-          {(diffOnly ? Boolean(previousRequest) : showDiff) && diffBlob && loadedTheme ? (
+          {(diffOnly ? Boolean(previousRequest) : showDiff) &&
+          diffBlob &&
+          loadedTheme ? (
             <SyntaxHighlighter
               language="json"
               style={loadedTheme}
               showLineNumbers={lineNumbers}
               wrapLines
               lineProps={(lineNumber: number) => ({
-                className: diffLineClassName(diffBlob.lineTags[lineNumber - 1] ?? 'unchanged'),
+                className: diffLineClassName(
+                  diffBlob.lineTags[lineNumber - 1] ?? 'unchanged',
+                ),
               })}
-              customStyle={{ background: 'transparent', margin: 0, padding: '1rem' }}
+              customStyle={{
+                background: 'transparent',
+                margin: 0,
+                padding: '1rem',
+              }}
               codeTagProps={{ style: { background: 'transparent' } }}
             >
               {diffBlob.text}

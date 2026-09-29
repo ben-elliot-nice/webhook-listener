@@ -13,7 +13,7 @@ describe('shared read-only route', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { id: string }
     listenerId = createdBody.id
@@ -21,14 +21,19 @@ describe('shared read-only route', () => {
     const shareResponse = await app.request(
       `/api/listeners/${listenerId}/share`,
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    shareToken = (await shareResponse.json() as { shareToken: string }).shareToken
+    shareToken = ((await shareResponse.json()) as { shareToken: string })
+      .shareToken
 
     await app.request(
       `/hook/${listenerId}`,
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ foo: 'bar' }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ foo: 'bar' }),
+      },
+      env,
     )
   })
 
@@ -36,10 +41,14 @@ describe('shared read-only route', () => {
     const response = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(200)
-    const { requests: [captured] } = (await response.json()) as { requests: { body: string; method: string }[] }
+    const {
+      requests: [captured],
+    } = (await response.json()) as {
+      requests: { body: string; method: string }[]
+    }
     expect(captured.body).toBe(JSON.stringify({ foo: 'bar' }))
     expect(captured.method).toBe('POST')
   })
@@ -48,7 +57,7 @@ describe('shared read-only route', () => {
     const response = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     const text = await response.text()
     expect(text).not.toContain(listenerId)
@@ -60,15 +69,18 @@ describe('shared read-only route', () => {
       `/hook/${listenerId}`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json', cookie: `wl_session_id=${probeSessionId}` },
+        headers: {
+          'content-type': 'application/json',
+          cookie: `wl_session_id=${probeSessionId}`,
+        },
         body: JSON.stringify({ probe: true }),
       },
-      env
+      env,
     )
     const response = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     const text = await response.text()
     expect(text).not.toContain(probeSessionId)
@@ -78,7 +90,7 @@ describe('shared read-only route', () => {
     const response = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(200)
   })
@@ -87,7 +99,7 @@ describe('shared read-only route', () => {
     const response = await app.request(
       '/api/shared/does-not-exist/requests',
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -96,12 +108,12 @@ describe('shared read-only route', () => {
     await app.request(
       `/api/listeners/${listenerId}/share`,
       { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const response = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -110,11 +122,24 @@ describe('shared read-only route', () => {
     const response = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
-    const { requests: [captured] } = (await response.json()) as { requests: Record<string, unknown>[] }
+    const {
+      requests: [captured],
+    } = (await response.json()) as { requests: Record<string, unknown>[] }
     expect(Object.keys(captured).sort()).toEqual(
-      ['body', 'bodySize', 'bodyTruncated', 'contentType', 'headers', 'id', 'method', 'queryParams', 'receivedAt', 'sourceIp'].sort()
+      [
+        'body',
+        'bodySize',
+        'bodyTruncated',
+        'contentType',
+        'headers',
+        'id',
+        'method',
+        'queryParams',
+        'receivedAt',
+        'sourceIp',
+      ].sort(),
     )
   })
 })
@@ -126,23 +151,29 @@ describe('GET /api/shared/:token/requests pagination', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listener = (await created.json()) as { id: string }
     for (let i = 0; i < 25; i++) {
-      await app.request(`/hook/${listener.id}`, { method: 'POST', body: `payload-${i}` }, env)
+      await app.request(
+        `/hook/${listener.id}`,
+        { method: 'POST', body: `payload-${i}` },
+        env,
+      )
     }
     const shareResponse = await app.request(
       `/api/listeners/${listener.id}/share`,
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const { shareToken } = (await shareResponse.json()) as { shareToken: string }
+    const { shareToken } = (await shareResponse.json()) as {
+      shareToken: string
+    }
 
     const first = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     const firstBody = (await first.json()) as {
       requests: (Record<string, unknown> & { bodyTruncated: boolean })[]
@@ -156,9 +187,12 @@ describe('GET /api/shared/:token/requests pagination', () => {
     const second = await app.request(
       `/api/shared/${shareToken}/requests?before=${firstBody.nextCursor}`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
-    const secondBody = (await second.json()) as { requests: unknown[]; nextCursor: number | null }
+    const secondBody = (await second.json()) as {
+      requests: unknown[]
+      nextCursor: number | null
+    }
     expect(secondBody.requests).toHaveLength(5)
     expect(secondBody.nextCursor).toBeNull()
   })
@@ -171,21 +205,27 @@ describe('GET /api/shared/:token/requests/:requestId/body', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const listener = (await created.json()) as { id: string }
-    await app.request(`/hook/${listener.id}`, { method: 'POST', body: 'shared-full-body' }, env)
+    await app.request(
+      `/hook/${listener.id}`,
+      { method: 'POST', body: 'shared-full-body' },
+      env,
+    )
     const shareResponse = await app.request(
       `/api/listeners/${listener.id}/share`,
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const { shareToken } = (await shareResponse.json()) as { shareToken: string }
+    const { shareToken } = (await shareResponse.json()) as {
+      shareToken: string
+    }
 
     const list = await app.request(
       `/api/shared/${shareToken}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     const listBody = (await list.json()) as { requests: { id: number }[] }
     const requestId = listBody.requests[0].id
@@ -193,7 +233,7 @@ describe('GET /api/shared/:token/requests/:requestId/body', () => {
     const detail = await app.request(
       `/api/shared/${shareToken}/requests/${requestId}/body`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(detail.status).toBe(200)
     expect(await detail.json()).toEqual({ body: 'shared-full-body' })
@@ -203,7 +243,7 @@ describe('GET /api/shared/:token/requests/:requestId/body', () => {
     const response = await app.request(
       '/api/shared/does-not-exist/requests/1/body',
       { headers: await authCookieHeader(env, 'viewer@nice.com') },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })

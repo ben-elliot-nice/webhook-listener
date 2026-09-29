@@ -1,6 +1,10 @@
 import type { Env } from './env'
 
-export async function sendMagicLinkEmail(env: Env, email: string, verifyUrl: string): Promise<void> {
+export async function sendMagicLinkEmail(
+  env: Env,
+  email: string,
+  verifyUrl: string,
+): Promise<void> {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

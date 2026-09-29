@@ -5,7 +5,11 @@ import { authCookieHeader } from '../test-helpers/auth'
 
 describe('GET /api/listeners', () => {
   it('returns an empty array for an owner with no listeners', async () => {
-    const response = await app.request('/api/listeners', { headers: await authCookieHeader(env, 'nobody@nice.com') }, env)
+    const response = await app.request(
+      '/api/listeners',
+      { headers: await authCookieHeader(env, 'nobody@nice.com') },
+      env,
+    )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
   })
@@ -17,7 +21,7 @@ describe('GET /api/listeners', () => {
     const first = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const firstBody = (await first.json()) as { id: string }
 
@@ -25,18 +29,22 @@ describe('GET /api/listeners', () => {
     const second = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const secondBody = (await second.json()) as { id: string }
 
     const otherCreate = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     const otherBody = (await otherCreate.json()) as { id: string }
 
-    const response = await app.request('/api/listeners', { headers: await authCookieHeader(env, ownerEmail) }, env)
+    const response = await app.request(
+      '/api/listeners',
+      { headers: await authCookieHeader(env, ownerEmail) },
+      env,
+    )
     expect(response.status).toBe(200)
     const body = (await response.json()) as { id: string }[]
     expect(body.map((l) => l.id)).toEqual([secondBody.id, firstBody.id])
@@ -44,7 +52,7 @@ describe('GET /api/listeners', () => {
     const otherResponse = await app.request(
       '/api/listeners',
       { headers: await authCookieHeader(env, otherEmail) },
-      env
+      env,
     )
     const otherListed = (await otherResponse.json()) as { id: string }[]
     expect(otherListed.map((l) => l.id)).toEqual([otherBody.id])
@@ -53,8 +61,11 @@ describe('GET /api/listeners', () => {
   it('builds hookUrl from HOOK_BASE_URL, not APP_BASE_URL', async () => {
     const response = await app.request(
       '/api/listeners',
-      { method: 'POST', headers: await authCookieHeader(env, 'owner@nice.com') },
-      env
+      {
+        method: 'POST',
+        headers: await authCookieHeader(env, 'owner@nice.com'),
+      },
+      env,
     )
     expect(response.status).toBe(201)
     const body = (await response.json()) as { id: string; hookUrl: string }
@@ -66,12 +77,19 @@ describe('GET /api/listeners', () => {
     const created = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { hookUrl: string }
 
-    const response = await app.request('/api/listeners', { headers: await authCookieHeader(env, ownerEmail) }, env)
-    const [listed] = (await response.json()) as { hookUrl: string; shareUrl: string | null }[]
+    const response = await app.request(
+      '/api/listeners',
+      { headers: await authCookieHeader(env, ownerEmail) },
+      env,
+    )
+    const [listed] = (await response.json()) as {
+      hookUrl: string
+      shareUrl: string | null
+    }[]
     expect(listed.hookUrl).toBe(createdBody.hookUrl)
     expect(listed.shareUrl).toBeNull()
   })
@@ -81,21 +99,21 @@ describe('GET /api/listeners', () => {
     const first = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const firstBody = (await first.json()) as { id: string }
     await new Promise((resolve) => setTimeout(resolve, 5))
     const second = await app.request(
       '/api/listeners',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const secondBody = (await second.json()) as { id: string }
 
     const response = await app.request(
       '/api/listeners?sort=nonsense',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const body = (await response.json()) as { id: string }[]
     expect(body.map((l) => l.id)).toEqual([secondBody.id, firstBody.id])

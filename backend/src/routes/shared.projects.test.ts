@@ -14,7 +14,7 @@ describe('shared project view', () => {
     const created = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const createdBody = (await created.json()) as { id: string }
     projectId = createdBody.id
@@ -23,43 +23,59 @@ describe('shared project view', () => {
       `/api/projects/${projectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'checkout-uat' }),
       },
-      env
+      env,
     )
     const listResponse = await app.request(
       '/api/listeners',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const listeners = (await listResponse.json()) as { id: string; slug: string | null }[]
+    const listeners = (await listResponse.json()) as {
+      id: string
+      slug: string | null
+    }[]
     listenerId = listeners.find((l) => l.slug === 'checkout-uat')!.id
 
     await app.request(
       `/hook/${projectId}/checkout-uat`,
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ foo: 'bar' }) },
-      env
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ foo: 'bar' }),
+      },
+      env,
     )
 
     const shareResponse = await app.request(
       `/api/projects/${projectId}/share`,
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    shareToken = (await shareResponse.json() as { shareToken: string }).shareToken
+    shareToken = ((await shareResponse.json()) as { shareToken: string })
+      .shareToken
   })
 
   it('lists child listeners for a valid share token', async () => {
     const response = await app.request(
       `/api/shared/projects/${shareToken}`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(200)
     const body = (await response.json()) as {
       label: string | null
-      listeners: { id: string; label: string | null; slug: string | null; createdAt: string }[]
+      listeners: {
+        id: string
+        label: string | null
+        slug: string | null
+        createdAt: string
+      }[]
     }
     expect(body.listeners).toHaveLength(1)
     expect(body.listeners[0].id).toBe(listenerId)
@@ -71,15 +87,18 @@ describe('shared project view', () => {
       `/api/projects/${projectId}/label`,
       {
         method: 'PATCH',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ label: 'Checkout UAT' }),
       },
-      env
+      env,
     )
     const response = await app.request(
       `/api/shared/projects/${shareToken}`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     const body = (await response.json()) as { label: string | null }
     expect(body.label).toBe('Checkout UAT')
@@ -89,7 +108,7 @@ describe('shared project view', () => {
     const response = await app.request(
       `/api/shared/projects/${shareToken}`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     const text = await response.text()
     expect(text).not.toContain(projectId)
@@ -100,17 +119,21 @@ describe('shared project view', () => {
     const response = await app.request(
       `/api/shared/projects/${shareToken}`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
-    const body = (await response.json()) as { listeners: Record<string, unknown>[] }
-    expect(Object.keys(body.listeners[0]).sort()).toEqual(['createdAt', 'id', 'label', 'slug'].sort())
+    const body = (await response.json()) as {
+      listeners: Record<string, unknown>[]
+    }
+    expect(Object.keys(body.listeners[0]).sort()).toEqual(
+      ['createdAt', 'id', 'label', 'slug'].sort(),
+    )
   })
 
   it('returns 404 for an unknown token', async () => {
     const response = await app.request(
       '/api/shared/projects/does-not-exist',
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -119,10 +142,14 @@ describe('shared project view', () => {
     const response = await app.request(
       `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(200)
-    const { requests: [captured] } = (await response.json()) as { requests: { body: string; method: string }[] }
+    const {
+      requests: [captured],
+    } = (await response.json()) as {
+      requests: { body: string; method: string }[]
+    }
     expect(captured.body).toBe(JSON.stringify({ foo: 'bar' }))
     expect(captured.method).toBe('POST')
   })
@@ -131,30 +158,38 @@ describe('shared project view', () => {
     const otherProject = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const otherProjectId = ((await otherProject.json()) as { id: string }).id
     await app.request(
       `/api/projects/${otherProjectId}/listeners`,
       {
         method: 'POST',
-        headers: { ...(await authCookieHeader(env, ownerEmail)), 'content-type': 'application/json' },
+        headers: {
+          ...(await authCookieHeader(env, ownerEmail)),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ slug: 'other-case' }),
       },
-      env
+      env,
     )
     const otherListenersResponse = await app.request(
       '/api/listeners',
       { headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
-    const otherListeners = (await otherListenersResponse.json()) as { id: string; slug: string | null }[]
-    const otherListenerId = otherListeners.find((l) => l.slug === 'other-case')!.id
+    const otherListeners = (await otherListenersResponse.json()) as {
+      id: string
+      slug: string | null
+    }[]
+    const otherListenerId = otherListeners.find(
+      (l) => l.slug === 'other-case',
+    )!.id
 
     const response = await app.request(
       `/api/shared/projects/${shareToken}/listeners/${otherListenerId}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -163,7 +198,7 @@ describe('shared project view', () => {
     const response = await app.request(
       `/api/shared/projects/does-not-exist/listeners/${listenerId}/requests`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -172,12 +207,12 @@ describe('shared project view', () => {
     await app.request(
       `/api/projects/${projectId}/share`,
       { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
-      env
+      env,
     )
     const response = await app.request(
       `/api/shared/projects/${shareToken}`,
       { headers: await authCookieHeader(env, viewerEmail) },
-      env
+      env,
     )
     expect(response.status).toBe(404)
   })
@@ -186,13 +221,17 @@ describe('shared project view', () => {
     it('paginates and includes truncation fields, no listenerId key', async () => {
       // beforeEach already sent one hook request; send 24 more for 25 total.
       for (let i = 0; i < 24; i++) {
-        await app.request(`/hook/${projectId}/checkout-uat`, { method: 'POST', body: `payload-${i}` }, env)
+        await app.request(
+          `/hook/${projectId}/checkout-uat`,
+          { method: 'POST', body: `payload-${i}` },
+          env,
+        )
       }
 
       const first = await app.request(
         `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests`,
         { headers: await authCookieHeader(env, viewerEmail) },
-        env
+        env,
       )
       const firstBody = (await first.json()) as {
         requests: (Record<string, unknown> & { bodyTruncated: boolean })[]
@@ -206,9 +245,12 @@ describe('shared project view', () => {
       const second = await app.request(
         `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests?before=${firstBody.nextCursor}`,
         { headers: await authCookieHeader(env, viewerEmail) },
-        env
+        env,
       )
-      const secondBody = (await second.json()) as { requests: unknown[]; nextCursor: number | null }
+      const secondBody = (await second.json()) as {
+        requests: unknown[]
+        nextCursor: number | null
+      }
       expect(secondBody.requests).toHaveLength(5)
       expect(secondBody.nextCursor).toBeNull()
     })
@@ -219,7 +261,7 @@ describe('shared project view', () => {
       const list = await app.request(
         `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests`,
         { headers: await authCookieHeader(env, viewerEmail) },
-        env
+        env,
       )
       const listBody = (await list.json()) as { requests: { id: number }[] }
       const requestId = listBody.requests[0].id
@@ -227,17 +269,19 @@ describe('shared project view', () => {
       const detail = await app.request(
         `/api/shared/projects/${shareToken}/listeners/${listenerId}/requests/${requestId}/body`,
         { headers: await authCookieHeader(env, viewerEmail) },
-        env
+        env,
       )
       expect(detail.status).toBe(200)
-      expect(await detail.json()).toEqual({ body: JSON.stringify({ foo: 'bar' }) })
+      expect(await detail.json()).toEqual({
+        body: JSON.stringify({ foo: 'bar' }),
+      })
     })
 
     it('returns 404 for an unknown share token', async () => {
       const response = await app.request(
         `/api/shared/projects/does-not-exist/listeners/${listenerId}/requests/1/body`,
         { headers: await authCookieHeader(env, viewerEmail) },
-        env
+        env,
       )
       expect(response.status).toBe(404)
     })
