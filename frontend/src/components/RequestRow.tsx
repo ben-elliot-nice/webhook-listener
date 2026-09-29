@@ -43,13 +43,17 @@ interface RequestRowProps {
   request: RequestDetail
   previousRequest?: RequestDetail
   diffOnly?: boolean
+  onLoadFullBody?: (requestId: number) => Promise<string | null>
 }
 
-export function RequestRow({ request, previousRequest, diffOnly = false }: RequestRowProps) {
+export function RequestRow({ request, previousRequest, diffOnly = false, onLoadFullBody }: RequestRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [copied, setCopied] = useState(false)
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
+  const [fullBody, setFullBody] = useState<string | null>(null)
+  const [loadingFullBody, setLoadingFullBody] = useState(false)
+  const effectiveBody = fullBody ?? request.body
   const methodStyle = METHOD_STYLES[request.method] ?? DEFAULT_METHOD_STYLE
   const { highlightTheme, indentWidth, compact, lineNumbers, render, wrap, stripedRows, stripeIntensity } =
     useSettings()
@@ -69,7 +73,7 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
     headers: request.headers,
     queryParams: request.queryParams,
     sourceIp: request.sourceIp,
-    body: safeParse(request.body),
+    body: safeParse(effectiveBody),
   }
   const detailJson = compact
     ? JSON.stringify(detailObject)
@@ -109,6 +113,19 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
     }
   }
 
+  async function handleLoadFullBody() {
+    if (!onLoadFullBody) return
+    setLoadingFullBody(true)
+    try {
+      const body = await onLoadFullBody(request.id)
+      setFullBody(body)
+    } catch {
+      // silently ignored — no error state plumbed through for this per-row action, matching handleCopy's pattern
+    } finally {
+      setLoadingFullBody(false)
+    }
+  }
+
   return (
     <li className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <button
@@ -126,6 +143,18 @@ export function RequestRow({ request, previousRequest, diffOnly = false }: Reque
       </button>
       {(diffOnly || expanded) && (
         <div className="rounded-b-lg border-t border-slate-200 dark:border-slate-700" style={{ background: panelBackground }}>
+          {request.bodyTruncated && !fullBody && (
+            <div className="flex items-center gap-2 px-4 pt-2 text-xs text-amber-700 dark:text-amber-400">
+              <span>Payload too large to preview in full ({Math.round(request.bodySize / 1024)} KB).</span>
+              <button
+                onClick={handleLoadFullBody}
+                disabled={loadingFullBody}
+                className="underline underline-offset-2 disabled:opacity-50"
+              >
+                {loadingFullBody ? 'Loading…' : 'View full payload'}
+              </button>
+            </div>
+          )}
           {!diffOnly && (
             <div className="flex justify-end gap-2 px-2 pt-2">
               {!showDiff && (
