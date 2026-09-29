@@ -37,6 +37,22 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      # backend/.dev.vars is gitignored and per-machine (see CLAUDE.md) — it
+      # never exists on a CI runner. Without it, WL_SESSION_SECRET is empty
+      # and every HMAC-signing test fails. These are dummy, non-production
+      # values, matching what every local worktree already uses.
+      - name: Write test .dev.vars
+        working-directory: backend
+        run: |
+          cat > .dev.vars <<'EOF'
+          APP_BASE_URL=http://localhost:5173
+          HOOK_BASE_URL=http://localhost:8787
+          SESSION_COOKIE_DOMAIN=
+          ALLOWED_EMAIL_DOMAINS=nice.com
+          WL_SESSION_SECRET=ci-test-secret-not-for-production
+          RESEND_API_KEY=ci-test-key-not-for-production
+          EOF
+
       - name: Run backend tests
         working-directory: backend
         run: npm test
