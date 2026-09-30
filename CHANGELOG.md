@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.0...v1.1.1) (2026-09-30)
+
+### Bug Fixes
+
+* import preview DB data in dependency order, after migrating ([f61ad6d](https://github.com/ben-elliot-nice/webhook-listener/commit/f61ad6dcc661cba2aa502ac85709e6d5b4a7228c))
+
 ## [1.1.0](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.2...v1.1.0) (2026-09-30)
 
 ### Features
