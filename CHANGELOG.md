@@ -1,3 +1,9 @@
+## [1.1.9](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.8...v1.1.9) (2026-09-30)
+
+### Bug Fixes
+
+* stop scrubbing owner_email in preview environments ([c380e1f](https://github.com/ben-elliot-nice/webhook-listener/commit/c380e1f0c05a4f45d07ae7c417bb8147833c7cfa))
+
 ## [1.1.8](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.7...v1.1.8) (2026-09-30)
 
 ### Bug Fixes
