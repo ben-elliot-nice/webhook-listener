@@ -160,6 +160,16 @@ are posted (and kept updated) as a PR comment.
   adds a table or column holding a token, email, IP address, or captured
   payload content, update this file (and its duplicated mirror in
   `backend/src/preview-scrub.test.ts`) in the same PR.
+- **Deliberately not scrubbed: `listeners.owner_email` / `projects.owner_email`.**
+  Everything else on those rows (share/webhook tokens, `owner_session`) is
+  still scrubbed, and hook content (`requests.headers`/`body`/etc.) is
+  always fully scrubbed regardless of owner — only the ownership _link_
+  survives. This is safe because the email access gate already requires
+  proving ownership of a real inbox (via magic link) before signing in as
+  that email, so preserving the link doesn't let anyone see data they
+  couldn't otherwise reach — it just means a PR reviewer signing in as
+  themselves sees their own existing (content-scrubbed) listeners/projects
+  instead of an empty account.
 - Removing the `preview` label, or closing/merging the PR, tears both
   Workers and the D1 database down. A `workflow_dispatch` input (PR
   number) is available as a manual safety net if a teardown is ever missed.

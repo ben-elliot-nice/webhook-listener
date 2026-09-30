@@ -33,7 +33,7 @@ and being trustworthy.
 - No changes to the existing shared `staging` environment
   (`webhook-api-staging` / `webhook-staging`) — preview environments are
   a parallel, per-PR-numbered mechanism, entirely separate resources.
-- No attempt to preserve exact prod row *values* for any sensitive
+- No attempt to preserve exact prod row _values_ for any sensitive
   column — the scrub step is one-way and deliberately destroys the
   original values (see Non-goals of the scrub step itself, below).
 
@@ -74,13 +74,13 @@ triggers on push to `main`).
 
 Given PR number `N`:
 
-| Resource | Name |
-|---|---|
-| Backend Worker | `webhook-api-pr-N` |
-| Frontend Worker | `webhook-pr-N` |
-| D1 database | `webhook-listener-pr-N` |
-| Backend preview URL | `https://webhook-api-pr-N.<account-subdomain>.workers.dev` |
-| Frontend preview URL | `https://webhook-pr-N.<account-subdomain>.workers.dev` |
+| Resource             | Name                                                       |
+| -------------------- | ---------------------------------------------------------- |
+| Backend Worker       | `webhook-api-pr-N`                                         |
+| Frontend Worker      | `webhook-pr-N`                                             |
+| D1 database          | `webhook-listener-pr-N`                                    |
+| Backend preview URL  | `https://webhook-api-pr-N.<account-subdomain>.workers.dev` |
+| Frontend preview URL | `https://webhook-pr-N.<account-subdomain>.workers.dev`     |
 
 `<account-subdomain>` is this Cloudflare account's fixed `workers.dev`
 subdomain (already visible in the existing `[env.staging]` URLs in both
@@ -212,12 +212,11 @@ Cloudflare API round-trip:
 
 ```html
 <!-- preview-env:42 db-id:7f55f3f0-... -->
-### 🔗 Preview environment
-
-- Backend: https://webhook-api-pr-42.<subdomain>.workers.dev
-- Frontend: https://webhook-pr-42.<subdomain>.workers.dev
-
-Status: provisioned ✅ · [workflow run](...)
+### 🔗 Preview environment - Backend: https://webhook-api-pr-42.<subdomain
+  >.workers.dev - Frontend: https://webhook-pr-42.<subdomain
+    >.workers.dev Status: provisioned ✅ · [workflow run](...)</subdomain
+  ></subdomain
+>
 ```
 
 ## Component: teardown
@@ -273,7 +272,7 @@ ships — a manual, out-of-band step, same category as the original
   scrub SQL against it, and asserts every sensitive column changed and
   every `NULL`-guarded column stayed `NULL`. This is the regression net
   for the "must update `scrub.sql` when the schema changes" maintenance
-  cost — it won't catch a *missing* new sensitive column automatically,
+  cost — it won't catch a _missing_ new sensitive column automatically,
   but it does lock in current behavior.
 - The workflow itself (`preview.yml`) can only be validated by actually
   opening a labeled PR against this repo, the same way `pr.yml` and
@@ -289,3 +288,24 @@ ships — a manual, out-of-band step, same category as the original
 - `STATUS.md`: new entry noting PR preview environments are live, and
   that sub-project 2 (opt-in prod auto-migration) is designed
   separately and not yet built.
+
+## Addendum (2026-09-30, post-implementation): scrub no longer touches owner_email
+
+Found via real usage on a live labeled PR: with `owner_email` fully
+scrubbed (this spec's original design), a reviewer who signed in via the
+real magic-link flow saw an empty account — none of the scrubbed rows'
+`owner_email` matched their real email anymore, since every row's email
+had been rewritten to `scrubbed-<id>@example.invalid`.
+
+Revised design: `listeners.owner_email` and `projects.owner_email` are no
+longer scrubbed. Everything else on those rows (share/webhook tokens,
+`owner_session`) is still scrubbed, and `requests` (hook payload content)
+is still fully scrubbed regardless of owner — only the ownership _link_
+survives. This is judged safe because the email access gate already
+requires proving ownership of a real inbox (via magic link) before
+signing in as that email; preserving the link doesn't let anyone reach
+data they couldn't already reach through the app's own auth, it just lets
+a reviewer signing in as themselves see their own existing
+(content-scrubbed) listeners/projects instead of an empty account.
+`scripts/preview-env/scrub.sql` and `backend/src/preview-scrub.test.ts`
+were updated together; see their inline comments for the same reasoning.
