@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createD1Database, findD1DatabaseIdByName } from './cloudflare-d1.mjs'
 import {
@@ -12,6 +13,15 @@ export function shouldFullyProvision({
   migrationsChanged,
 }) {
   return !existingDatabaseId || migrationsChanged
+}
+
+// A per-run, preview-only session secret. Never reused across runs or
+// shared with prod's real WL_SESSION_SECRET — an ephemeral environment
+// getting a fresh signing key on every provision is fine (it just
+// invalidates any existing preview session cookies, same as the DB reset
+// that already happens on full provision).
+export function generateSessionSecret() {
+  return randomBytes(32).toString('hex')
 }
 
 // Dependency order matters here: `wrangler d1 export`'s dump orders tables
@@ -39,6 +49,18 @@ function run(command, options = {}) {
   execSync(command, { stdio: 'inherit', ...options })
 }
 
+// wrangler secret put reads the secret value from stdin. `stdio: 'inherit'`
+// (used by run()) can't feed a value in, so this pipes it through instead
+// while still streaming stdout/stderr to the console.
+function runWithInput(command, input, options = {}) {
+  console.log(`$ ${command}`)
+  execSync(command, {
+    input,
+    stdio: ['pipe', 'inherit', 'inherit'],
+    ...options,
+  })
+}
+
 async function main() {
   const [prNumber, baseSha, headSha] = process.argv.slice(2)
   if (!prNumber || !baseSha || !headSha) {
@@ -48,9 +70,10 @@ async function main() {
 
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
   const apiToken = process.env.CLOUDFLARE_API_TOKEN
-  if (!accountId || !apiToken) {
+  const resendApiKey = process.env.PREVIEW_RESEND_API_KEY
+  if (!accountId || !apiToken || !resendApiKey) {
     console.error(
-      'CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN environment variables are required',
+      'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, and PREVIEW_RESEND_API_KEY environment variables are required',
     )
     process.exit(1)
   }
@@ -135,6 +158,25 @@ async function main() {
   }
 
   run(`npx wrangler deploy -c ${backendConfigPath}`, { cwd: 'backend' })
+
+  // Each webhook-api-pr-N Worker is a brand-new Cloudflare Worker script —
+  // it does not inherit prod's WL_SESSION_SECRET/RESEND_API_KEY (those are
+  // set once, directly, on the prod/staging scripts only). Both secrets
+  // must be pushed to every preview Worker after each deploy: harmless to
+  // repeat on a redeploy-only run (wrangler secret put just overwrites),
+  // and required after a full provision (brand-new script, no secrets at
+  // all yet) — found missing entirely on a real deployed preview
+  // (webhook-api-pr-13), which broke the magic-link email flow.
+  runWithInput(
+    `npx wrangler secret put WL_SESSION_SECRET -c ${backendConfigPath}`,
+    generateSessionSecret(),
+    { cwd: 'backend' },
+  )
+  runWithInput(
+    `npx wrangler secret put RESEND_API_KEY -c ${backendConfigPath}`,
+    resendApiKey,
+    { cwd: 'backend' },
+  )
 
   const frontendTomlText = readFileSync('frontend/wrangler.toml', 'utf8')
   const frontendConfig = generatePreviewConfig({
