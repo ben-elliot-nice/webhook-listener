@@ -14,6 +14,26 @@ export function shouldFullyProvision({
   return !existingDatabaseId || migrationsChanged
 }
 
+// Dependency order matters here: `wrangler d1 export`'s dump orders tables
+// by original creation history, not current schema, so a naive whole-DB
+// export/import puts `CREATE TABLE listeners` (migration 0001, which later
+// gained a `project_id REFERENCES projects(id)` column in migration 0005)
+// before `CREATE TABLE projects`. D1 enforces foreign keys immediately
+// (it does not honor the dump's own `PRAGMA defer_foreign_keys=TRUE`
+// line), so importing that dump verbatim fails with
+// "no such table: main.projects" the moment it inserts a listener row
+// with a non-null project_id. Migrating the schema first (so every table
+// already exists), then importing each table's data separately in
+// parent-before-child order, avoids the hazard entirely. Discovered via a
+// real labeled test PR (see docs/superpowers/plans/2026-09-30-pr-preview-environments.md).
+const TABLES_IN_DEPENDENCY_ORDER = [
+  'projects',
+  'listeners',
+  'requests',
+  'magic_links',
+  'shared_with_me',
+]
+
 function run(command, options = {}) {
   console.log(`$ ${command}`)
   execSync(command, { stdio: 'inherit', ...options })
@@ -67,20 +87,25 @@ async function main() {
       databaseId = await createD1Database({ accountId, name: dbName, apiToken })
     }
 
-    run(
-      `npx wrangler d1 export webhook-listener --remote --output=prod-dump.sql`,
-      { cwd: 'backend' },
-    )
-    run(`npx wrangler d1 execute ${dbName} --remote --file=prod-dump.sql`, {
+    run(`npx wrangler d1 migrations apply ${dbName} --remote`, {
       cwd: 'backend',
     })
+
+    for (const table of TABLES_IN_DEPENDENCY_ORDER) {
+      const dumpFile = `prod-dump-${table}.sql`
+      run(
+        `npx wrangler d1 export webhook-listener --remote --no-schema --table=${table} --output=${dumpFile}`,
+        { cwd: 'backend' },
+      )
+      run(`npx wrangler d1 execute ${dbName} --remote --file=${dumpFile}`, {
+        cwd: 'backend',
+      })
+    }
+
     run(
       `npx wrangler d1 execute ${dbName} --remote --file=../scripts/preview-env/scrub.sql`,
       { cwd: 'backend' },
     )
-    run(`npx wrangler d1 migrations apply ${dbName} --remote`, {
-      cwd: 'backend',
-    })
   }
 
   const backendTomlText = readFileSync('backend/wrangler.toml', 'utf8')
