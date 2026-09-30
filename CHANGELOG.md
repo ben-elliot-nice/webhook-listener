@@ -1,3 +1,9 @@
+## [1.1.5](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.4...v1.1.5) (2026-09-30)
+
+### Documentation
+
+* add preview environment smoke-test item to backlog ([9266fe7](https://github.com/ben-elliot-nice/webhook-listener/commit/9266fe7db0424123fad270626169e84d0539e494))
+
 ## [1.1.4](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.3...v1.1.4) (2026-09-30)
 
 ### Bug Fixes
