@@ -1,3 +1,9 @@
+## [1.1.4](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.3...v1.1.4) (2026-09-30)
+
+### Bug Fixes
+
+* only write provision.mjs's final JSON line to GITHUB_OUTPUT ([597dd57](https://github.com/ben-elliot-nice/webhook-listener/commit/597dd573bfbe64a2bb2e9257c9dbd5b7760153fe)), closes [#12](https://github.com/ben-elliot-nice/webhook-listener/issues/12)
+
 ## [1.1.3](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.2...v1.1.3) (2026-09-30)
 
 ### Bug Fixes
