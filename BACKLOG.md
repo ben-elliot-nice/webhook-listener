@@ -39,7 +39,7 @@ non-trivial work, not a hard requirement for everything). The one loose end:
 - The listener list has no heading/`aria-label` — a11y polish, not
   addressed.
 - Cheap test-hardening not yet built: asserting `ownerSession`/`shareToken`
-  are *absent* from list responses; a repo-level test that actually
+  are _absent_ from list responses; a repo-level test that actually
   exercises the `id DESC` tie-break path instead of avoiding it.
 - No index on `listeners(owner_session)` — irrelevant at current scale,
   would be the first lever if this table ever grows large.
@@ -77,3 +77,6 @@ harnesses, not a browser. If you have browser access:
   confirm line numbering is continuous within each row's diff (restarting
   per row is correct — continuity is required within one diff, not across
   rows).
+- Add the `preview` label to a real PR and confirm the preview environment
+  workflow provisions successfully, posts a working URL in a PR comment,
+  and tears down cleanly on label removal or PR close.
