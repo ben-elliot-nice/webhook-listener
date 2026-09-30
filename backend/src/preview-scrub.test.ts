@@ -13,12 +13,10 @@ const SCRUB_STATEMENTS = [
   `UPDATE listeners SET
     share_token = CASE WHEN share_token IS NOT NULL THEN hex(randomblob(16)) ELSE NULL END,
     webhook_token = CASE WHEN webhook_token IS NOT NULL THEN hex(randomblob(16)) ELSE NULL END,
-    owner_session = NULL,
-    owner_email = CASE WHEN owner_email IS NOT NULL THEN 'scrubbed-' || id || '@example.invalid' ELSE NULL END`,
+    owner_session = NULL`,
   `UPDATE projects SET
     share_token = CASE WHEN share_token IS NOT NULL THEN hex(randomblob(16)) ELSE NULL END,
-    owner_session = NULL,
-    owner_email = CASE WHEN owner_email IS NOT NULL THEN 'scrubbed-' || id || '@example.invalid' ELSE NULL END`,
+    owner_session = NULL`,
   `DELETE FROM magic_links`,
   `UPDATE shared_with_me SET
     viewer_email = 'scrubbed-' || id || '@example.invalid',
@@ -70,7 +68,7 @@ describe('preview environment scrub script', () => {
     expect(row.content_type).toBe('application/json')
   })
 
-  it('regenerates listener tokens and scrubs owner fields when set', async () => {
+  it('regenerates listener tokens and nulls owner_session, but preserves owner_email', async () => {
     await env.DB.prepare(
       `INSERT INTO listeners (id, created_at, share_token, webhook_token, owner_session, owner_email)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
@@ -95,7 +93,11 @@ describe('preview environment scrub script', () => {
     expect(row.webhook_token).not.toBe('real-webhook-token')
     expect(row.webhook_token).toMatch(/^[0-9A-Fa-f]{32}$/)
     expect(row.owner_session).toBeNull()
-    expect(row.owner_email).toBe('scrubbed-listener-2@example.invalid')
+    // Deliberately preserved: the email access gate already requires
+    // proving ownership of a real inbox before signing in as that email,
+    // so keeping this link lets a PR reviewer see their own existing
+    // (hook-content-scrubbed) listeners instead of an empty account.
+    expect(row.owner_email).toBe('real-owner@example.com')
   })
 
   it('leaves listener tokens NULL when they were already NULL', async () => {
@@ -115,7 +117,7 @@ describe('preview environment scrub script', () => {
     expect(row.owner_email).toBeNull()
   })
 
-  it('regenerates project share_token and scrubs owner fields when set', async () => {
+  it('regenerates project share_token and nulls owner_session, but preserves owner_email', async () => {
     await env.DB.prepare(
       `INSERT INTO projects (id, created_at, owner_session, owner_email, share_token)
        VALUES (?1, ?2, ?3, ?4, ?5)`,
@@ -137,7 +139,7 @@ describe('preview environment scrub script', () => {
     expect(row.share_token).not.toBe('real-project-share-token')
     expect(row.share_token).toMatch(/^[0-9A-Fa-f]{32}$/)
     expect(row.owner_session).toBeNull()
-    expect(row.owner_email).toBe('scrubbed-project-1@example.invalid')
+    expect(row.owner_email).toBe('real-owner@example.com')
   })
 
   it('deletes all magic_links rows', async () => {
