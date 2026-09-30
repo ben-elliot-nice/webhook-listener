@@ -1,3 +1,17 @@
+## [1.1.0](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.2...v1.1.0) (2026-09-30)
+
+### Features
+
+* add Cloudflare D1 database lifecycle helper ([31450b8](https://github.com/ben-elliot-nice/webhook-listener/commit/31450b8686db62371403e0812fa686e98622ceec))
+* add per-PR wrangler config generator ([1d844c1](https://github.com/ben-elliot-nice/webhook-listener/commit/1d844c1c89e38fbdbfd0fc1ec282ea0114fa001e))
+* add PR comment upsert script for preview environments ([3e30b60](https://github.com/ben-elliot-nice/webhook-listener/commit/3e30b6005912642e1179172df6bbae4da7177dc1))
+* add preview environment data scrub script ([c3c348a](https://github.com/ben-elliot-nice/webhook-listener/commit/c3c348abddd3f46f5b3fd4c16e1fb2f5d810b51e))
+* add preview environment provision and teardown orchestration ([ebf80d1](https://github.com/ben-elliot-nice/webhook-listener/commit/ebf80d111555ee44c52eb1add1060f146a7e1ba9))
+
+### Documentation
+
+* document PR preview environments ([4c9cfe5](https://github.com/ben-elliot-nice/webhook-listener/commit/4c9cfe54ae2156d8f39aafafc1f492b42dbc5ce2))
+
 ## [1.0.2](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.1...v1.0.2) (2026-09-30)
 
 ### Documentation
