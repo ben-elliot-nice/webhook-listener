@@ -77,6 +77,10 @@ harnesses, not a browser. If you have browser access:
   confirm line numbering is continuous within each row's diff (restarting
   per row is correct — continuity is required within one diff, not across
   rows).
-- Add the `preview` label to a real PR and confirm the preview environment
-  workflow provisions successfully, posts a working URL in a PR comment,
-  and tears down cleanly on label removal or PR close.
+- ~~Add the `preview` label to a real PR and confirm the preview
+  environment workflow provisions successfully, posts a working URL in a
+  PR comment, and tears down cleanly on label removal or PR close.~~ Done
+  via PR #12 — found and fixed three real bugs along the way (FK-dependent
+  D1 import ordering, `wrangler d1 migrations apply` needing a config
+  declaration, multi-line `$GITHUB_OUTPUT` capture); full provision,
+  redeploy-only, and teardown paths all verified green.
