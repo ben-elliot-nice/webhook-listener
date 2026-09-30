@@ -1,3 +1,9 @@
+## [1.1.11](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.10...v1.1.11) (2026-09-30)
+
+### Documentation
+
+* add a CI/CD workflows map to the top of CLAUDE.md ([3b651f8](https://github.com/ben-elliot-nice/webhook-listener/commit/3b651f86fd1922dcdcd1478927bd5500a5ee6230))
+
 ## [1.1.10](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.9...v1.1.10) (2026-09-30)
 
 ### Bug Fixes
