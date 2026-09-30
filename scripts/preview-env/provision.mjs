@@ -49,6 +49,12 @@ function run(command, options = {}) {
   execSync(command, { stdio: 'inherit', ...options })
 }
 
+// `wrangler d1 execute --json`'s output shape for a single-statement,
+// single-row-result query like `SELECT COUNT(*) ...`.
+export function parseRowCount(jsonOutput) {
+  return JSON.parse(jsonOutput)[0].results[0].count
+}
+
 // wrangler secret put reads the secret value from stdin. `stdio: 'inherit'`
 // (used by run()) can't feed a value in, so this pipes it through instead
 // while still streaming stdout/stderr to the console.
@@ -141,6 +147,22 @@ async function main() {
     )
 
     for (const table of TABLES_IN_DEPENDENCY_ORDER) {
+      // `wrangler d1 export --table=X` throws "Not currently exporting
+      // anything" when X currently has zero rows in prod, rather than
+      // producing a valid empty dump — found live when prod's
+      // magic_links table happened to be empty at export time (real
+      // usage since then had populated it again). Since which tables are
+      // empty varies with real prod traffic, this check has to run for
+      // every table, not just magic_links.
+      const countJson = execSync(
+        `npx wrangler d1 execute webhook-listener --remote --json --command "SELECT COUNT(*) as count FROM ${table}"`,
+        { cwd: 'backend', encoding: 'utf8' },
+      )
+      if (parseRowCount(countJson) === 0) {
+        console.log(`Skipping ${table}: 0 rows in prod`)
+        continue
+      }
+
       const dumpFile = `prod-dump-${table}.sql`
       run(
         `npx wrangler d1 export webhook-listener --remote --no-schema --table=${table} --output=${dumpFile}`,
