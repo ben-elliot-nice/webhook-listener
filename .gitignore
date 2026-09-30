@@ -13,3 +13,4 @@ vite.config.d.ts
 *.dev.vars
 wrangler.pr-*.toml
 prod-dump*.sql
+frontend/.env.production.local

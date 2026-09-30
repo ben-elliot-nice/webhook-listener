@@ -55,6 +55,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # Vite bakes VITE_API_BASE_URL in at build time from
+      # frontend/.env.production, which points at the real prod backend.
+      # Without this, the preview frontend would call prod's API and get
+      # blocked by CORS (prod only allows the prod frontend origin).
+      - name: Write frontend preview env
+        run: node scripts/preview-env/write-frontend-env.mjs "${{ github.event.pull_request.number }}"
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
