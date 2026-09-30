@@ -1,3 +1,15 @@
+## [1.1.2](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.1...v1.1.2) (2026-09-30)
+
+### Bug Fixes
+
+* point d1 migrations apply at the generated per-PR wrangler config ([8ff7859](https://github.com/ben-elliot-nice/webhook-listener/commit/8ff78592543af98ca31ca3d4ac84eae4a30442d7)), closes [#12](https://github.com/ben-elliot-nice/webhook-listener/issues/12)
+
+## [1.1.1](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.0...v1.1.1) (2026-09-30)
+
+### Bug Fixes
+
+* import preview DB data in dependency order, after migrating ([f61ad6d](https://github.com/ben-elliot-nice/webhook-listener/commit/f61ad6dcc661cba2aa502ac85709e6d5b4a7228c))
+
 ## [1.1.0](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.2...v1.1.0) (2026-09-30)
 
 ### Features
