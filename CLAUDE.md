@@ -166,6 +166,13 @@ are posted (and kept updated) as a PR comment.
 - Requires the `CLOUDFLARE_API_TOKEN` secret to have `D1: Edit` permission
   (in addition to the `Workers Scripts: Edit` permission `release.yml`
   needs) and a `CLOUDFLARE_ACCOUNT_ID` repository variable to be set.
+- The frontend's API base URL is baked in at build time (Vite's
+  `import.meta.env.VITE_API_BASE_URL`, from `frontend/.env.production` by
+  default) — `scripts/preview-env/write-frontend-env.mjs` overrides it to
+  the PR's own backend Worker via `frontend/.env.production.local`
+  (Vite's highest-precedence override file) before the build runs. Without
+  this, a preview frontend would call the real prod backend and get
+  blocked by CORS.
 
 ## Access model — read this before changing anything auth-related
 
