@@ -142,6 +142,31 @@ yourself.
   Workers. Accepted trade-off: it's technically visible to any other host
   under that subdomain — see the migration spec for the full writeup.
 
+## PR preview environments
+
+Adding the `preview` label to a PR provisions a live, isolated environment
+for it: its own Worker pair (`webhook-api-pr-<N>`, `webhook-pr-<N>`) and
+its own D1 database (`webhook-listener-pr-<N>`), seeded from a **scrubbed**
+copy of production with pending migrations pre-applied. The preview URLs
+are posted (and kept updated) as a PR comment.
+
+- The first labeling (or any push that touches `backend/migrations/`)
+  triggers a full provision: export prod D1, scrub it
+  (`scripts/preview-env/scrub.sql`), import into the PR's own database,
+  apply migrations, then deploy both Workers. Any other push just
+  redeploys Worker code against the existing preview database.
+- **`scripts/preview-env/scrub.sql` is a hand-maintained list of every
+  sensitive column in the schema, not a generic scrubber.** If a migration
+  adds a table or column holding a token, email, IP address, or captured
+  payload content, update this file (and its duplicated mirror in
+  `backend/src/preview-scrub.test.ts`) in the same PR.
+- Removing the `preview` label, or closing/merging the PR, tears both
+  Workers and the D1 database down. A `workflow_dispatch` input (PR
+  number) is available as a manual safety net if a teardown is ever missed.
+- Requires the `CLOUDFLARE_API_TOKEN` secret to have `D1: Edit` permission
+  (in addition to the `Workers Scripts: Edit` permission `release.yml`
+  needs) and a `CLOUDFLARE_ACCOUNT_ID` repository variable to be set.
+
 ## Access model — read this before changing anything auth-related
 
 Three tiers today (a fourth, email-based gate, is designed but **not
