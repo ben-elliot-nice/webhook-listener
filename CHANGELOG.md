@@ -1,3 +1,9 @@
+## [1.1.8](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.7...v1.1.8) (2026-09-30)
+
+### Bug Fixes
+
+* push WL_SESSION_SECRET and RESEND_API_KEY to every preview Worker ([8fb3c43](https://github.com/ben-elliot-nice/webhook-listener/commit/8fb3c432dd88e9c3bef349e17ce13485403da3b1))
+
 ## [1.1.7](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.6...v1.1.7) (2026-09-30)
 
 ### Documentation
