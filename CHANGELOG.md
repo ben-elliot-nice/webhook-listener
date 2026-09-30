@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.1...v1.0.2) (2026-09-30)
+
+### Documentation
+
+* add PR preview environments design spec ([87f8883](https://github.com/ben-elliot-nice/webhook-listener/commit/87f8883a1af93cfa38c4934248ac05fa0b6fab0a))
+* add PR preview environments implementation plan ([7aca115](https://github.com/ben-elliot-nice/webhook-listener/commit/7aca115ceb237ae1c193e0885485599b93adffc1))
+
 ## [1.0.1](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.0.0...v1.0.1) (2026-09-29)
 
 ### Documentation
