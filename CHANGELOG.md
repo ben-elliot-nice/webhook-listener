@@ -1,3 +1,9 @@
+## [1.1.10](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.9...v1.1.10) (2026-09-30)
+
+### Bug Fixes
+
+* skip a table's export/import when it currently has 0 rows in prod ([82e80a3](https://github.com/ben-elliot-nice/webhook-listener/commit/82e80a391887d90b62f2f066b72e82f08a3a01d7))
+
 ## [1.1.9](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.8...v1.1.9) (2026-09-30)
 
 ### Bug Fixes

@@ -1,6 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { shouldFullyProvision, generateSessionSecret } from './provision.mjs'
+import {
+  shouldFullyProvision,
+  generateSessionSecret,
+  parseRowCount,
+} from './provision.mjs'
 
 test('shouldFullyProvision is true when there is no existing database', () => {
   assert.equal(
@@ -39,4 +43,22 @@ test('generateSessionSecret returns a 64-char hex string', () => {
 
 test('generateSessionSecret returns a different value on each call', () => {
   assert.notEqual(generateSessionSecret(), generateSessionSecret())
+})
+
+test('parseRowCount reads the count out of wrangler d1 execute --json output', () => {
+  const output = JSON.stringify([
+    {
+      results: [{ count: 6 }],
+      success: true,
+      meta: { served_by: 'v3-prod' },
+    },
+  ])
+  assert.equal(parseRowCount(output), 6)
+})
+
+test('parseRowCount returns 0 for an empty table', () => {
+  const output = JSON.stringify([
+    { results: [{ count: 0 }], success: true, meta: {} },
+  ])
+  assert.equal(parseRowCount(output), 0)
 })
