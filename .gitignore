@@ -12,3 +12,4 @@ vite.config.d.ts
 .dev.vars
 *.dev.vars
 wrangler.pr-*.toml
+prod-dump*.sql

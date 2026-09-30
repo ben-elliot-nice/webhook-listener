@@ -86,10 +86,36 @@ async function main() {
     } else {
       databaseId = await createD1Database({ accountId, name: dbName, apiToken })
     }
+  }
 
-    run(`npx wrangler d1 migrations apply ${dbName} --remote`, {
-      cwd: 'backend',
-    })
+  // Written before migrations run (not just before deploy) because
+  // `wrangler d1 migrations apply <database>` resolves its <database>
+  // argument against a [[d1_databases]] entry declared in the loaded
+  // wrangler.toml — unlike `wrangler d1 execute <name>`, which resolves
+  // the name directly against the account's D1 API and needs no config
+  // declaration. The default backend/wrangler.toml only declares the prod
+  // database, so migrations apply against the PR database has to be
+  // pointed at this generated config via -c, using the "DB" binding name.
+  const backendTomlText = readFileSync('backend/wrangler.toml', 'utf8')
+  const subdomain = extractWorkersDevSubdomain(backendTomlText)
+
+  const backendConfig = generatePreviewConfig({
+    target: 'backend',
+    prNumber,
+    tomlText: backendTomlText,
+    subdomain,
+    databaseId,
+  })
+  const backendConfigPath = `wrangler.pr-${prNumber}.toml`
+  writeFileSync(`backend/${backendConfigPath}`, backendConfig)
+
+  if (needsFullProvision) {
+    run(
+      `npx wrangler d1 migrations apply DB --remote -c ${backendConfigPath}`,
+      {
+        cwd: 'backend',
+      },
+    )
 
     for (const table of TABLES_IN_DEPENDENCY_ORDER) {
       const dumpFile = `prod-dump-${table}.sql`
@@ -108,18 +134,7 @@ async function main() {
     )
   }
 
-  const backendTomlText = readFileSync('backend/wrangler.toml', 'utf8')
-  const subdomain = extractWorkersDevSubdomain(backendTomlText)
-
-  const backendConfig = generatePreviewConfig({
-    target: 'backend',
-    prNumber,
-    tomlText: backendTomlText,
-    subdomain,
-    databaseId,
-  })
-  writeFileSync(`backend/wrangler.pr-${prNumber}.toml`, backendConfig)
-  run(`npx wrangler deploy -c wrangler.pr-${prNumber}.toml`, { cwd: 'backend' })
+  run(`npx wrangler deploy -c ${backendConfigPath}`, { cwd: 'backend' })
 
   const frontendTomlText = readFileSync('frontend/wrangler.toml', 'utf8')
   const frontendConfig = generatePreviewConfig({
