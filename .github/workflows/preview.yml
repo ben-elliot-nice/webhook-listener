@@ -59,6 +59,11 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # provision.mjs's wrangler subcommands run with stdio: 'inherit', so
+      # their output flows into this step's own stdout alongside the final
+      # JSON line — $RESULT ends up multi-line. Only the last line (the
+      # JSON) is safe to write to $GITHUB_OUTPUT; the full $RESULT is still
+      # echoed above it for log visibility.
       - name: Provision or redeploy preview environment
         id: provision
         run: |
@@ -67,7 +72,7 @@ jobs:
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.sha }}")
           echo "$RESULT"
-          echo "result=$RESULT" >> "$GITHUB_OUTPUT"
+          echo "result=$(echo "$RESULT" | tail -1)" >> "$GITHUB_OUTPUT"
 
       - name: Upsert PR comment (success)
         if: success()
