@@ -146,6 +146,18 @@ In build order — each has a full design spec + implementation plan under
     tagged. The secret is now set, so this is a one-time bootstrapping
     footnote, not an ongoing concern.
 
+13. **PR preview environments** — adding the `preview` label to a PR
+    provisions a live, isolated Worker pair + D1 database for it, seeded
+    from a scrubbed copy of production with migrations pre-applied; the
+    preview URLs are posted as a PR comment, and the environment is torn
+    down automatically on label removal or PR close (`.github/workflows/preview.yml`,
+    orchestrating scripts under `scripts/preview-env/`). See `CLAUDE.md`'s
+    "PR preview environments" section and
+    `docs/superpowers/specs/2026-09-30-pr-preview-environments-design.md`.
+    A follow-on, sub-project 2 — opt-in automated production migrations,
+    gated on a successful preview provision plus an explicit PR-body
+    checkbox at merge time — is designed separately and not yet built.
+
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
 

@@ -11,3 +11,4 @@ vite.config.d.ts
 .wrangler/
 .dev.vars
 *.dev.vars
+wrangler.pr-*.toml
