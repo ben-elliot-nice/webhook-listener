@@ -1,3 +1,9 @@
+## [1.1.7](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.6...v1.1.7) (2026-09-30)
+
+### Documentation
+
+* note the magic-link-send-failure lockout bug in backlog ([7861ab8](https://github.com/ben-elliot-nice/webhook-listener/commit/7861ab8df32d05c606adfbae823f16e7436a93fd))
+
 ## [1.1.6](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.5...v1.1.6) (2026-09-30)
 
 ### Bug Fixes
