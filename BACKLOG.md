@@ -31,6 +31,21 @@ non-trivial work, not a hard requirement for everything). The one loose end:
   worth a line next time that file is touched, so the shipped-feature index
   stays accurate.
 
+## Known bugs
+
+- **A failed magic-link email send permanently occupies the "pending"
+  slot for 15 minutes.** `POST /auth/request-link`
+  (`backend/src/routes/auth.ts`) calls `createMagicLink` (commits the DB
+  row) before `sendMagicLinkEmail` (`backend/src/email.ts`) runs;
+  `sendMagicLinkEmail` throws on any non-OK Resend response and that
+  exception is unhandled. Every subsequent request for the same email
+  then hits `hasPendingMagicLink` → `429` until the token's `TOKEN_TTL_MS`
+  (15 min) elapses, even though the user never received a link. Found via
+  a real PR preview environment (`webhook-api-pr-13`) whose
+  `RESEND_API_KEY` wasn't yet configured — but the underlying bug is
+  general, not preview-specific. Fix: don't insert the magic-link row
+  until the send succeeds, or delete it if the send throws.
+
 ## Deferred polish / accepted-as-non-blocking
 
 - `Home.tsx`'s list-fetch failure is fully silent (no error banner). Spec
