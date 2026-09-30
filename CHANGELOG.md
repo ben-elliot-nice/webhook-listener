@@ -1,3 +1,9 @@
+## [1.1.6](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.5...v1.1.6) (2026-09-30)
+
+### Bug Fixes
+
+* point preview frontend builds at their own backend Worker ([3a28144](https://github.com/ben-elliot-nice/webhook-listener/commit/3a2814416be7e2f7419ea03545243fce61284bd9)), closes [#13](https://github.com/ben-elliot-nice/webhook-listener/issues/13)
+
 ## [1.1.5](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.4...v1.1.5) (2026-09-30)
 
 ### Documentation
