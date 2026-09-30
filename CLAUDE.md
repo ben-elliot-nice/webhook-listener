@@ -30,6 +30,26 @@ specs, it's stale — flag it.
 - `docs/superpowers/plans/` — the file-by-file implementation plan that
   followed each spec.
 
+## CI/CD workflows — the map
+
+Three GitHub Actions workflows, each documented in full further down this
+file (linked below) — this section exists so a fresh read of this file
+surfaces all three immediately, rather than requiring you to already know
+which section to look in:
+
+- **`.github/workflows/pr.yml`** — runs on every PR: commitlint (every
+  commit + the PR title), backend tests, frontend build, Prettier. See
+  "Commits" below.
+- **`.github/workflows/release.yml`** — runs on every merge to `main`:
+  semantic-release version bump, `CHANGELOG.md`, GitHub Release, deploys
+  both Workers. See "Deploying" below.
+- **`.github/workflows/preview.yml`** — runs when the `preview` label is
+  added to (or removed from) a PR, or the PR closes/merges while labeled:
+  provisions (or redeploys) a live, isolated per-PR Worker pair + D1
+  database seeded from scrubbed prod data, posts the preview URLs as a PR
+  comment, tears everything down on label removal or close/merge. See
+  "PR preview environments" below.
+
 ## Development workflow
 
 This project uses the brainstorming → design spec → implementation plan →
