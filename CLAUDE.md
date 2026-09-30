@@ -173,6 +173,15 @@ are posted (and kept updated) as a PR comment.
   (Vite's highest-precedence override file) before the build runs. Without
   this, a preview frontend would call the real prod backend and get
   blocked by CORS.
+- Each `webhook-api-pr-<N>` Worker is a brand-new Cloudflare Worker
+  script — it does not inherit prod's `WL_SESSION_SECRET`/
+  `RESEND_API_KEY` (those are set once, directly, on the prod/staging
+  scripts only, and never touched by this workflow). `provision.mjs`
+  pushes a freshly generated, preview-only `WL_SESSION_SECRET` and the
+  `PREVIEW_RESEND_API_KEY` repo secret (a Resend key/sender **dedicated
+  to previews**, separate from prod's, so ephemeral test environments
+  never send through prod's sending identity) to every preview Worker via
+  `wrangler secret put`, on every deploy.
 
 ## Access model — read this before changing anything auth-related
 
