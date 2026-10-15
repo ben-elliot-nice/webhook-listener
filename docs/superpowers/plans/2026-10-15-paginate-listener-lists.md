@@ -392,7 +392,8 @@ export const PAGE_MAX_LIMIT = 100
 export const UNPAGED_CAP = 500
 
 export type ListScope =
-  { kind: 'project'; projectId: string } | { kind: 'standalone'; email: string }
+  | { kind: 'project'; projectId: string }
+  | { kind: 'standalone'; email: string }
 
 export interface ListenersPage {
   listeners: ListenerRecord[]
