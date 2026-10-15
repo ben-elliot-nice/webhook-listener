@@ -136,19 +136,47 @@ export function listListeners(sort: SortMode = 'date'): Promise<Listener[]> {
   }).then((r) => parseJsonOrThrow<Listener[]>(r))
 }
 
-export interface ProjectDetailData {
-  project: Project
+export const LIST_PAGE_SIZE = 50
+
+export interface ListenerPage {
   listeners: Listener[]
+  nextCursor: string | null
+  truncated: boolean
+}
+
+export interface ProjectDetailData extends ListenerPage {
+  project: Project
   hasMore: boolean
+}
+
+function listQuery(sort: SortMode, cursor?: string, limit?: number): string {
+  const params = new URLSearchParams({ sort })
+  if (cursor !== undefined) params.set('cursor', cursor)
+  if (limit !== undefined) params.set('limit', String(limit))
+  return `?${params.toString()}`
 }
 
 export function getProject(
   id: string,
   sort: SortMode = 'date',
+  cursor?: string,
+  limit: number = LIST_PAGE_SIZE,
 ): Promise<ProjectDetailData> {
-  return fetch(`${API_BASE_URL}/api/projects/${id}?sort=${sort}`, {
-    credentials: 'include',
-  }).then((r) => parseJsonOrThrow<ProjectDetailData>(r))
+  return fetch(
+    `${API_BASE_URL}/api/projects/${id}${listQuery(sort, cursor, limit)}`,
+    { credentials: 'include' },
+  ).then((r) => parseJsonOrThrow<ProjectDetailData>(r))
+}
+
+export function listStandaloneListeners(
+  sort: SortMode = 'date',
+  cursor?: string,
+  limit: number = LIST_PAGE_SIZE,
+): Promise<ListenerPage> {
+  return fetch(
+    `${API_BASE_URL}/api/standalone-listeners${listQuery(sort, cursor, limit)}`,
+    { credentials: 'include' },
+  ).then((r) => parseJsonOrThrow<ListenerPage>(r))
 }
 
 export function createProject(): Promise<Project> {
