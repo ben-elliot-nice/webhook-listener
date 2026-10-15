@@ -14,7 +14,7 @@
 
 - Page size: default **50**, clamped to **100**. Name and Custom sorts are not paginated: cap **500** (fetch 501, return 500, `truncated` = more than 500 exist, `nextCursor` always `null`).
 - Date order: `created_at DESC, id DESC`. Activity order: `COALESCE(last_request_at, '') DESC, created_at DESC, id DESC`. Name: `(COALESCE(label, slug) IS NULL), COALESCE(label, slug) COLLATE NOCASE ASC, created_at DESC, id DESC`. Custom: `(sort_position IS NULL), sort_position ASC, created_at DESC, id DESC`.
-- Cursors are opaque base64url JSON carrying the sort name (`s`); a cursor for a different sort, malformed, or tampered cursor → HTTP **400** `{ error: 'invalid cursor' }`. Keyset `WHERE` uses the explicit expanded form (`k1 < ? OR (k1 = ? AND (k2 < ? OR (k2 = ? AND id < ?)))`), never row-value comparison. Fetch `limit + 1` rows; **no `COUNT(*)`**.
+- Cursors are opaque base64url JSON carrying the sort name (`s`); a cursor for a different sort, malformed, or tampered cursor → HTTP **400** `{ error: 'invalid cursor' }`. Keyset `WHERE` is a redundant sargable leading bound plus the expanded form: `<k1> <= ? AND (k1 < ? OR (k1 = ? AND (k2 < ? OR (k2 = ? AND id < ?))))` (the expanded `OR` alone is NOT index-seekable — measured 502-952 rows read for a deep page vs 52 with the leading bound; row-value comparison is not sargable on the activity expression). Fetch `limit + 1` rows; **no `COUNT(*)`**.
 - New indexes (migration `0013`): `idx_listeners_owner_standalone ON listeners(owner_email, project_id, created_at DESC, id DESC)` and `idx_listeners_project_activity ON listeners(project_id, COALESCE(last_request_at, '') DESC, created_at DESC, id DESC)`. The activity expression in queries must match the index expression text exactly (`COALESCE(last_request_at, '')`).
 - Endpoints are additive: `GET /api/listeners` is untouched (bare array, newest 100); `GET /api/projects/:id` keeps `{ project, listeners, hasMore }` and adds `nextCursor` and `truncated` (`hasMore` = `nextCursor !== null || truncated`); new `GET /api/standalone-listeners` (owner-scoped, `project_id IS NULL`) returns `{ listeners, nextCursor, truncated }`. `SharedProject` and the shared endpoint are NOT changed.
 - Polling: Date/Activity keep polling the first page (5000 ms visible, hidden/idle pause as shipped). Name/Custom use `intervalMs: null` (run on start and on each return to a visible tab, never on a timer). Home does not poll (as today).
@@ -472,17 +472,21 @@ function scopeClause(scope: ListScope): { sql: string; binds: unknown[] } {
 }
 
 function keysetClause(cursor: Cursor): { sql: string; binds: unknown[] } {
+  // The leading `<= ?` bound is what lets SQLite seek into the index; the
+  // expanded OR alone is applied as a per-row filter and would walk every row
+  // before the cursor (O(position) reads). The OR then only filters the few rows
+  // that tie on the leading key.
   if (cursor.s === 'date') {
     return {
-      sql: ' AND (created_at < ? OR (created_at = ? AND id < ?))',
-      binds: [cursor.c, cursor.c, cursor.id],
+      sql: ' AND created_at <= ? AND (created_at < ? OR (created_at = ? AND id < ?))',
+      binds: [cursor.c, cursor.c, cursor.c, cursor.id],
     }
   }
   return {
     sql:
-      ` AND (${ACTIVITY_KEY} < ? OR (${ACTIVITY_KEY} = ? AND ` +
+      ` AND ${ACTIVITY_KEY} <= ? AND (${ACTIVITY_KEY} < ? OR (${ACTIVITY_KEY} = ? AND ` +
       '(created_at < ? OR (created_at = ? AND id < ?))))',
-    binds: [cursor.a, cursor.a, cursor.c, cursor.c, cursor.id],
+    binds: [cursor.a, cursor.a, cursor.a, cursor.c, cursor.c, cursor.id],
   }
 }
 

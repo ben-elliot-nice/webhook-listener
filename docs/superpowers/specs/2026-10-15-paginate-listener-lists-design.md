@@ -79,11 +79,17 @@ Sort keys, each with `id` as a final deterministic tiebreak:
 
 Cursor is an opaque base64url JSON of the last row's key tuple
 (date: `{c, id}`; activity: `{a, c, id}` where `a = COALESCE(last_request_at,'')`).
-The `WHERE` for the next page is the expanded lexicographic comparison
-(`k1 < ? OR (k1 = ? AND (k2 < ? OR (k2 = ? AND id < ?)))`), not a row-value
-comparison (all components descend; kept explicit for clarity and so the
-planner can use the index range). Invalid or tampered cursors → 400. Fetch
-`limit + 1` rows to compute `nextCursor` (no `COUNT(*)`).
+The `WHERE` for the next page is a **redundant sargable leading bound plus the
+expanded lexicographic comparison**:
+`<k1> <= ? AND (k1 < ? OR (k1 = ? AND (k2 < ? OR (k2 = ? AND id < ?))))`.
+The expanded `OR` alone cannot be turned into an index range seek (measured
+in the Workers D1 engine with bound parameters: a deep page read 502-952 rows);
+the leading `<k1> <= ?` bound can, and the `OR` remains only as an exact
+filter on the few rows that tie on the leading key (measured: 52 rows read for
+a 51-row deep page, for both date and activity). Row-value comparison
+(`(created_at, id) < (?, ?)`) works for date but is not sargable on the
+activity expression, so it is not used. Invalid or tampered cursors → 400.
+Fetch `limit + 1` rows to compute `nextCursor` (no `COUNT(*)`).
 
 Page size `limit` defaults to 50 and is clamped to 100.
 
