@@ -73,7 +73,8 @@ export function usePaginatedList<T extends { id: string }>(
       setNextCursor(page.nextCursor)
     }
     setLoaded(true)
-    setLoadError(false)
+    // Deliberately do not clear `loadError` here: doing so would change `loadMore`'s
+    // identity and re-fire it on every poll; only a retry or success clears it.
   }, [fetchPage, paged])
 
   const loadMore = useCallback(async (): Promise<void> => {

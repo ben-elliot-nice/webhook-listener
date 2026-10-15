@@ -86,12 +86,20 @@ export function ProjectDetail() {
     setItems: setChildren,
     hasMore,
     truncated,
+    loaded,
     loadingMore,
     loadError,
     loadMore,
     retryLoadMore,
     refreshFirstPage,
   } = usePaginatedList(fetchPage, paged)
+
+  // Sort buttons stay put while a sort change reloads (items are briefly empty);
+  // they only update once a load completes.
+  const [sortVisible, setSortVisible] = useState(false)
+  useEffect(() => {
+    if (loaded) setSortVisible(children.length > 0)
+  }, [loaded, children.length])
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!projectId) return false
@@ -440,7 +448,7 @@ export function ProjectDetail() {
         </form>
       </div>
 
-      {children.length > 0 && (
+      {sortVisible && (
         <div
           className="mb-2 flex items-center gap-1"
           role="group"
@@ -461,7 +469,7 @@ export function ProjectDetail() {
           ))}
         </div>
       )}
-      {children.length === 0 ? (
+      {!loaded ? null : children.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           No requests yet — point your test script at the URL above (with a real
           identifier in place of <code>&lt;identifier&gt;</code>) to get
