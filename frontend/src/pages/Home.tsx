@@ -1,26 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   createListener,
   createProject,
-  listListeners,
   listProjects,
   listSharedWithMe,
+  listStandaloneListeners,
   removeSharedWithMe,
   reorderItems,
   type Listener,
   type Project,
-  type ReorderItem,
   type SharedWithMeEntry,
   type SortMode,
 } from '../api'
-import {
-  mergeHomeItemsByActivity,
-  mergeHomeItemsByCustom,
-  mergeHomeItemsByDate,
-  mergeHomeItemsByName,
-  type HomeItem,
-} from '../lib/mergeHomeItems'
+import { usePaginatedList, type ListPage } from '../hooks/usePaginatedList'
+import { isPagedSort, moveItem, sortProjects } from '../lib/listPaging'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
 import { setTransparentDragImage } from '../lib/dragImage'
@@ -40,39 +34,12 @@ function loadStoredSort(): SortMode {
     : 'date'
 }
 
-function mergeItems(
-  sort: SortMode,
-  listeners: Listener[],
-  projects: Project[],
-): HomeItem[] {
-  if (sort === 'custom') {
-    const standalone = listeners.filter((l) => l.projectId === null)
-    return mergeHomeItemsByCustom(standalone, projects)
-  }
-  if (sort === 'name') return mergeHomeItemsByName(listeners, projects)
-  if (sort === 'activity') return mergeHomeItemsByActivity(listeners, projects)
-  return mergeHomeItemsByDate(listeners, projects)
-}
-
-function itemKey(item: HomeItem): string {
-  return item.kind === 'listener'
-    ? `listener:${item.listener.id}`
-    : `project:${item.project.id}`
-}
-
-function toReorderItem(item: HomeItem): ReorderItem {
-  return item.kind === 'listener'
-    ? { type: 'listener', id: item.listener.id }
-    : { type: 'project', id: item.project.id }
-}
-
 export function Home() {
   const navigate = useNavigate()
   const { width } = useSettings()
   const [error, setError] = useState<string | null>(null)
   const [creatingListener, setCreatingListener] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
-  const [listeners, setListeners] = useState<Listener[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeEntry[]>([])
   const [sort, setSort] = useState<SortMode>(loadStoredSort)
@@ -82,16 +49,45 @@ export function Home() {
     before: boolean
   } | null>(null)
 
+  const paged = isPagedSort(sort)
+
+  const fetchStandalone = useCallback(
+    async (cursor?: string): Promise<ListPage<Listener>> => {
+      const page = await listStandaloneListeners(sort, cursor)
+      return {
+        items: page.listeners,
+        nextCursor: page.nextCursor,
+        truncated: page.truncated,
+      }
+    },
+    [sort],
+  )
+
+  const {
+    items: standalone,
+    setItems: setStandalone,
+    hasMore,
+    truncated,
+    loadingMore,
+    loadError,
+    loadMore,
+    retryLoadMore,
+    refreshFirstPage,
+  } = usePaginatedList(fetchStandalone, paged)
+
   useEffect(() => {
-    Promise.all([listListeners(sort), listProjects()])
-      .then(([listenerData, projectData]) => {
-        setListeners(listenerData)
-        setProjects(projectData)
-      })
+    refreshFirstPage().catch(() => {
+      // Listing is a nice-to-have; a failed fetch must not block the create flow.
+    })
+  }, [refreshFirstPage])
+
+  useEffect(() => {
+    listProjects()
+      .then(setProjects)
       .catch(() => {
-        // Listing is a nice-to-have; a failed fetch must not block the create flow.
+        // Same: a failed project fetch must not block the create flow.
       })
-  }, [sort])
+  }, [])
 
   useEffect(() => {
     listSharedWithMe()
@@ -102,7 +98,33 @@ export function Home() {
       })
   }, [])
 
-  const items = mergeItems(sort, listeners, projects)
+  const sortedProjects = sortProjects(sort, projects)
+
+  // Sort buttons stay put while a sort change reloads (the standalone list is
+  // briefly empty); once shown they are not hidden again.
+  const [sortVisible, setSortVisible] = useState(false)
+  useEffect(() => {
+    if (sortedProjects.length > 0 || standalone.length > 0) {
+      setSortVisible(true)
+    }
+  }, [sortedProjects.length, standalone.length])
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!hasMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
 
   function handleSortChange(next: SortMode) {
     setSort(next)
@@ -149,60 +171,195 @@ export function Home() {
     }
   }
 
-  function handleDrop(targetKey: string) {
-    if (!dragKey || dragKey === targetKey) return
+  function handleDropProject(targetId: string) {
+    const fromId = dragKey?.startsWith('project:')
+      ? dragKey.slice('project:'.length)
+      : null
+    if (!fromId || fromId === targetId) return
     const before =
-      dropIndicator?.key === targetKey ? dropIndicator.before : true
-    const current = [...items]
-    const fromIndex = current.findIndex((item) => itemKey(item) === dragKey)
-    if (fromIndex === -1) return
-    const [moved] = current.splice(fromIndex, 1)
-    // Recompute the target's index after removal — removing an earlier item
-    // shifts every later index down by one, so the target's pre-removal
-    // index would silently misplace the drop by one slot.
-    const targetIndex = current.findIndex((item) => itemKey(item) === targetKey)
-    if (targetIndex === -1) return
-    current.splice(before ? targetIndex : targetIndex + 1, 0, moved)
+      dropIndicator?.key === `project:${targetId}` ? dropIndicator.before : true
+    const moved = moveItem(sortedProjects, fromId, targetId, before)
     setDragKey(null)
     setDropIndicator(null)
+    if (!moved) return
 
-    const previousListeners = listeners
-    const previousProjects = projects
+    const previous = projects
+    // Custom mode re-sorts by each project's own sortPosition on every render,
+    // so stamp the new index onto each item or the drop is sorted away.
+    setProjects(moved.map((p, position) => ({ ...p, sortPosition: position })))
+    reorderItems(moved.map((p) => ({ type: 'project', id: p.id }))).catch(
+      () => {
+        setProjects(previous)
+        setError('Failed to save the new order.')
+      },
+    )
+  }
 
-    // Custom mode re-sorts by each item's own sortPosition field on every
-    // render (see mergeHomeItemsByCustom) — it does not trust plain array
-    // order. Reordering `current` alone is therefore invisible: the very
-    // next render re-sorts everything back using each item's still-stale
-    // sortPosition. Stamp every item's sortPosition to its new index in the
-    // combined list — the same index reorderItems below persists server-side
-    // — so the optimistic update actually reflects the drop instead of being
-    // silently re-sorted away.
-    //
-    // `items`/`current` only ever contain standalone (project-less)
-    // listeners in Custom mode — mergeHomeItemsByCustom filters
-    // project-scoped ones out before merging — so reconstructing `listeners`
-    // state purely from `current` would silently drop every project-scoped
-    // listener from state. Preserve them by concatenating the reordered
-    // standalone listeners with whatever project-scoped listeners already
-    // exist in state, unchanged.
-    const projectScopedListeners = listeners.filter((l) => l.projectId !== null)
-    const reorderedStandalone: Listener[] = []
-    const reorderedProjects: Project[] = []
-    current.forEach((item, position) => {
-      if (item.kind === 'listener') {
-        reorderedStandalone.push({ ...item.listener, sortPosition: position })
-      } else {
-        reorderedProjects.push({ ...item.project, sortPosition: position })
-      }
-    })
-    setListeners([...reorderedStandalone, ...projectScopedListeners])
-    setProjects(reorderedProjects)
+  function handleDropListener(targetId: string) {
+    const fromId = dragKey?.startsWith('listener:')
+      ? dragKey.slice('listener:'.length)
+      : null
+    if (!fromId || fromId === targetId || truncated) return
+    const before =
+      dropIndicator?.key === `listener:${targetId}`
+        ? dropIndicator.before
+        : true
+    const moved = moveItem(standalone, fromId, targetId, before)
+    setDragKey(null)
+    setDropIndicator(null)
+    if (!moved) return
 
-    reorderItems(current.map(toReorderItem)).catch(() => {
-      setListeners(previousListeners)
-      setProjects(previousProjects)
-      setError('Failed to save the new order.')
-    })
+    const previous = standalone
+    setStandalone(
+      moved.map((l, position) => ({ ...l, sortPosition: position })),
+    )
+    reorderItems(moved.map((l) => ({ type: 'listener', id: l.id }))).catch(
+      () => {
+        setStandalone(previous)
+        setError('Failed to save the new order.')
+      },
+    )
+  }
+
+  function renderProject(project: Project) {
+    const key = `project:${project.id}`
+    const draggableProject = sort === 'custom'
+    return (
+      <li
+        key={key}
+        draggable={draggableProject}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('text/plain', key)
+          setTransparentDragImage(e)
+          setDragKey(key)
+        }}
+        onDragEnd={() => {
+          setDragKey(null)
+          setDropIndicator(null)
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (!dragKey || dragKey === key) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          const before = e.clientY < rect.top + rect.height / 2
+          setDropIndicator({ key, before })
+        }}
+        onDragLeave={() =>
+          setDropIndicator((current) => (current?.key === key ? null : current))
+        }
+        onDrop={() => handleDropProject(project.id)}
+        className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+          dropIndicator?.key === key
+            ? dropIndicator.before
+              ? 'border-t-indigo-400 dark:border-t-indigo-500'
+              : 'border-b-indigo-400 dark:border-b-indigo-500'
+            : ''
+        }`}
+      >
+        {draggableProject && (
+          <span
+            className="cursor-grab text-slate-400 dark:text-slate-400"
+            aria-hidden="true"
+          >
+            ⠿
+          </span>
+        )}
+        <a
+          href={`/projects/${project.id}`}
+          draggable={false}
+          className={
+            dragKey === key
+              ? 'block flex-1 rounded-lg border-2 border-dotted border-slate-300 px-4 py-3 text-base opacity-40 dark:border-slate-600'
+              : 'block flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+          }
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <span aria-hidden="true">📁</span>
+            {project.label || project.id}
+          </span>
+          <span className="block text-xs text-slate-400 dark:text-slate-400">
+            {new Date(project.createdAt).toLocaleString()}
+          </span>
+        </a>
+      </li>
+    )
+  }
+
+  function renderListener(listener: Listener) {
+    const key = `listener:${listener.id}`
+    const draggableListener = sort === 'custom' && !truncated
+    const hasNameOrSlug = Boolean(listener.label || listener.slug)
+    const primaryText =
+      listener.label ||
+      listener.slug ||
+      new Date(listener.createdAt).toLocaleString()
+    return (
+      <li
+        key={key}
+        draggable={draggableListener}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('text/plain', key)
+          setTransparentDragImage(e)
+          setDragKey(key)
+        }}
+        onDragEnd={() => {
+          setDragKey(null)
+          setDropIndicator(null)
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (!dragKey || dragKey === key) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          const before = e.clientY < rect.top + rect.height / 2
+          setDropIndicator({ key, before })
+        }}
+        onDragLeave={() =>
+          setDropIndicator((current) => (current?.key === key ? null : current))
+        }
+        onDrop={() => handleDropListener(listener.id)}
+        className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
+          dropIndicator?.key === key
+            ? dropIndicator.before
+              ? 'border-t-indigo-400 dark:border-t-indigo-500'
+              : 'border-b-indigo-400 dark:border-b-indigo-500'
+            : ''
+        }`}
+      >
+        {draggableListener && (
+          <span
+            className="cursor-grab text-slate-400 dark:text-slate-400"
+            aria-hidden="true"
+          >
+            ⠿
+          </span>
+        )}
+        <a
+          href={`/listener/${listener.id}`}
+          draggable={false}
+          className={
+            dragKey === key
+              ? 'block flex-1 rounded-lg border-2 border-dotted border-slate-300 px-3 py-2 text-sm opacity-40 dark:border-slate-600'
+              : 'block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+          }
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <img
+              src="/favicon.png"
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className="h-4 w-4"
+            />
+            {primaryText}
+          </span>
+          {hasNameOrSlug && (
+            <span className="block text-xs text-slate-400 dark:text-slate-400">
+              {new Date(listener.createdAt).toLocaleString()}
+            </span>
+          )}
+        </a>
+      </li>
+    )
   }
 
   return (
@@ -238,173 +395,71 @@ export function Home() {
           {error}
         </p>
       )}
-      {items.length > 0 && (
-        <>
-          <div
-            className="mb-2 mt-8 flex items-center gap-1"
-            role="group"
-            aria-label="Sort listeners"
-          >
-            {SORT_OPTIONS.map((option) => (
+      {sortVisible && (
+        <div
+          className="mb-2 mt-8 flex items-center gap-1"
+          role="group"
+          aria-label="Sort listeners"
+        >
+          {SORT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSortChange(option.value)}
+              className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                sort === option.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {sortedProjects.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+            Projects
+          </h2>
+          <ul className="space-y-2">{sortedProjects.map(renderProject)}</ul>
+        </section>
+      )}
+      {standalone.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+            Listeners
+          </h2>
+          <ul className="space-y-2">{standalone.map(renderListener)}</ul>
+          {hasMore && (
+            <div ref={sentinelRef} aria-hidden="true" className="h-4" />
+          )}
+          {loadingMore && (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Loading more…
+            </p>
+          )}
+          {loadError && (
+            <p
+              role="alert"
+              className="mt-3 text-xs text-rose-600 dark:text-rose-400"
+            >
+              Failed to load more listeners.{' '}
               <button
-                key={option.value}
-                onClick={() => handleSortChange(option.value)}
-                className={`rounded-md px-2 py-1 text-xs font-medium transition ${
-                  sort === option.value
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
+                type="button"
+                onClick={retryLoadMore}
+                className="underline"
               >
-                {option.label}
+                Retry
               </button>
-            ))}
-          </div>
-          <ul className="mb-6 space-y-2">
-            {items.map((item) => {
-              const key = itemKey(item)
-              if (item.kind === 'project') {
-                const { project } = item
-                return (
-                  <li
-                    key={key}
-                    draggable={sort === 'custom'}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', key)
-                      setTransparentDragImage(e)
-                      setDragKey(key)
-                    }}
-                    onDragEnd={() => {
-                      setDragKey(null)
-                      setDropIndicator(null)
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault()
-                      if (!dragKey || dragKey === key) return
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      const before = e.clientY < rect.top + rect.height / 2
-                      setDropIndicator({ key, before })
-                    }}
-                    onDragLeave={() =>
-                      setDropIndicator((current) =>
-                        current?.key === key ? null : current,
-                      )
-                    }
-                    onDrop={() => handleDrop(key)}
-                    className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
-                      dropIndicator?.key === key
-                        ? dropIndicator.before
-                          ? 'border-t-indigo-400 dark:border-t-indigo-500'
-                          : 'border-b-indigo-400 dark:border-b-indigo-500'
-                        : ''
-                    }`}
-                  >
-                    {sort === 'custom' && (
-                      <span
-                        className="cursor-grab text-slate-400 dark:text-slate-400"
-                        aria-hidden="true"
-                      >
-                        ⠿
-                      </span>
-                    )}
-                    <a
-                      href={`/projects/${project.id}`}
-                      draggable={false}
-                      className={
-                        dragKey === key
-                          ? 'block flex-1 rounded-lg border-2 border-dotted border-slate-300 px-4 py-3 text-base opacity-40 dark:border-slate-600'
-                          : 'block flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                      }
-                    >
-                      <span className="flex items-center gap-2 font-medium">
-                        <span aria-hidden="true">📁</span>
-                        {project.label || project.id}
-                      </span>
-                      <span className="block text-xs text-slate-400 dark:text-slate-400">
-                        {new Date(project.createdAt).toLocaleString()}
-                      </span>
-                    </a>
-                  </li>
-                )
-              }
-
-              const { listener } = item
-              const hasNameOrSlug = Boolean(listener.label || listener.slug)
-              const primaryText =
-                listener.label ||
-                listener.slug ||
-                new Date(listener.createdAt).toLocaleString()
-              return (
-                <li
-                  key={key}
-                  draggable={sort === 'custom'}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', key)
-                    setTransparentDragImage(e)
-                    setDragKey(key)
-                  }}
-                  onDragEnd={() => {
-                    setDragKey(null)
-                    setDropIndicator(null)
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    if (!dragKey || dragKey === key) return
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const before = e.clientY < rect.top + rect.height / 2
-                    setDropIndicator({ key, before })
-                  }}
-                  onDragLeave={() =>
-                    setDropIndicator((current) =>
-                      current?.key === key ? null : current,
-                    )
-                  }
-                  onDrop={() => handleDrop(key)}
-                  className={`flex items-center gap-2 border-t-2 border-b-2 border-transparent ${
-                    dropIndicator?.key === key
-                      ? dropIndicator.before
-                        ? 'border-t-indigo-400 dark:border-t-indigo-500'
-                        : 'border-b-indigo-400 dark:border-b-indigo-500'
-                      : ''
-                  }`}
-                >
-                  {sort === 'custom' && (
-                    <span
-                      className="cursor-grab text-slate-400 dark:text-slate-400"
-                      aria-hidden="true"
-                    >
-                      ⠿
-                    </span>
-                  )}
-                  <a
-                    href={`/listener/${listener.id}`}
-                    draggable={false}
-                    className={
-                      dragKey === key
-                        ? 'block flex-1 rounded-lg border-2 border-dotted border-slate-300 px-3 py-2 text-sm opacity-40 dark:border-slate-600'
-                        : 'block flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                    }
-                  >
-                    <span className="flex items-center gap-2 font-medium">
-                      <img
-                        src="/favicon.png"
-                        alt=""
-                        aria-hidden="true"
-                        draggable={false}
-                        className="h-4 w-4"
-                      />
-                      {primaryText}
-                    </span>
-                    {hasNameOrSlug && (
-                      <span className="block text-xs text-slate-400 dark:text-slate-400">
-                        {new Date(listener.createdAt).toLocaleString()}
-                      </span>
-                    )}
-                  </a>
-                </li>
-              )
-            })}
-          </ul>
-        </>
+            </p>
+          )}
+          {truncated && (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Showing the first 500 listeners — more exist.
+              {sort === 'custom' ? ' Reordering is unavailable.' : ''}
+            </p>
+          )}
+        </section>
       )}
       {sharedWithMe.length > 0 && (
         <div className="mt-10">
