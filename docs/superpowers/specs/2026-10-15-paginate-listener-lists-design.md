@@ -118,13 +118,18 @@ For name/custom there is no cursor: return up to 500 rows (fetch 501) and a
   — activity pages for a project cost ~page size. The existing
   `idx_listeners_project_id (project_id, created_at DESC, id DESC)` already
   serves project date pages.
-- Verified locally (SQLite 3.51 `EXPLAIN QUERY PLAN`, 2026-10-15): standalone
-  date keyset → `SEARCH ... (owner_email=? AND project_id=? AND created_at<?)`;
-  project activity first page and keyset → `SEARCH ... USING COVERING INDEX
-(project_id=? [AND <expr><?])`; name/custom → `SEARCH` on the project/owner
-  prefix + `USE TEMP B-TREE FOR ORDER BY` (in-memory sort of one project or one
-  owner's standalone set only). A backend test asserts the plan so query-text
-  drift (the expression must match the index expression exactly) is caught.
+- Verified locally (Workers D1 engine, bound parameters, 2026-10-15): with the
+  redundant leading bound the shipped keyset queries plan as `SEARCH ... USING
+INDEX idx_listeners_owner_standalone (owner_email=? AND project_id=? AND
+created_at<?)`, `... idx_listeners_project_id (project_id=? AND created_at<?)`
+  and `... idx_listeners_project_activity (project_id=? AND <expr><?)`. Without
+  the leading bound the expanded OR alone produced `(project_id=?)` only and
+  read O(position) rows (measured: 251 date / 151 activity at depth 100 of 300
+  rows, vs 52 with the bound); the regression tests assert `rows_read <= 60`.
+  Name/custom → `SEARCH` on the project/owner prefix + `USE TEMP B-TREE FOR
+ORDER BY` (in-memory sort of one project or one owner's standalone set
+  only). Backend tests guard against query-text drift (the expression must
+  match the index expression exactly).
 - Write cost: `UPDATE listeners SET last_request_at` on every capture now also
   maintains the activity index (one extra index write per capture), and listener
   inserts maintain both new indexes. Negligible against the write limit.

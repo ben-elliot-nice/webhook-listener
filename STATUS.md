@@ -179,9 +179,10 @@ In build order — each has a full design spec + implementation plan under
     base64url keyset cursors (page default 50, max 100; `src/listenersPaging.ts`)
     backed by migration `0013_listener_paging_indexes.sql`; Name and Custom are
     unpaged, capped at 500, with a `truncated` flag. The project page and Home
-    use infinite scroll; Date and Recent activity poll the first page every 5 s,
-    Name and Custom do not poll (they refresh on tab visibility and after the
-    user's own edits). A failed next-page load shows a Retry link and does not
+    use infinite scroll. The project page polls the first page every 5 s on Date
+    and Recent activity (Name and Custom do not poll; they refresh on tab
+    visibility and after the user's own edits); Home does one first-page load
+    and loads more on scroll, with no polling. A failed next-page load shows a Retry link and does not
     auto-retry. Home is a Projects section (all projects; Recent activity falls
     back to created date) above a paginated standalone Listeners section;
     `mergeHomeItems.ts` is removed. Custom drag-reorder works within a section
