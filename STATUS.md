@@ -159,12 +159,12 @@ In build order — each has a full design spec + implementation plan under
     gated on a successful preview provision plus an explicit PR-body
     checkbox at merge time — is designed separately and not yet built.
 
-14. **D1 rows-read reduction** — request-history prune now runs on roughly
-    1 in 10 captures (`last_insert_rowid() % 10`) instead of every capture,
-    so a listener can briefly hold slightly more than 200 rows while read
-    paths still cap at 200. Frontend pollers poll every 5 s (was 3 s), only
-    while the tab is visible and the user was active in the last 10 min
-    (shared `usePolling`). Project pages load via a bounded
+14. **D1 rows-read reduction** — request-history prune now runs on ~1 in 10
+    captures, chosen at random per capture, instead of every capture, so a
+    listener can briefly hold slightly more than 200 rows while read paths
+    still cap at 200 (`getRequestsPage` does not). Frontend pollers poll
+    every 5 s (was 3 s), only while the tab is visible and the user was active
+    in the last 10 min (shared `usePolling`). Project pages load via a bounded
     `GET /api/projects/:id?sort=` returning `{project, listeners, hasMore}`,
     capped at 100 listeners with a "more exist" note;
     `GET /api/shared/projects/:token` is capped the same way and caches the

@@ -15,7 +15,7 @@ export interface RequestRecord {
 export type NewRequest = Omit<RequestRecord, 'id'>
 
 const RETENTION_LIMIT = 200
-const PRUNE_EVERY = 10
+const PRUNE_PROBABILITY = 1 / 10
 
 export async function insertRequest(
   db: Env['DB'],
@@ -38,18 +38,21 @@ export async function insertRequest(
       req.receivedAt,
     )
 
-  // Prune only when the row just inserted has an id divisible by PRUNE_EVERY.
-  // `last_insert_rowid()` inside db.batch() refers to the INSERT above (batch
-  // statements share one connection/transaction). Request ids are global
-  // across listeners, so a given listener is pruned roughly 1 in PRUNE_EVERY
-  // captures and may briefly exceed RETENTION_LIMIT; read paths still cap at
-  // RETENTION_LIMIT. This replaced a per-capture prune that was ~18% of D1
-  // rows read.
+  // Prune on ~1 in 10 captures, chosen at random per capture in JS (not in
+  // SQL). The other ~90% of captures skip the DELETE entirely, so they scan no
+  // index rows (a SQL-side guard such as `last_insert_rowid() % N` still scans
+  // the listener's index entries, and request ids are global across listeners,
+  // so id % N is deterministic per listener and can starve one of ever
+  // pruning). Random selection makes retention converge for every listener
+  // regardless of id patterns. A listener can briefly exceed RETENTION_LIMIT
+  // (expected overshoot ~9 rows; unbounded in theory but geometrically
+  // unlikely). Read paths (getRequests) still cap at RETENTION_LIMIT, but
+  // getRequestsPage does not cap, so the overshoot is visible there. This
+  // replaced a per-capture prune that was ~18% of D1 rows read.
   const prune = db
     .prepare(
       `DELETE FROM requests
        WHERE listener_id = ?
-         AND last_insert_rowid() % ? = 0
          AND id NOT IN (
            SELECT id FROM requests
            WHERE listener_id = ?
@@ -57,15 +60,19 @@ export async function insertRequest(
            LIMIT ?
          )`,
     )
-    .bind(req.listenerId, PRUNE_EVERY, req.listenerId, RETENTION_LIMIT)
+    .bind(req.listenerId, req.listenerId, RETENTION_LIMIT)
 
   const touchListener = db
     .prepare('UPDATE listeners SET last_request_at = ? WHERE id = ?')
     .bind(req.receivedAt, req.listenerId)
 
-  // D1's batch() runs both statements as one atomic unit — the replacement
+  // D1's batch() runs the statements as one atomic unit — the replacement
   // for better-sqlite3's synchronous db.transaction() closure.
-  await db.batch([insert, prune, touchListener])
+  await db.batch(
+    Math.random() < PRUNE_PROBABILITY
+      ? [insert, prune, touchListener]
+      : [insert, touchListener],
+  )
 }
 
 export interface RequestsPage {

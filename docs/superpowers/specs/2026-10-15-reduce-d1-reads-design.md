@@ -117,14 +117,20 @@ returning `{ project, listeners, hasMore }`.
 
 ### 4. Prune guard
 
-`insertRequest` in `requests.repo.ts` adds `AND last_insert_rowid() % 10 = 0`
-to the prune `DELETE`, so it runs on ~1 in 10 captures (~90% fewer prune
-reads). Request ids are global across listeners, so a given listener's prune
-is probabilistic rather than exactly every 10th capture; a listener can
-briefly hold somewhat more than 200 rows (typically ≤ ~209, occasionally
-more). Read paths (`getRequests`) still cap at `RETENTION_LIMIT`. To be
-verified in tests: `last_insert_rowid()` inside `db.batch()` refers to the
-insert just executed.
+`insertRequest` in `requests.repo.ts` decides in JS: the prune `DELETE` is
+included in the `db.batch()` with probability 1/10 per capture
+(`Math.random() < PRUNE_PROBABILITY`), otherwise the batch is just the insert
+and the listener touch. There is no SQL guard, so the ~90% of captures that
+skip the prune scan nothing (~90% fewer prune reads). A SQL-side
+`last_insert_rowid() % 10` guard was rejected: SQLite evaluates it per index
+row, so every capture still scans the listener's index entries, and request ids
+are global across listeners, so a listener can be starved of ids that are
+multiples of 10 (e.g. a script alternating between two listeners) and never
+prune. Random selection makes retention converge for every listener. A listener
+can briefly hold more than 200 rows (expected overshoot ~9; not strictly
+bounded, but geometrically unlikely to grow large). Read paths
+(`getRequests`) still cap at `RETENTION_LIMIT`; `getRequestsPage` does not,
+so the overshoot is visible there.
 
 ## Testing
 
@@ -134,9 +140,9 @@ insert just executed.
   - Shared project list: cap/`hasMore`, cache TTL and hit/miss, bounded size,
     revoked/unknown token returns 404 even while the project's listeners are
     cached.
-  - Prune: `last_insert_rowid()` behaviour inside `db.batch()`; volume test
-    showing a listener's row count converges back to ≤ ~210 over many
-    captures, never drops newest rows, and read caps still hold.
+  - Prune: with `Math.random` mocked, always-prune yields exactly 200 rows
+    (newest and oldest survivors correct), never-prune skips the DELETE, and a
+    seeded interleaved two-listener run shows both listeners are pruned.
 - Frontend: `usePolling` with fake timers — visible cadence (5s), hidden
   pause/resume with immediate tick, idle pause after 10 min and resume on
   interaction, no overlapping ticks, `false` stops polling.
@@ -155,6 +161,8 @@ numbers above (expect the `/api/listeners` share to fall sharply and the prune
 
 - 5s poll (vs 3s) makes the request feed feel slightly less live; chosen
   deliberately by the user.
-- Probabilistic prune lets a listener exceed 200 rows slightly.
+- Random prune lets a listener exceed 200 rows slightly (expected overshoot
+  ~9, not strictly bounded); `getRequestsPage` does not cap, so it is visible
+  there.
 - Isolate cache can serve a stale shared list for ≤ 10s and has a per-isolate
   hit rate.
