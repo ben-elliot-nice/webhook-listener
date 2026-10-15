@@ -14,7 +14,7 @@ export interface ListenerRecord {
   projectId: string | null
 }
 
-const SELECT_COLUMNS =
+export const SELECT_COLUMNS =
   'id, created_at AS createdAt, share_token AS shareToken, owner_session AS ownerSession, ' +
   'owner_email AS ownerEmail, slug, webhook_token AS webhookToken, label, last_request_at AS lastRequestAt, ' +
   'sort_position AS sortPosition, project_id AS projectId'
