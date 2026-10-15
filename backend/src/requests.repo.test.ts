@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { createListener, getListener } from './listeners.repo'
 import {
@@ -9,6 +9,10 @@ import {
 } from './requests.repo'
 
 describe('requests repo', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   const listenerId = 'listener-1'
 
   it('stores and retrieves requests newest first', async () => {
@@ -44,6 +48,7 @@ describe('requests repo', () => {
   })
 
   it('prunes older requests beyond the 200-row retention cap', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
     const pruneListenerId = 'listener-prune'
     await createListener(
       env.DB,
@@ -92,6 +97,93 @@ describe('requests repo', () => {
     })
     const listener = await getListener(env.DB, 'activity-listener')
     expect(listener?.lastRequestAt).toBe('2024-06-01T00:00:00.000Z')
+  })
+
+  describe('probabilistic prune (decided in JS)', () => {
+    const ts = (i: number) =>
+      new Date(Date.UTC(2024, 0, 1, 0, 0, i)).toISOString()
+
+    const countFor = async (id: string) => {
+      const row = await env.DB.prepare(
+        'SELECT COUNT(*) AS n FROM requests WHERE listener_id = ?',
+      )
+        .bind(id)
+        .first<{ n: number }>()
+      return row!.n
+    }
+
+    const capture = (id: string, i: number, prefix: string) =>
+      insertRequest(env.DB, {
+        listenerId: id,
+        method: 'POST',
+        headers: '{}',
+        queryParams: '{}',
+        body: `${prefix}-${i}`,
+        contentType: 'text/plain',
+        sourceIp: '127.0.0.1',
+        receivedAt: ts(i),
+      })
+
+    it('always prunes to exactly 200 (newest and oldest survivors correct) when Math.random is 0', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const id = 'listener-always-prune'
+      await createListener(env.DB, id, '2024-01-01T00:00:00.000Z', 'session-a')
+      for (let i = 0; i < 205; i++) await capture(id, i, 'request')
+
+      expect(await countFor(id)).toBe(200)
+      const rows = await getRequests(env.DB, id)
+      expect(rows[0].body).toBe('request-204')
+      const oldest = await env.DB.prepare(
+        'SELECT body FROM requests WHERE listener_id = ? ORDER BY received_at ASC, id ASC LIMIT 1',
+      )
+        .bind(id)
+        .first<{ body: string }>()
+      expect(oldest!.body).toBe('request-5')
+    })
+
+    it('skips the prune statement entirely when Math.random is 0.99', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      const id = 'listener-never-prune'
+      await createListener(env.DB, id, '2024-01-01T00:00:00.000Z', 'session-a')
+      for (let i = 0; i < 205; i++) await capture(id, i, 'request')
+
+      expect(await countFor(id)).toBe(205)
+    })
+
+    it('prunes both listeners eventually when captures strictly alternate (id parity cannot starve one)', async () => {
+      // mulberry32, fixed seed
+      let a = 0x2f6e2b1
+      vi.spyOn(Math, 'random').mockImplementation(() => {
+        a = (a + 0x6d2b79f5) | 0
+        let t = Math.imul(a ^ (a >>> 15), 1 | a)
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      })
+      const ids = ['listener-alt-a', 'listener-alt-b']
+      for (const id of ids) {
+        await createListener(
+          env.DB,
+          id,
+          '2024-01-01T00:00:00.000Z',
+          'session-a',
+        )
+      }
+      const max = [0, 0]
+      const last = [0, 0]
+      for (let i = 0; i < 600; i++) {
+        const which = i % 2
+        await capture(ids[which], i, ids[which])
+        const n = await countFor(ids[which])
+        max[which] = Math.max(max[which], n)
+        last[which] = n
+      }
+
+      for (const w of [0, 1]) {
+        expect(max[w]).toBeGreaterThan(200) // prune is not running every time
+        expect(last[w]).toBeLessThanOrEqual(260) // and neither grows unbounded
+        expect(last[w]).toBeGreaterThanOrEqual(200)
+      }
+    })
   })
 })
 

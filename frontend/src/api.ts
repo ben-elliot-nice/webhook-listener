@@ -136,6 +136,21 @@ export function listListeners(sort: SortMode = 'date'): Promise<Listener[]> {
   }).then((r) => parseJsonOrThrow<Listener[]>(r))
 }
 
+export interface ProjectDetailData {
+  project: Project
+  listeners: Listener[]
+  hasMore: boolean
+}
+
+export function getProject(
+  id: string,
+  sort: SortMode = 'date',
+): Promise<ProjectDetailData> {
+  return fetch(`${API_BASE_URL}/api/projects/${id}?sort=${sort}`, {
+    credentials: 'include',
+  }).then((r) => parseJsonOrThrow<ProjectDetailData>(r))
+}
+
 export function createProject(): Promise<Project> {
   return fetch(`${API_BASE_URL}/api/projects`, {
     method: 'POST',
@@ -312,6 +327,7 @@ export function createProjectListener(
 export interface SharedProjectData {
   label: string | null
   listeners: SharedProjectListener[]
+  hasMore: boolean
 }
 
 export function getSharedProject(token: string): Promise<SharedProjectData> {

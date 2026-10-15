@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { app } from '../app'
 import { authCookieHeader } from '../test-helpers/auth'
+import { createProjectListener } from '../listeners.repo'
+import { clearSharedProjectListenersCache } from '../sharedProjectListeners'
 
 describe('shared project view', () => {
   let projectId: string
@@ -11,6 +13,7 @@ describe('shared project view', () => {
   const viewerEmail = 'viewer@nice.com'
 
   beforeEach(async () => {
+    clearSharedProjectListenersCache()
     const created = await app.request(
       '/api/projects',
       { method: 'POST', headers: await authCookieHeader(env, ownerEmail) },
@@ -59,6 +62,96 @@ describe('shared project view', () => {
     )
     shareToken = ((await shareResponse.json()) as { shareToken: string })
       .shareToken
+  })
+
+  it('includes hasMore=false for a small project', async () => {
+    const response = await app.request(
+      `/api/shared/projects/${shareToken}`,
+      { headers: await authCookieHeader(env, viewerEmail) },
+      env,
+    )
+    const body = (await response.json()) as { hasMore: boolean }
+    expect(body.hasMore).toBe(false)
+  })
+
+  it('caps the list at 100 listeners and reports hasMore when more exist', async () => {
+    for (let i = 0; i < 100; i++) {
+      await createProjectListener(
+        env.DB,
+        `cap-${projectId}-${i}`,
+        `2024-01-01T00:00:${String(i % 60).padStart(2, '0')}.000Z`,
+        null,
+        ownerEmail,
+        projectId,
+        `cap${String(i).padStart(3, '0')}`,
+      )
+    }
+    // 100 seeded + the 1 from beforeEach = 101
+    const response = await app.request(
+      `/api/shared/projects/${shareToken}`,
+      { headers: await authCookieHeader(env, viewerEmail) },
+      env,
+    )
+    const body = (await response.json()) as {
+      listeners: unknown[]
+      hasMore: boolean
+    }
+    expect(body.listeners).toHaveLength(100)
+    expect(body.hasMore).toBe(true)
+  })
+
+  it('serves the child list from cache for repeat requests, until the cache is cleared', async () => {
+    const fetchList = async () =>
+      (await (
+        await app.request(
+          `/api/shared/projects/${shareToken}`,
+          { headers: await authCookieHeader(env, viewerEmail) },
+          env,
+        )
+      ).json()) as { listeners: { slug: string | null }[] }
+
+    const first = await fetchList()
+    expect(first.listeners).toHaveLength(1)
+
+    await createProjectListener(
+      env.DB,
+      `late-${projectId}`,
+      '2024-02-01T00:00:00.000Z',
+      null,
+      ownerEmail,
+      projectId,
+      'late-arrival',
+    )
+
+    const second = await fetchList()
+    expect(second.listeners).toHaveLength(1) // still cached
+
+    clearSharedProjectListenersCache()
+    const third = await fetchList()
+    expect(third.listeners).toHaveLength(2)
+  })
+
+  it('returns 404 immediately after the share link is revoked, even while the list is cached', async () => {
+    const url = `/api/shared/projects/${shareToken}`
+    const warm = await app.request(
+      url,
+      { headers: await authCookieHeader(env, viewerEmail) },
+      env,
+    )
+    expect(warm.status).toBe(200)
+
+    await app.request(
+      `/api/projects/${projectId}/share`,
+      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
+      env,
+    )
+
+    const after = await app.request(
+      url,
+      { headers: await authCookieHeader(env, viewerEmail) },
+      env,
+    )
+    expect(after.status).toBe(404)
   })
 
   it('lists child listeners for a valid share token', async () => {

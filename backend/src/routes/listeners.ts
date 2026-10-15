@@ -5,6 +5,7 @@ import {
   createListener,
   getListenerForOwner,
   getListenersForOwner,
+  parseSortMode,
   reorderItems,
   type ReorderItem,
   type SortMode,
@@ -53,14 +54,6 @@ export function serializeListener(env: Env, listener: ListenerRecord) {
 }
 
 const LIST_LIMIT = 100
-
-const VALID_SORTS: SortMode[] = ['date', 'name', 'activity', 'custom']
-
-function parseSortMode(raw: string | undefined): SortMode {
-  return (VALID_SORTS as string[]).includes(raw ?? '')
-    ? (raw as SortMode)
-    : 'date'
-}
 
 export const listenerRoutes = new Hono<{
   Bindings: Env

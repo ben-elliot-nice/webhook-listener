@@ -1,12 +1,9 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 import type { Variables } from '../app'
-import {
-  getListenerByShareToken,
-  getListener,
-  getListenersByProject,
-} from '../listeners.repo'
+import { getListenerByShareToken, getListener } from '../listeners.repo'
 import { getProjectByShareToken } from '../projects.repo'
+import { getSharedProjectListeners } from '../sharedProjectListeners'
 import { getRequestsPage, getRequestById } from '../requests.repo'
 import {
   recordSharedVisit,
@@ -60,7 +57,10 @@ sharedRoutes.get('/api/shared/projects/:token', async (c) => {
   if (!project) {
     return c.json({ error: 'share link not found' }, 404)
   }
-  const listeners = await getListenersByProject(c.env.DB, project.id)
+  const { listeners, hasMore } = await getSharedProjectListeners(
+    c.env.DB,
+    project.id,
+  )
   return c.json({
     label: project.label,
     listeners: listeners.map((l) => ({
@@ -69,6 +69,7 @@ sharedRoutes.get('/api/shared/projects/:token', async (c) => {
       slug: l.slug,
       createdAt: l.createdAt,
     })),
+    hasMore,
   })
 })
 

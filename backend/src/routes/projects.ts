@@ -19,6 +19,9 @@ import {
   isUniqueConstraintError,
   getListenerByProjectAndSlug,
   createProjectListener,
+  getListenersByProjectSorted,
+  parseSortMode,
+  PROJECT_LISTENERS_LIMIT,
 } from '../listeners.repo'
 import { serializeListener } from './listeners'
 
@@ -52,6 +55,28 @@ projectRoutes.post('/api/projects', async (c) => {
 projectRoutes.get('/api/projects', async (c) => {
   const projects = await getProjectsForOwner(c.env.DB, c.get('email'))
   return c.json(projects.map((project) => serializeProject(c.env, project)))
+})
+
+projectRoutes.get('/api/projects/:id', async (c) => {
+  const project = await getProjectForOwner(
+    c.env.DB,
+    c.req.param('id'),
+    c.get('email'),
+  )
+  if (!project) {
+    return c.json({ error: 'project not found' }, 404)
+  }
+  const { listeners, hasMore } = await getListenersByProjectSorted(
+    c.env.DB,
+    project.id,
+    parseSortMode(c.req.query('sort')),
+    PROJECT_LISTENERS_LIMIT,
+  )
+  return c.json({
+    project: serializeProject(c.env, project),
+    listeners: listeners.map((listener) => serializeListener(c.env, listener)),
+    hasMore,
+  })
 })
 
 projectRoutes.patch('/api/projects/:id/label', async (c) => {

@@ -7,7 +7,7 @@ import {
   getListenerForOwner,
   getListenersForOwner,
   getListenerByProjectAndSlug,
-  getListenersByProject,
+  getListenersByProjectSorted,
   reorderItems,
   deleteListener,
   getOrCreateShareToken,
@@ -888,7 +888,7 @@ describe('project-scoped listeners', () => {
   })
 })
 
-describe('getListenersByProject', () => {
+describe('getListenersByProject (via Sorted)', () => {
   it('returns only listeners for the given project, newest first', async () => {
     const project = await createProject(
       env.DB,
@@ -921,7 +921,12 @@ describe('getListenersByProject', () => {
       'owner-k@nice.com',
     )
 
-    const results = await getListenersByProject(env.DB, project.id)
+    const { listeners: results } = await getListenersByProjectSorted(
+      env.DB,
+      project.id,
+      'date',
+      100,
+    )
     expect(results.map((l) => l.id)).toEqual([newer.id, older.id])
   })
 
@@ -932,7 +937,12 @@ describe('getListenersByProject', () => {
       new Date().toISOString(),
       'session-l',
     )
-    const results = await getListenersByProject(env.DB, project.id)
+    const { listeners: results } = await getListenersByProjectSorted(
+      env.DB,
+      project.id,
+      'date',
+      100,
+    )
     expect(results).toEqual([])
   })
 })
