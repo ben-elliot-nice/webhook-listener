@@ -15,6 +15,7 @@ export interface RequestRecord {
 export type NewRequest = Omit<RequestRecord, 'id'>
 
 const RETENTION_LIMIT = 200
+const PRUNE_EVERY = 10
 
 export async function insertRequest(
   db: Env['DB'],
@@ -37,10 +38,18 @@ export async function insertRequest(
       req.receivedAt,
     )
 
+  // Prune only when the row just inserted has an id divisible by PRUNE_EVERY.
+  // `last_insert_rowid()` inside db.batch() refers to the INSERT above (batch
+  // statements share one connection/transaction). Request ids are global
+  // across listeners, so a given listener is pruned roughly 1 in PRUNE_EVERY
+  // captures and may briefly exceed RETENTION_LIMIT; read paths still cap at
+  // RETENTION_LIMIT. This replaced a per-capture prune that was ~18% of D1
+  // rows read.
   const prune = db
     .prepare(
       `DELETE FROM requests
        WHERE listener_id = ?
+         AND last_insert_rowid() % ? = 0
          AND id NOT IN (
            SELECT id FROM requests
            WHERE listener_id = ?
@@ -48,7 +57,7 @@ export async function insertRequest(
            LIMIT ?
          )`,
     )
-    .bind(req.listenerId, req.listenerId, RETENTION_LIMIT)
+    .bind(req.listenerId, PRUNE_EVERY, req.listenerId, RETENTION_LIMIT)
 
   const touchListener = db
     .prepare('UPDATE listeners SET last_request_at = ? WHERE id = ?')

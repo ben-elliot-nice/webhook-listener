@@ -93,6 +93,51 @@ describe('requests repo', () => {
     const listener = await getListener(env.DB, 'activity-listener')
     expect(listener?.lastRequestAt).toBe('2024-06-01T00:00:00.000Z')
   })
+
+  it('prunes on roughly 1 in 10 captures, keeping a listener within 200..209 rows and never dropping the newest', async () => {
+    const boundedListenerId = 'listener-bounded'
+    await createListener(
+      env.DB,
+      boundedListenerId,
+      '2024-01-01T00:00:00.000Z',
+      'session-a',
+    )
+
+    let maxCount = 0
+    const total = 430
+    for (let i = 0; i < total; i++) {
+      await insertRequest(env.DB, {
+        listenerId: boundedListenerId,
+        method: 'POST',
+        headers: '{}',
+        queryParams: '{}',
+        body: `bounded-${i}`,
+        contentType: 'text/plain',
+        sourceIp: '127.0.0.1',
+        receivedAt: `2024-01-01T00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(
+          i % 60,
+        ).padStart(2, '0')}.000Z`,
+      })
+      const row = await env.DB.prepare(
+        'SELECT COUNT(*) AS n FROM requests WHERE listener_id = ?',
+      )
+        .bind(boundedListenerId)
+        .first<{ n: number }>()
+      const count = row!.n
+      if (i >= 200) {
+        expect(count).toBeGreaterThanOrEqual(200)
+        expect(count).toBeLessThanOrEqual(209)
+      }
+      maxCount = Math.max(maxCount, count)
+    }
+
+    // Proves the prune is NOT running on every capture (old behaviour kept it at exactly 200).
+    expect(maxCount).toBeGreaterThan(200)
+
+    const newest = await getRequests(env.DB, boundedListenerId)
+    expect(newest).toHaveLength(200)
+    expect(newest[0].body).toBe(`bounded-${total - 1}`)
+  })
 })
 
 describe('requests repo pagination', () => {
