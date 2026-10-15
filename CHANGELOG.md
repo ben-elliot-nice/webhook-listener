@@ -1,3 +1,9 @@
+## [1.1.13](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.12...v1.1.13) (2026-10-15)
+
+### Performance Improvements
+
+* reduce D1 rows-read (poll pausing, bounded project list, prune guard) ([#15](https://github.com/ben-elliot-nice/webhook-listener/issues/15)) ([e73d3a9](https://github.com/ben-elliot-nice/webhook-listener/commit/e73d3a92c721132ee5d5a393426f49c25b180a0c))
+
 ## [1.1.12](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.11...v1.1.12) (2026-10-15)
 
 ### Bug Fixes
