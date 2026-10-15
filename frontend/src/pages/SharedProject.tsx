@@ -6,10 +6,11 @@ import {
   recordSharedProjectVisit,
   type SharedProjectListener,
 } from '../api'
+import { usePolling } from '../hooks/usePolling'
+import { PollingPausedNote } from '../components/PollingPausedNote'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
 
-const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 function BackToHome() {
@@ -28,6 +29,7 @@ export function SharedProject() {
   const { width } = useSettings()
   const [label, setLabel] = useState<string | null>(null)
   const [listeners, setListeners] = useState<SharedProjectListener[]>([])
+  const [hasMore, setHasMore] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const consecutiveNotFoundRef = useRef(0)
@@ -41,6 +43,7 @@ export function SharedProject() {
       const data = await getSharedProject(token)
       setLabel(data.label)
       setListeners(data.listeners)
+      setHasMore(data.hasMore)
       setLoaded(true)
       consecutiveNotFoundRef.current = 0
       return true
@@ -58,22 +61,7 @@ export function SharedProject() {
     }
   }, [token])
 
-  useEffect(() => {
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout>
-
-    async function tick() {
-      const shouldContinue = await refresh().catch(() => true)
-      if (cancelled || !shouldContinue) return
-      timer = setTimeout(tick, POLL_INTERVAL_MS)
-    }
-
-    tick()
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [refresh])
+  const { paused } = usePolling(refresh)
 
   if (notFound) {
     return (
@@ -103,6 +91,7 @@ export function SharedProject() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+      {paused && <PollingPausedNote />}
       <BackToHome />
       <h1 className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">
         {label || 'Shared project'}{' '}
@@ -143,6 +132,11 @@ export function SharedProject() {
             )
           })}
         </ul>
+      )}
+      {hasMore && (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Showing the first 100 listeners — more exist.
+        </p>
       )}
     </main>
   )

@@ -18,10 +18,11 @@ import {
   type RequestFilter,
 } from '../lib/filterRequests'
 import { downloadFile, toHarExport, toJsonExport } from '../lib/exportRequests'
+import { usePolling } from '../hooks/usePolling'
+import { PollingPausedNote } from '../components/PollingPausedNote'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
 
-const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 export function SharedListener() {
@@ -81,21 +82,9 @@ export function SharedListener() {
 
   useEffect(() => {
     consecutiveNotFoundRef.current = 0
-    let cancelled = false
-    const timer = setInterval(async () => {
-      const ok = await refresh()
-      if (!ok && !cancelled) {
-        clearInterval(timer)
-      }
-    }, POLL_INTERVAL_MS)
-
-    refresh()
-
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
   }, [refresh])
+
+  const { paused } = usePolling(refresh)
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
@@ -135,6 +124,7 @@ export function SharedListener() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+      {paused && <PollingPausedNote />}
       <Link
         to="/"
         className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"

@@ -5,8 +5,7 @@ import {
   createProjectListener,
   deleteProject,
   getOrCreateProjectShareLink,
-  listListeners,
-  listProjects,
+  getProject,
   reorderItems,
   revokeProjectShareLink,
   setProjectLabel,
@@ -15,11 +14,12 @@ import {
   type ReorderItem,
   type SortMode,
 } from '../api'
+import { usePolling } from '../hooks/usePolling'
+import { PollingPausedNote } from '../components/PollingPausedNote'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
 import { setTransparentDragImage } from '../lib/dragImage'
 
-const POLL_INTERVAL_MS = 3000
 const MAX_CONSECUTIVE_NOT_FOUND = 2
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -46,6 +46,7 @@ export function ProjectDetail() {
   const { width } = useSettings()
   const [project, setProject] = useState<Project | null>(null)
   const [children, setChildren] = useState<Listener[]>([])
+  const [hasMore, setHasMore] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -67,41 +68,28 @@ export function ProjectDetail() {
 
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!projectId) return false
-    const [projects, listeners] = await Promise.all([
-      listProjects(),
-      listListeners(sort),
-    ])
-    const found = projects.find((p) => p.id === projectId)
-    if (!found) {
-      consecutiveNotFoundRef.current += 1
-      if (consecutiveNotFoundRef.current >= MAX_CONSECUTIVE_NOT_FOUND) {
-        setNotFound(true)
-        return false
+    let data
+    try {
+      data = await getProject(projectId, sort)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        consecutiveNotFoundRef.current += 1
+        if (consecutiveNotFoundRef.current >= MAX_CONSECUTIVE_NOT_FOUND) {
+          setNotFound(true)
+          return false
+        }
+        return true
       }
-      return true
+      throw err
     }
     consecutiveNotFoundRef.current = 0
-    setProject(found)
-    setChildren(listeners.filter((l) => l.projectId === projectId))
+    setProject(data.project)
+    setChildren(data.listeners)
+    setHasMore(data.hasMore)
     return true
   }, [projectId, sort])
 
-  useEffect(() => {
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout>
-
-    async function tick() {
-      const shouldContinue = await refresh().catch(() => true)
-      if (cancelled || !shouldContinue) return
-      timer = setTimeout(tick, POLL_INTERVAL_MS)
-    }
-
-    tick()
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [refresh])
+  const { paused } = usePolling(refresh)
 
   async function handleCopy() {
     if (!project) return
@@ -258,6 +246,7 @@ export function ProjectDetail() {
 
   return (
     <main className={`mx-auto px-6 py-10 ${WIDTH_CLASSES[width]}`}>
+      {paused && <PollingPausedNote />}
       <div className="mb-4 flex items-center justify-between">
         <Link
           to="/"
@@ -509,6 +498,11 @@ export function ProjectDetail() {
             )
           })}
         </ul>
+      )}
+      {hasMore && (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Showing the first 100 listeners — more exist.
+        </p>
       )}
     </main>
   )
