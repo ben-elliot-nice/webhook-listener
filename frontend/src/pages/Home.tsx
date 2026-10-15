@@ -56,8 +56,8 @@ export function Home() {
       const page = await listStandaloneListeners(sort, cursor)
       return {
         items: page.listeners,
-        nextCursor: page.nextCursor,
-        truncated: page.truncated,
+        nextCursor: page.nextCursor ?? null,
+        truncated: page.truncated ?? false,
       }
     },
     [sort],

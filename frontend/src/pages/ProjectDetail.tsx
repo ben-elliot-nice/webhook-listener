@@ -74,8 +74,8 @@ export function ProjectDetail() {
       setProject(data.project)
       return {
         items: data.listeners,
-        nextCursor: data.nextCursor,
-        truncated: data.truncated,
+        nextCursor: data.nextCursor ?? null,
+        truncated: data.truncated ?? false,
       }
     },
     [projectId, sort],
