@@ -137,6 +137,36 @@ const SORT_CLAUSES: Record<SortMode, string> = {
   custom: '(sort_position IS NULL), sort_position ASC, created_at DESC',
 }
 
+export const PROJECT_LISTENERS_LIMIT = 100
+
+const VALID_SORTS: SortMode[] = ['date', 'name', 'activity', 'custom']
+
+export function parseSortMode(raw: string | undefined): SortMode {
+  return (VALID_SORTS as string[]).includes(raw ?? '')
+    ? (raw as SortMode)
+    : 'date'
+}
+
+// Fetches limit + 1 rows to learn whether more exist without a COUNT(*)
+// (which would read every child row on every poll).
+export async function getListenersByProjectSorted(
+  db: Env['DB'],
+  projectId: string,
+  sort: SortMode,
+  limit: number,
+): Promise<{ listeners: ListenerRecord[]; hasMore: boolean }> {
+  const { results } = await db
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM listeners WHERE project_id = ? ORDER BY ${SORT_CLAUSES[sort]} LIMIT ?`,
+    )
+    .bind(projectId, limit + 1)
+    .all<ListenerRecord>()
+  return {
+    listeners: results.slice(0, limit),
+    hasMore: results.length > limit,
+  }
+}
+
 export async function getListenersForOwner(
   db: Env['DB'],
   email: string,
