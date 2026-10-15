@@ -23,8 +23,9 @@ before trusting it.
 
 ## Build / test health
 
-- Backend: `cd backend && npm test` → **284/285 passing** (31 test files).
-- Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors.
+- Backend: `cd backend && npm test` → **307/308 passing** (34 test files).
+- Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors;
+  `cd frontend && npm test` (vitest, 9 tests) also runs in CI.
 - D1 migrations applied: `0001_init.sql` → `0009_magic_links.sql` (includes
   `0008_owner_email.sql` and `0009_magic_links.sql` from the email
   access gate round).
@@ -157,6 +158,20 @@ In build order — each has a full design spec + implementation plan under
     A follow-on, sub-project 2 — opt-in automated production migrations,
     gated on a successful preview provision plus an explicit PR-body
     checkbox at merge time — is designed separately and not yet built.
+
+14. **D1 rows-read reduction** — request-history prune now runs on roughly
+    1 in 10 captures (`last_insert_rowid() % 10`) instead of every capture,
+    so a listener can briefly hold slightly more than 200 rows while read
+    paths still cap at 200. Frontend pollers poll every 5 s (was 3 s), only
+    while the tab is visible and the user was active in the last 10 min
+    (shared `usePolling`). Project pages load via a bounded
+    `GET /api/projects/:id?sort=` returning `{project, listeners, hasMore}`,
+    capped at 100 listeners with a "more exist" note;
+    `GET /api/shared/projects/:token` is capped the same way and caches the
+    child listener rows in memory for 10 s per isolate (shared project
+    lists can be up to 10 s stale; the token lookup is never cached).
+    Known limitation: custom drag-reorder on a project with more than 100
+    listeners only reorders the ones shown.
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.

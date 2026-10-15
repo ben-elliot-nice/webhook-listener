@@ -96,6 +96,7 @@ cd frontend && npm run dev    # vite dev server
 ```
 
 - Backend tests: `cd backend && npm test` (vitest + `@cloudflare/vitest-pool-workers`).
+- Frontend tests: `cd frontend && npm test` (vitest).
 - Frontend build/typecheck: `cd frontend && npm run build` (`tsc -b && vite build`).
 - There is no browser automation available in agent sessions run so far —
   every feature to date has been verified via `curl`/`app.inject()`-equivalent

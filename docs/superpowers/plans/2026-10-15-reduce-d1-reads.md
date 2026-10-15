@@ -26,6 +26,7 @@
 ## File Structure
 
 Backend (`backend/src/`):
+
 - `requests.repo.ts` — modify: prune guard (Task 1).
 - `requests.repo.test.ts` — modify: retention bound tests (Task 1).
 - `listeners.repo.ts` — modify: export `parseSortMode`, `PROJECT_LISTENERS_LIMIT`; add `getListenersByProjectSorted`; remove `getListenersByProject` (Tasks 2–3).
@@ -38,6 +39,7 @@ Backend (`backend/src/`):
 - `routes/shared.projects.test.ts` — modify: add cap/cache/revocation tests (Task 3).
 
 Frontend (`frontend/`):
+
 - `package.json`, `src/lib/poller.ts`, `src/lib/poller.test.ts`, `src/hooks/usePolling.ts`, `src/components/PollingPausedNote.tsx` — create/modify (Task 4).
 - `../.github/workflows/pr.yml` — modify: run frontend tests in CI (Task 4).
 - `src/api.ts`, `src/pages/ProjectDetail.tsx`, `src/pages/SharedProject.tsx`, `src/pages/Listener.tsx`, `src/pages/SharedListener.tsx`, `src/pages/SharedProjectListener.tsx` — modify (Task 5).
@@ -47,10 +49,12 @@ Frontend (`frontend/`):
 ### Task 1: Prune guard
 
 **Files:**
+
 - Modify: `backend/src/requests.repo.ts:34-51`
 - Test: `backend/src/requests.repo.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `insertRequest(db, req)`, `getRequests(db, listenerId)`, `createListener(db, id, createdAt, ownerEmail)` (signature is `(db, id, createdAt, ownerEmail)`; existing tests pass a session-like string, copy their style).
 - Produces: unchanged public API. Behaviour: the prune `DELETE` only runs when the just-inserted row's id is a multiple of 10.
 
@@ -59,50 +63,50 @@ Frontend (`frontend/`):
 Add inside the `describe('requests repo', ...)` block in `backend/src/requests.repo.test.ts`:
 
 ```ts
-  it('prunes on roughly 1 in 10 captures, keeping a listener within 200..209 rows and never dropping the newest', async () => {
-    const boundedListenerId = 'listener-bounded'
-    await createListener(
-      env.DB,
-      boundedListenerId,
-      '2024-01-01T00:00:00.000Z',
-      'session-a',
+it('prunes on roughly 1 in 10 captures, keeping a listener within 200..209 rows and never dropping the newest', async () => {
+  const boundedListenerId = 'listener-bounded'
+  await createListener(
+    env.DB,
+    boundedListenerId,
+    '2024-01-01T00:00:00.000Z',
+    'session-a',
+  )
+
+  let maxCount = 0
+  const total = 430
+  for (let i = 0; i < total; i++) {
+    await insertRequest(env.DB, {
+      listenerId: boundedListenerId,
+      method: 'POST',
+      headers: '{}',
+      queryParams: '{}',
+      body: `bounded-${i}`,
+      contentType: 'text/plain',
+      sourceIp: '127.0.0.1',
+      receivedAt: `2024-01-01T00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(
+        i % 60,
+      ).padStart(2, '0')}.000Z`,
+    })
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM requests WHERE listener_id = ?',
     )
-
-    let maxCount = 0
-    const total = 430
-    for (let i = 0; i < total; i++) {
-      await insertRequest(env.DB, {
-        listenerId: boundedListenerId,
-        method: 'POST',
-        headers: '{}',
-        queryParams: '{}',
-        body: `bounded-${i}`,
-        contentType: 'text/plain',
-        sourceIp: '127.0.0.1',
-        receivedAt: `2024-01-01T00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(
-          i % 60,
-        ).padStart(2, '0')}.000Z`,
-      })
-      const row = await env.DB.prepare(
-        'SELECT COUNT(*) AS n FROM requests WHERE listener_id = ?',
-      )
-        .bind(boundedListenerId)
-        .first<{ n: number }>()
-      const count = row!.n
-      if (i >= 200) {
-        expect(count).toBeGreaterThanOrEqual(200)
-        expect(count).toBeLessThanOrEqual(209)
-      }
-      maxCount = Math.max(maxCount, count)
+      .bind(boundedListenerId)
+      .first<{ n: number }>()
+    const count = row!.n
+    if (i >= 200) {
+      expect(count).toBeGreaterThanOrEqual(200)
+      expect(count).toBeLessThanOrEqual(209)
     }
+    maxCount = Math.max(maxCount, count)
+  }
 
-    // Proves the prune is NOT running on every capture (old behaviour kept it at exactly 200).
-    expect(maxCount).toBeGreaterThan(200)
+  // Proves the prune is NOT running on every capture (old behaviour kept it at exactly 200).
+  expect(maxCount).toBeGreaterThan(200)
 
-    const newest = await getRequests(env.DB, boundedListenerId)
-    expect(newest).toHaveLength(200)
-    expect(newest[0].body).toBe(`bounded-${total - 1}`)
-  })
+  const newest = await getRequests(env.DB, boundedListenerId)
+  expect(newest).toHaveLength(200)
+  expect(newest[0].body).toBe(`bounded-${total - 1}`)
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -115,16 +119,16 @@ Expected: FAIL on `expect(maxCount).toBeGreaterThan(200)` (current code prunes e
 In `backend/src/requests.repo.ts`, replace the `prune` statement:
 
 ```ts
-  // Prune only when the row just inserted has an id divisible by PRUNE_EVERY.
-  // `last_insert_rowid()` inside db.batch() refers to the INSERT above (batch
-  // statements share one connection/transaction). Request ids are global
-  // across listeners, so a given listener is pruned roughly 1 in PRUNE_EVERY
-  // captures and may briefly exceed RETENTION_LIMIT; read paths still cap at
-  // RETENTION_LIMIT. This replaced a per-capture prune that was ~18% of D1
-  // rows read.
-  const prune = db
-    .prepare(
-      `DELETE FROM requests
+// Prune only when the row just inserted has an id divisible by PRUNE_EVERY.
+// `last_insert_rowid()` inside db.batch() refers to the INSERT above (batch
+// statements share one connection/transaction). Request ids are global
+// across listeners, so a given listener is pruned roughly 1 in PRUNE_EVERY
+// captures and may briefly exceed RETENTION_LIMIT; read paths still cap at
+// RETENTION_LIMIT. This replaced a per-capture prune that was ~18% of D1
+// rows read.
+const prune = db
+  .prepare(
+    `DELETE FROM requests
        WHERE listener_id = ?
          AND last_insert_rowid() % ? = 0
          AND id NOT IN (
@@ -133,8 +137,8 @@ In `backend/src/requests.repo.ts`, replace the `prune` statement:
            ORDER BY received_at DESC, id DESC
            LIMIT ?
          )`,
-    )
-    .bind(req.listenerId, PRUNE_EVERY, req.listenerId, RETENTION_LIMIT)
+  )
+  .bind(req.listenerId, PRUNE_EVERY, req.listenerId, RETENTION_LIMIT)
 ```
 
 And next to `RETENTION_LIMIT` add:
@@ -147,7 +151,7 @@ const PRUNE_EVERY = 10
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && npx vitest run src/requests.repo.test.ts`
-Expected: all PASS, including the pre-existing `prunes older requests beyond the 200-row retention cap` (it asserts the *read* cap via `getRequests`, which still returns the newest 200 and drops `request-0..4`).
+Expected: all PASS, including the pre-existing `prunes older requests beyond the 200-row retention cap` (it asserts the _read_ cap via `getRequests`, which still returns the newest 200 and drops `request-0..4`).
 
 - [ ] **Step 5: Stage**
 
@@ -166,12 +170,14 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "perf(backe
 ### Task 2: Project-scoped listing endpoint
 
 **Files:**
+
 - Modify: `backend/src/listeners.repo.ts` (add exports near `SORT_CLAUSES`, ~line 131-153)
 - Modify: `backend/src/routes/listeners.ts:55-63` (remove local `VALID_SORTS`/`parseSortMode`, import from repo)
 - Modify: `backend/src/routes/projects.ts` (add route after `GET /api/projects`, import `getListenersByProjectSorted`, `parseSortMode`)
 - Create: `backend/src/routes/projects.detail.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getProjectForOwner(db, id, email): Promise<ProjectRecord | undefined>`, `serializeProject(env, project)` (local to `routes/projects.ts`), `serializeListener(env, listener)` (exported from `routes/listeners.ts`), `createProjectListener(db, id, createdAt, ownerSession, ownerEmail, projectId, slug)` (tests only), `authCookieHeader(env, email)`.
 - Produces:
   - `export const PROJECT_LISTENERS_LIMIT = 100` and `export function parseSortMode(raw: string | undefined): SortMode` in `listeners.repo.ts`.
@@ -411,6 +417,7 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "feat(backe
 ### Task 3: Shared project list — cap, hasMore, isolate cache
 
 **Files:**
+
 - Create: `backend/src/ttlCache.ts`, `backend/src/ttlCache.test.ts`
 - Create: `backend/src/sharedProjectListeners.ts`
 - Modify: `backend/src/routes/shared.ts:1-10,58-75`
@@ -418,6 +425,7 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "feat(backe
 - Modify: `backend/src/routes/shared.projects.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getListenersByProjectSorted(db, projectId, sort, limit)` and `PROJECT_LISTENERS_LIMIT` from Task 2; `getProjectByShareToken(db, token)`.
 - Produces:
   - `createTtlCache<V>(options: { ttlMs: number; maxEntries: number; now?: () => number }): TtlCache<V>` with `get(key): V | undefined`, `set(key, value): void`, `clear(): void`.
@@ -555,95 +563,95 @@ import { clearSharedProjectListenersCache } from '../sharedProjectListeners'
 Add `clearSharedProjectListenersCache()` as the first statement inside the existing `beforeEach` of the `describe('shared project view', ...)` block, and add these tests inside that describe (they reuse `projectId`, `shareToken`, `ownerEmail`, `viewerEmail`, `listenerId` from the existing setup):
 
 ```ts
-  it('includes hasMore=false for a small project', async () => {
-    const response = await app.request(
-      `/api/shared/projects/${shareToken}`,
-      { headers: await authCookieHeader(env, viewerEmail) },
-      env,
-    )
-    const body = (await response.json()) as { hasMore: boolean }
-    expect(body.hasMore).toBe(false)
-  })
+it('includes hasMore=false for a small project', async () => {
+  const response = await app.request(
+    `/api/shared/projects/${shareToken}`,
+    { headers: await authCookieHeader(env, viewerEmail) },
+    env,
+  )
+  const body = (await response.json()) as { hasMore: boolean }
+  expect(body.hasMore).toBe(false)
+})
 
-  it('caps the list at 100 listeners and reports hasMore when more exist', async () => {
-    for (let i = 0; i < 100; i++) {
-      await createProjectListener(
-        env.DB,
-        `cap-${projectId}-${i}`,
-        `2024-01-01T00:00:${String(i % 60).padStart(2, '0')}.000Z`,
-        null,
-        ownerEmail,
-        projectId,
-        `cap${String(i).padStart(3, '0')}`,
-      )
-    }
-    // 100 seeded + the 1 from beforeEach = 101
-    const response = await app.request(
-      `/api/shared/projects/${shareToken}`,
-      { headers: await authCookieHeader(env, viewerEmail) },
-      env,
-    )
-    const body = (await response.json()) as {
-      listeners: unknown[]
-      hasMore: boolean
-    }
-    expect(body.listeners).toHaveLength(100)
-    expect(body.hasMore).toBe(true)
-  })
-
-  it('serves the child list from cache for repeat requests, until the cache is cleared', async () => {
-    const fetchList = async () =>
-      (await (
-        await app.request(
-          `/api/shared/projects/${shareToken}`,
-          { headers: await authCookieHeader(env, viewerEmail) },
-          env,
-        )
-      ).json()) as { listeners: { slug: string | null }[] }
-
-    const first = await fetchList()
-    expect(first.listeners).toHaveLength(1)
-
+it('caps the list at 100 listeners and reports hasMore when more exist', async () => {
+  for (let i = 0; i < 100; i++) {
     await createProjectListener(
       env.DB,
-      `late-${projectId}`,
-      '2024-02-01T00:00:00.000Z',
+      `cap-${projectId}-${i}`,
+      `2024-01-01T00:00:${String(i % 60).padStart(2, '0')}.000Z`,
       null,
       ownerEmail,
       projectId,
-      'late-arrival',
+      `cap${String(i).padStart(3, '0')}`,
     )
+  }
+  // 100 seeded + the 1 from beforeEach = 101
+  const response = await app.request(
+    `/api/shared/projects/${shareToken}`,
+    { headers: await authCookieHeader(env, viewerEmail) },
+    env,
+  )
+  const body = (await response.json()) as {
+    listeners: unknown[]
+    hasMore: boolean
+  }
+  expect(body.listeners).toHaveLength(100)
+  expect(body.hasMore).toBe(true)
+})
 
-    const second = await fetchList()
-    expect(second.listeners).toHaveLength(1) // still cached
+it('serves the child list from cache for repeat requests, until the cache is cleared', async () => {
+  const fetchList = async () =>
+    (await (
+      await app.request(
+        `/api/shared/projects/${shareToken}`,
+        { headers: await authCookieHeader(env, viewerEmail) },
+        env,
+      )
+    ).json()) as { listeners: { slug: string | null }[] }
 
-    clearSharedProjectListenersCache()
-    const third = await fetchList()
-    expect(third.listeners).toHaveLength(2)
-  })
+  const first = await fetchList()
+  expect(first.listeners).toHaveLength(1)
 
-  it('returns 404 immediately after the share link is revoked, even while the list is cached', async () => {
-    const url = `/api/shared/projects/${shareToken}`
-    const warm = await app.request(
-      url,
-      { headers: await authCookieHeader(env, viewerEmail) },
-      env,
-    )
-    expect(warm.status).toBe(200)
+  await createProjectListener(
+    env.DB,
+    `late-${projectId}`,
+    '2024-02-01T00:00:00.000Z',
+    null,
+    ownerEmail,
+    projectId,
+    'late-arrival',
+  )
 
-    await app.request(
-      `/api/projects/${projectId}/share`,
-      { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
-      env,
-    )
+  const second = await fetchList()
+  expect(second.listeners).toHaveLength(1) // still cached
 
-    const after = await app.request(
-      url,
-      { headers: await authCookieHeader(env, viewerEmail) },
-      env,
-    )
-    expect(after.status).toBe(404)
-  })
+  clearSharedProjectListenersCache()
+  const third = await fetchList()
+  expect(third.listeners).toHaveLength(2)
+})
+
+it('returns 404 immediately after the share link is revoked, even while the list is cached', async () => {
+  const url = `/api/shared/projects/${shareToken}`
+  const warm = await app.request(
+    url,
+    { headers: await authCookieHeader(env, viewerEmail) },
+    env,
+  )
+  expect(warm.status).toBe(200)
+
+  await app.request(
+    `/api/projects/${projectId}/share`,
+    { method: 'DELETE', headers: await authCookieHeader(env, ownerEmail) },
+    env,
+  )
+
+  const after = await app.request(
+    url,
+    { headers: await authCookieHeader(env, viewerEmail) },
+    env,
+  )
+  expect(after.status).toBe(404)
+})
 ```
 
 - [ ] **Step 6: Run to verify they fail**
@@ -751,6 +759,7 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "perf(backe
 ### Task 4: Frontend poller, hook, test runner
 
 **Files:**
+
 - Modify: `frontend/package.json` (add `vitest` devDependency and `test` script)
 - Create: `frontend/src/lib/poller.ts`, `frontend/src/lib/poller.test.ts`
 - Create: `frontend/src/hooks/usePolling.ts`
@@ -758,6 +767,7 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "perf(backe
 - Modify: `.github/workflows/pr.yml` (add a frontend test step before "Build frontend")
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks.
 - Produces:
   - `createPoller(tick: () => Promise<boolean>, options: PollerOptions, env: PollerEnv): Poller` where `PollerOptions = { intervalMs: number; idleMs: number; onPausedChange?: (paused: boolean) => void }`, `Poller = { start(): void; stop(): void }`, `PollerEnv = { isHidden(): boolean; now(): number; onVisibilityChange(l: () => void): () => void; onActivity(l: () => void): () => void }`; `browserPollerEnv: PollerEnv`.
@@ -1173,10 +1183,9 @@ export function PollingPausedNote() {
 In `.github/workflows/pr.yml`, immediately before the `- name: Build frontend` step, add:
 
 ```yaml
-      - name: Test frontend
-        working-directory: frontend
-        run: npm test
-
+- name: Test frontend
+  working-directory: frontend
+  run: npm test
 ```
 
 - [ ] **Step 8: Verify the frontend still builds**
@@ -1201,12 +1210,14 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "feat(front
 ### Task 5: Adopt the poller and the bounded endpoints in the pages
 
 **Files:**
+
 - Modify: `frontend/src/api.ts` (add `getProject`, `ProjectDetailData`; add `hasMore` to `SharedProjectData`)
 - Modify: `frontend/src/pages/ProjectDetail.tsx`
 - Modify: `frontend/src/pages/SharedProject.tsx`
 - Modify: `frontend/src/pages/Listener.tsx`, `frontend/src/pages/SharedListener.tsx`, `frontend/src/pages/SharedProjectListener.tsx`
 
 **Interfaces:**
+
 - Consumes: `usePolling(tick): { paused: boolean }` (Task 4), `<PollingPausedNote />` (Task 4), backend `GET /api/projects/:id?sort=` → `{ project, listeners, hasMore }` (Task 2), `GET /api/shared/projects/:token` → `{ label, listeners, hasMore }` (Task 3).
 - Produces: no new public interfaces. (`api.ts` exports `getProject(id: string, sort?: SortMode): Promise<ProjectDetailData>` and `ProjectDetailData`.)
 
@@ -1246,16 +1257,17 @@ export interface SharedProjectData {
 - [ ] **Step 2: The three request-feed pages**
 
 In each of `Listener.tsx`, `SharedListener.tsx`, `SharedProjectListener.tsx`:
+
 1. Delete `const POLL_INTERVAL_MS = 3000`.
 2. Add `import { usePolling } from '../hooks/usePolling'` and `import { PollingPausedNote } from '../components/PollingPausedNote'`.
 3. Replace the polling effect block (the `useEffect` containing `const timer = setInterval(async () => { const ok = await refresh() ... }, POLL_INTERVAL_MS)` and `refresh()`, through its `}, [refresh])`) with:
 
 ```tsx
-  useEffect(() => {
-    consecutiveNotFoundRef.current = 0
-  }, [refresh])
+useEffect(() => {
+  consecutiveNotFoundRef.current = 0
+}, [refresh])
 
-  const { paused } = usePolling(refresh)
+const { paused } = usePolling(refresh)
 ```
 
 4. Render `{paused && <PollingPausedNote />}` as the first child of the primary (non-error/non-loading) `<main>` the component returns.
@@ -1266,47 +1278,50 @@ In each of `Listener.tsx`, `SharedListener.tsx`, `SharedProjectListener.tsx`:
 In `frontend/src/pages/SharedProject.tsx`: delete `POLL_INTERVAL_MS`; import `usePolling` and `PollingPausedNote`; add `const [hasMore, setHasMore] = useState(false)`; in `refresh` add `setHasMore(data.hasMore)` right after `setListeners(data.listeners)`; replace the polling `useEffect` (the `setTimeout` chain through `}, [refresh])`) with:
 
 ```tsx
-  const { paused } = usePolling(refresh)
+const { paused } = usePolling(refresh)
 ```
 
 Render `{paused && <PollingPausedNote />}` as the first child of the primary `<main>`, and render this immediately after the element that renders the `listeners.map(...)` list:
 
 ```tsx
-{hasMore && (
-  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-    Showing the first 100 listeners — more exist.
-  </p>
-)}
+{
+  hasMore && (
+    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+      Showing the first 100 listeners — more exist.
+    </p>
+  )
+}
 ```
 
 - [ ] **Step 4: ProjectDetail**
 
 In `frontend/src/pages/ProjectDetail.tsx`:
+
 1. Delete `POLL_INTERVAL_MS`; in the `../api` import replace `listListeners, listProjects` with `getProject` (run `grep -n "listListeners\|listProjects" frontend/src/pages/ProjectDetail.tsx` first and keep any import still used elsewhere in the file; if either is used elsewhere, leave it in the import).
 2. Import `usePolling` and `PollingPausedNote`.
 3. Add `const [hasMore, setHasMore] = useState(false)`.
 4. Replace the body of `refresh` from `const [projects, listeners] = await Promise.all([` through `return true` (just before `}, [projectId, sort])`) with:
 
 ```tsx
-    let data
-    try {
-      data = await getProject(projectId, sort)
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        consecutiveNotFoundRef.current += 1
-        if (consecutiveNotFoundRef.current >= MAX_CONSECUTIVE_NOT_FOUND) {
-          setNotFound(true)
-          return false
-        }
-        return true
-      }
-      throw err
+let data
+try {
+  data = await getProject(projectId, sort)
+} catch (err) {
+  if (err instanceof ApiError && err.status === 404) {
+    consecutiveNotFoundRef.current += 1
+    if (consecutiveNotFoundRef.current >= MAX_CONSECUTIVE_NOT_FOUND) {
+      setNotFound(true)
+      return false
     }
-    consecutiveNotFoundRef.current = 0
-    setProject(data.project)
-    setChildren(data.listeners)
-    setHasMore(data.hasMore)
     return true
+  }
+  throw err
+}
+consecutiveNotFoundRef.current = 0
+setProject(data.project)
+setChildren(data.listeners)
+setHasMore(data.hasMore)
+return true
 ```
 
 5. Replace the polling `useEffect` (the `setTimeout` chain through `}, [refresh])`) with `const { paused } = usePolling(refresh)`.
@@ -1334,10 +1349,12 @@ cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && git commit -m "perf(front
 ### Task 6: Docs, full verification, PR
 
 **Files:**
+
 - Modify: `STATUS.md` (only if it describes polling or request pruning — check first)
 - Modify: `CLAUDE.md` (only to add one line under "Running it locally" that the frontend now has `npm test`)
 
 **Interfaces:**
+
 - Consumes: everything above.
 - Produces: a PR with the `preview` label.
 
@@ -1349,6 +1366,7 @@ Update any statement that is now false (3-second polling → 5s visible/active o
 - [ ] **Step 2: Full verification**
 
 Run, and read the output:
+
 - `cd backend && npm test` — expect all PASS except the known `src/app.session.test.ts` cookie `Domain` failure.
 - `cd frontend && npm test && npm run build` — expect PASS.
 - `cd /Users/Ben.Elliot/repos/webhook-listener-d1reads && npx prettier --check $(git diff --name-only origin/main --diff-filter=ACMR | grep -E '\.(ts|tsx|md|yml|json)$')` — expect clean; if not, run `npx prettier --write` on those files and re-check.

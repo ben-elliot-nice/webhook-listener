@@ -18,13 +18,13 @@ made each call a full table scan. That was fixed in PR #14 (migration
 Post-fix measurement (01:00–02:35 UTC, D1 analytics `d1QueriesAdaptiveGroups`)
 showed the remaining ~1.4k reads/min (~2M/day extrapolated) is:
 
-| Query | Share of reads |
-| --- | --- |
-| `GET /api/listeners` (owner list, LIMIT 100) | ~62% |
-| prune `DELETE FROM requests ... NOT IN (...)`, run on every capture | ~18% |
-| `projects WHERE owner_email` | ~6% |
-| request page fetch | ~4% |
-| other | ~10% |
+| Query                                                               | Share of reads |
+| ------------------------------------------------------------------- | -------------- |
+| `GET /api/listeners` (owner list, LIMIT 100)                        | ~62%           |
+| prune `DELETE FROM requests ... NOT IN (...)`, run on every capture | ~18%           |
+| `projects WHERE owner_email`                                        | ~6%            |
+| request page fetch                                                  | ~4%            |
+| other                                                               | ~10%           |
 
 A steady 10k reads / 5 min with zero writes matched exactly one tab polling
 `/api/listeners` every 3s at 100 rows (20 × 100 = 2k/min): the dominant
