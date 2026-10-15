@@ -241,6 +241,7 @@ describe('query plans use the new indexes (no table scans)', () => {
       encodeCursor({ s: 'date', c: BASE, id: 'x' }),
     )
     expect(plan).toContain('idx_listeners_owner_standalone')
+    expect(plan).toContain('created_at<')
     expect(plan).not.toContain('SCAN')
   })
 
@@ -251,6 +252,7 @@ describe('query plans use the new indexes (no table scans)', () => {
       encodeCursor({ s: 'date', c: BASE, id: 'x' }),
     )
     expect(plan).toContain('idx_listeners_project_id')
+    expect(plan).toContain('created_at<')
     expect(plan).not.toContain('SCAN')
   })
 
@@ -264,6 +266,82 @@ describe('query plans use the new indexes (no table scans)', () => {
       encodeCursor({ s: 'activity', a: BASE, c: BASE, id: 'x' }),
     )
     expect(next).toContain('idx_listeners_project_activity')
+    expect(next).toContain('<expr><')
     expect(next).not.toContain('SCAN')
+  })
+})
+
+describe('deep keyset pages read about one page of rows, not the whole prefix', () => {
+  async function seedDistinct(projectId: string, count: number) {
+    const statements = []
+    for (let i = 0; i < count; i++) {
+      const ts = tsOf(i)
+      statements.push(
+        env.DB.prepare(
+          'INSERT INTO listeners (id, created_at, owner_email, project_id, slug, last_request_at) VALUES (?, ?, ?, ?, ?, ?)',
+        ).bind(
+          `d-${String(i).padStart(4, '0')}`,
+          ts,
+          OWNER,
+          projectId,
+          `d-${i}`,
+          i % 2 === 1 ? ts : null,
+        ),
+      )
+    }
+    for (let i = 0; i < statements.length; i += 100) {
+      await env.DB.batch(statements.slice(i, i + 100))
+    }
+  }
+  const tsOf = (i: number) =>
+    new Date(Date.UTC(2024, 1, 1, 0, 0, i)).toISOString()
+
+  async function rowsRead(scope: ListScope, sort: SortMode, cursor: string) {
+    const { sql, binds } = buildListenersPageQuery(scope, sort, cursor, 50)
+    const result = await env.DB.prepare(sql)
+      .bind(...binds)
+      .all()
+    return (result.meta as { rows_read: number }).rows_read
+  }
+
+  it('date: a deep page reads <= 60 rows (naive OR filter reads ~250)', async () => {
+    const projectId = await seedProject()
+    await seedDistinct(projectId, 300)
+    const cursor = encodeCursor({ s: 'date', c: tsOf(100), id: 'd-0100' })
+    expect(
+      await rowsRead({ kind: 'project', projectId }, 'date', cursor),
+    ).toBeLessThanOrEqual(60)
+  })
+
+  it('activity: a deep page reads <= 60 rows', async () => {
+    const projectId = await seedProject()
+    await seedDistinct(projectId, 300)
+    const cursor = encodeCursor({
+      s: 'activity',
+      a: tsOf(101),
+      c: tsOf(101),
+      id: 'd-0101',
+    })
+    expect(
+      await rowsRead({ kind: 'project', projectId }, 'activity', cursor),
+    ).toBeLessThanOrEqual(60)
+  })
+
+  it('standalone date: a deep page reads <= 60 rows', async () => {
+    const statements = []
+    for (let i = 0; i < 300; i++) {
+      statements.push(
+        env.DB.prepare(
+          'INSERT INTO listeners (id, created_at, owner_email) VALUES (?, ?, ?)',
+        ).bind(`s-${String(i).padStart(4, '0')}`, tsOf(i), OWNER),
+      )
+    }
+    for (let i = 0; i < statements.length; i += 100) {
+      await env.DB.batch(statements.slice(i, i + 100))
+    }
+    const cursor = encodeCursor({ s: 'date', c: tsOf(100), id: 's-0100' })
+    expect(
+      await rowsRead({ kind: 'standalone', email: OWNER }, 'date', cursor),
+    ).toBeLessThanOrEqual(60)
   })
 })

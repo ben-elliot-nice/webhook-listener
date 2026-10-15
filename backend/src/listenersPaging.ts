@@ -89,18 +89,21 @@ function scopeClause(scope: ListScope): { sql: string; binds: unknown[] } {
       }
 }
 
+// The leading `<= ?` bound is logically redundant but is what lets SQLite do an
+// index range seek (with bound parameters it cannot derive one from the OR
+// alone). The OR then only filters the few rows tied on the leading key.
 function keysetClause(cursor: Cursor): { sql: string; binds: unknown[] } {
   if (cursor.s === 'date') {
     return {
-      sql: ' AND (created_at < ? OR (created_at = ? AND id < ?))',
-      binds: [cursor.c, cursor.c, cursor.id],
+      sql: ' AND created_at <= ? AND (created_at < ? OR (created_at = ? AND id < ?))',
+      binds: [cursor.c, cursor.c, cursor.c, cursor.id],
     }
   }
   return {
     sql:
-      ` AND (${ACTIVITY_KEY} < ? OR (${ACTIVITY_KEY} = ? AND ` +
+      ` AND ${ACTIVITY_KEY} <= ? AND (${ACTIVITY_KEY} < ? OR (${ACTIVITY_KEY} = ? AND ` +
       '(created_at < ? OR (created_at = ? AND id < ?))))',
-    binds: [cursor.a, cursor.a, cursor.c, cursor.c, cursor.id],
+    binds: [cursor.a, cursor.a, cursor.a, cursor.c, cursor.c, cursor.id],
   }
 }
 
