@@ -1,3 +1,9 @@
+## [1.1.12](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.11...v1.1.12) (2026-10-15)
+
+### Bug Fixes
+
+* **backend:** index listeners.owner_email/project_id and projects.owner_email ([#14](https://github.com/ben-elliot-nice/webhook-listener/issues/14)) ([b114b94](https://github.com/ben-elliot-nice/webhook-listener/commit/b114b94e3a4137859ae7a21fcf6eb1a08201626d))
+
 ## [1.1.11](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.10...v1.1.11) (2026-09-30)
 
 ### Documentation
