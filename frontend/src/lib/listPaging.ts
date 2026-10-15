@@ -69,8 +69,19 @@ export function sortProjects(sort: SortMode, projects: Project[]): Project[] {
         return byCreatedAtDesc(a, b)
       if (a.sortPosition === null) return 1
       if (b.sortPosition === null) return -1
-      return a.sortPosition - b.sortPosition
+      const byPosition = a.sortPosition - b.sortPosition
+      return byPosition !== 0 ? byPosition : byCreatedAtDesc(a, b)
     })
   }
   return sorted.sort(byCreatedAtDesc)
+}
+
+// Guard for automatic (sentinel-driven) loading of the next page. A failed
+// load blocks further automatic attempts until the caller explicitly retries.
+export function canAutoLoadMore(state: {
+  nextCursor: string | null
+  loadingMore: boolean
+  loadError: boolean
+}): boolean {
+  return state.nextCursor !== null && !state.loadingMore && !state.loadError
 }

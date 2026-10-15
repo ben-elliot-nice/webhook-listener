@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Project } from '../api'
 import {
   appendPage,
+  canAutoLoadMore,
   isPagedSort,
   mergeFirstPage,
   moveItem,
@@ -111,8 +112,8 @@ describe('sortProjects', () => {
   it('name: case-insensitive label, unlabeled last', () => {
     const projects = [
       p('none'),
-      p('b', { label: 'bravo' }),
-      p('a', { label: 'Alpha' }),
+      p('b', { label: 'Bravo' }),
+      p('a', { label: 'alpha' }),
     ]
     expect(sortProjects('name', projects).map((x) => x.id)).toEqual([
       'a',
@@ -136,6 +137,17 @@ describe('sortProjects', () => {
     ])
   })
 
+  it('custom: equal sortPosition ties break newest created first', () => {
+    const projects = [
+      p('older', { sortPosition: 1, createdAt: '2024-01-01T00:00:00.000Z' }),
+      p('newer', { sortPosition: 1, createdAt: '2024-05-01T00:00:00.000Z' }),
+    ]
+    expect(sortProjects('custom', projects).map((x) => x.id)).toEqual([
+      'newer',
+      'older',
+    ])
+  })
+
   it('does not mutate its input', () => {
     const projects = [
       p('a', { createdAt: '2024-01-01T00:00:00.000Z' }),
@@ -143,5 +155,25 @@ describe('sortProjects', () => {
     ]
     sortProjects('date', projects)
     expect(projects.map((x) => x.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('canAutoLoadMore', () => {
+  const base = { nextCursor: 'c', loadingMore: false, loadError: false }
+
+  it('is true only with a cursor, nothing in flight and no error', () => {
+    expect(canAutoLoadMore(base)).toBe(true)
+  })
+
+  it('is false without a cursor', () => {
+    expect(canAutoLoadMore({ ...base, nextCursor: null })).toBe(false)
+  })
+
+  it('is false while a load is in flight', () => {
+    expect(canAutoLoadMore({ ...base, loadingMore: true })).toBe(false)
+  })
+
+  it('is false after a load error', () => {
+    expect(canAutoLoadMore({ ...base, loadError: true })).toBe(false)
   })
 })

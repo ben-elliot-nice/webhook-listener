@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
-import { appendPage, mergeFirstPage } from '../lib/listPaging'
+import { appendPage, canAutoLoadMore, mergeFirstPage } from '../lib/listPaging'
 
 export interface ListPage<T> {
   items: T[]
@@ -21,7 +21,9 @@ export interface UsePaginatedListResult<T> {
   truncated: boolean
   loaded: boolean
   loadingMore: boolean
+  loadError: boolean
   loadMore: () => Promise<void>
+  retryLoadMore: () => void
   refreshFirstPage: () => Promise<void>
 }
 
@@ -39,6 +41,7 @@ export function usePaginatedList<T extends { id: string }>(
   const [truncated, setTruncated] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const generationRef = useRef(0)
   const firstPageEstablishedRef = useRef(false)
 
@@ -49,9 +52,12 @@ export function usePaginatedList<T extends { id: string }>(
     setNextCursor(null)
     setTruncated(false)
     setLoaded(false)
+    setLoadError(false)
     setLoadingMore(false)
   }, [fetchPage])
 
+  // Deliberately rejects when `fetchPage` fails: callers (pollers/effects) catch
+  // it. Only `loadMore` swallows errors, surfacing them via `loadError`.
   const refreshFirstPage = useCallback(async (): Promise<void> => {
     const generation = generationRef.current
     const page = await fetchPage(undefined)
@@ -67,10 +73,13 @@ export function usePaginatedList<T extends { id: string }>(
       setNextCursor(page.nextCursor)
     }
     setLoaded(true)
+    setLoadError(false)
   }, [fetchPage, paged])
 
   const loadMore = useCallback(async (): Promise<void> => {
-    if (nextCursor === null || loadingMore) return
+    if (!canAutoLoadMore({ nextCursor, loadingMore, loadError })) return
+    // canAutoLoadMore already guarantees this; the check narrows the type.
+    if (nextCursor === null) return
     const generation = generationRef.current
     setLoadingMore(true)
     try {
@@ -78,10 +87,19 @@ export function usePaginatedList<T extends { id: string }>(
       if (generation !== generationRef.current) return
       setItems((current) => appendPage(current, page.items))
       setNextCursor(page.nextCursor)
+      setLoadError(false)
+    } catch {
+      // Do not rethrow: a caller invoking this from an observer callback would
+      // get an unhandled rejection. The error is exposed as `loadError`.
+      if (generation === generationRef.current) setLoadError(true)
     } finally {
       if (generation === generationRef.current) setLoadingMore(false)
     }
-  }, [fetchPage, nextCursor, loadingMore])
+  }, [fetchPage, nextCursor, loadingMore, loadError])
+
+  // Clearing `loadError` changes `loadMore`'s identity (it is a dep), which
+  // re-triggers a caller's sentinel effect and therefore retries the load.
+  const retryLoadMore = useCallback(() => setLoadError(false), [])
 
   return {
     items,
@@ -90,7 +108,9 @@ export function usePaginatedList<T extends { id: string }>(
     truncated,
     loaded,
     loadingMore,
+    loadError,
     loadMore,
+    retryLoadMore,
     refreshFirstPage,
   }
 }
