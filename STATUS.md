@@ -23,12 +23,12 @@ before trusting it.
 
 ## Build / test health
 
-- Backend: `cd backend && npm test` → **307/308 passing** (34 test files).
+- Backend: `cd backend && npm test` → **332/333 passing** (36 test files; the one failure is `src/app.session.test.ts`, cookie `Domain`, pre-existing and caused by a local `.dev.vars`).
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors;
-  `cd frontend && npm test` (vitest, 9 tests) also runs in CI.
-- D1 migrations applied: `0001_init.sql` → `0009_magic_links.sql` (includes
-  `0008_owner_email.sql` and `0009_magic_links.sql` from the email
-  access gate round).
+  `cd frontend && npm test` (vitest, 27 tests) also runs in CI.
+- D1 migrations: `0001_init.sql` → `0013_listener_paging_indexes.sql`
+  (`0013` is additive and NOT yet applied to remote D1: two composite indexes for paged lists; apply
+  it to remote D1 before relying on the paged queries being cheap).
 - **Before deploying the updated backend Worker**, apply
   `0008_owner_email.sql` and `0009_magic_links.sql` to the remote D1
   database with `cd backend && npm run db:migrate:remote`. Both the
@@ -166,12 +166,34 @@ In build order — each has a full design spec + implementation plan under
     every 5 s (was 3 s), only while the tab is visible and the user was active
     in the last 10 min (shared `usePolling`). Project pages load via a bounded
     `GET /api/projects/:id?sort=` returning `{project, listeners, hasMore}`,
-    capped at 100 listeners with a "more exist" note;
+    keyset-paginated (see item 15);
     `GET /api/shared/projects/:token` is capped the same way and caches the
     child listener rows in memory for 10 s per isolate (shared project
     lists can be up to 10 s stale; the token lookup is never cached).
-    Known limitation: custom drag-reorder on a project with more than 100
-    listeners only reorders the ones shown.
+    Superseded for the owner views by item 15; the shared view is unchanged.
+    The old 100-listener cap and "more exist" note on project pages are gone.
+15. **Paginated listener lists** - `GET /api/projects/:id?sort=&cursor=&limit=`
+    returns `{ project, listeners, nextCursor, truncated, hasMore }`; new
+    `GET /api/standalone-listeners?sort=&cursor=&limit=` returns
+    `{ listeners, nextCursor, truncated }`. Date and Recent activity use opaque
+    base64url keyset cursors (page default 50, max 100; `src/listenersPaging.ts`)
+    backed by migration `0013_listener_paging_indexes.sql`; Name and Custom are
+    unpaged, capped at 500, with a `truncated` flag. The project page and Home
+    use infinite scroll; Date and Recent activity poll the first page every 5 s,
+    Name and Custom do not poll (they refresh on tab visibility and after the
+    user's own edits). A failed next-page load shows a Retry link and does not
+    auto-retry. Home is a Projects section (all projects; Recent activity falls
+    back to created date) above a paginated standalone Listeners section;
+    `mergeHomeItems.ts` is removed. Custom drag-reorder works within a section
+    and is disabled when a list is truncated (>500). Why: Home built both
+    project cards and standalone listeners from the newest 100 listeners, which
+    a 1,445-listener project filled, hiding older standalone listeners.
+    `GET /api/listeners` and the shared project endpoints are unchanged.
+    Known limitations: the shared project view is still capped at 100 with a
+    note (10 s cache); Recent-activity cursors can briefly repeat or miss a row
+    until the next first-page refresh; Name/Custom cost O(project size) per
+    load; if the refetch after a sort change fails on Name/Custom the list area
+    stays blank until a tab refresh or an edit.
 
 Full behavioural detail and edge cases for each of these live in their spec
 files — this list is an index, not a substitute for reading them.
