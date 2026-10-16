@@ -27,8 +27,8 @@ before trusting it.
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors;
   `cd frontend && npm test` (vitest, 27 tests) also runs in CI.
 - D1 migrations: `0001_init.sql` → `0013_listener_paging_indexes.sql`
-  (`0013` is additive and NOT yet applied to remote D1: two composite indexes for paged lists; apply
-  it to remote D1 before relying on the paged queries being cheap).
+  (`0013` is additive: two composite indexes for paged lists. Applied to remote D1 on 2026-10-16,
+  before PR #16 merged).
 - **Before deploying the updated backend Worker**, apply
   `0008_owner_email.sql` and `0009_magic_links.sql` to the remote D1
   database with `cd backend && npm run db:migrate:remote`. Both the
@@ -148,16 +148,23 @@ In build order — each has a full design spec + implementation plan under
     footnote, not an ongoing concern.
 
 13. **PR preview environments** — adding the `preview` label to a PR
-    provisions a live, isolated Worker pair + D1 database for it, seeded
-    from a scrubbed copy of production with migrations pre-applied; the
-    preview URLs are posted as a PR comment, and the environment is torn
-    down automatically on label removal or PR close (`.github/workflows/preview.yml`,
-    orchestrating scripts under `scripts/preview-env/`). See `CLAUDE.md`'s
-    "PR preview environments" section and
-    `docs/superpowers/specs/2026-09-30-pr-preview-environments-design.md`.
+    deploys it to the shared staging environment after wiping the staging
+    D1 database (no data copied from production; last label wins; pushes
+    keep the data and only the occupant PR redeploys). The
+    staging URLs are posted as a PR comment (`.github/workflows/preview.yml`,
+    scripts under `scripts/preview-env/`). See `CLAUDE.md`'s "PR preview
+    environments" section and
+    `docs/superpowers/specs/2026-10-15-staging-preview-design.md`. The
+    per-PR model it replaced (`2026-09-30-pr-preview-environments-design.md`)
+    is historical. Verified on a real run (PR #17, 2026-10-16): a reset of
+    the staging database (6 tables dropped, 13 migrations applied, occupant
+    recorded) plus deploy wrote 116 rows to the staging database for the
+    hour, against an acceptance bar of under 5,000 and the 26,635 to 44,300
+    the per-PR model wrote per provision.
     A follow-on, sub-project 2 — opt-in automated production migrations,
     gated on a successful preview provision plus an explicit PR-body
-    checkbox at merge time — is designed separately and not yet built.
+    checkbox at merge time — is designed separately and not yet built; it
+    was designed against the per-PR model and needs revisiting.
 
 14. **D1 rows-read reduction** — request-history prune now runs on ~1 in 10
     captures, chosen at random per capture, instead of every capture, so a
