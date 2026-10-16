@@ -155,6 +155,23 @@ test('extractStagingUrls reads the staging vars, not the production ones', () =>
   })
 })
 
+// backend/wrangler.toml mentions the header inside a comment before the real
+// section; the first real run failed on exactly this shape.
+test('extractStagingUrls ignores the header text inside a comment', () => {
+  const toml = `# not in [env.staging.vars] either, for the same reason
+[env.staging]
+name = "webhook-api-staging"
+
+[env.staging.vars]
+HOOK_BASE_URL = "https://webhook-api-staging.example.workers.dev"
+APP_BASE_URL = "https://webhook-staging.example.workers.dev"
+`
+  assert.deepEqual(extractStagingUrls(toml), {
+    backendUrl: 'https://webhook-api-staging.example.workers.dev',
+    frontendUrl: 'https://webhook-staging.example.workers.dev',
+  })
+})
+
 test('extractStagingUrls throws when the staging vars section is missing', () => {
   assert.throws(() => extractStagingUrls('[vars]\nA = "b"\n'), /staging/)
 })

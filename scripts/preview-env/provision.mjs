@@ -70,7 +70,9 @@ export function decideProvisionMode({ action, occupant, prNumber }) {
 // Staging's public URLs already live in backend/wrangler.toml's
 // [env.staging.vars]; reading them from there avoids a second copy.
 export function extractStagingUrls(tomlText) {
-  const afterHeader = tomlText.split('[env.staging.vars]')[1]
+  // The header must be a whole line: backend/wrangler.toml also mentions
+  // `[env.staging.vars]` inside a comment, which a plain substring split hit.
+  const afterHeader = tomlText.split(/^\[env\.staging\.vars\][ \t]*$/m)[1]
   if (afterHeader === undefined) {
     throw new Error('No [env.staging.vars] section found in wrangler.toml')
   }
