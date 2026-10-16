@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the `preview` label deploy the PR to the one long-lived staging environment after wiping its D1 database, instead of provisioning a per-PR database copied from production.
+**Goal:** Make the `preview` label deploy the PR to the one long-lived staging environment, wiping its D1 database only when the label is added (pushes keep data), instead of provisioning a per-PR database copied from production.
 
-**Architecture:** `provision.mjs` shrinks to reset (drop every table), migrate, deploy against `[env.staging]`. The workflow serialises all runs through one job-level concurrency group. `upsert-comment.mjs` gains "superseded" and "inactive" states so the PR that loses staging says so. All per-PR provisioning, teardown, scrub and wrangler-config-generation code is deleted.
+**Architecture:** `provision.mjs` shrinks to two modes against `[env.staging]`: `reset` (on `labeled`: drop every table, migrate, record the PR in a one-row `_staging_occupant` table, deploy) and `redeploy` (on `synchronize`, only if the PR is the recorded occupant: apply new migrations, deploy; otherwise do nothing to staging). The workflow serialises all runs through one job-level concurrency group and only resets when the label added is `preview` itself. `upsert-comment.mjs` gains "superseded", "inactive" and "not-holder" states. All per-PR provisioning, teardown, scrub and wrangler-config-generation code is deleted.
 
 **Tech Stack:** Node (`node:test` for `scripts/preview-env/*.test.mjs`), wrangler, GitHub Actions, Cloudflare D1 (Miniflare locally).
 
@@ -14,7 +14,9 @@
 
 - Staging D1 is `webhook-listener-staging` (`7f55f3f0-7fe0-4237-8307-8769755f4c3a`), already declared in `backend/wrangler.toml` `[env.staging]`; deploy with `--env staging`. Do not add a `routes` block.
 - Staging Workers: `webhook-api-staging` and `webhook-staging`, on workers.dev. Their `WL_SESSION_SECRET` and `RESEND_API_KEY` are set once and are never touched by the workflow.
-- Reset on every run. Drop **every** table in `sqlite_master` (excluding SQLite/Cloudflare internals), including `d1_migrations`, not a hardcoded list. No seed data.
+- Reset **only** when the `preview` label itself is added (`labeled` with `github.event.label.name == 'preview'`). A push never wipes data. Reset drops **every** table in `sqlite_master` (excluding SQLite/Cloudflare internals), including `d1_migrations` and `_staging_occupant`, not a hardcoded list. No seed data.
+- Staging records its occupant in a script-created (not a migration) one-row table `_staging_occupant (pr INTEGER NOT NULL)`, written after each reset's migrations apply.
+- A push (`synchronize`) to the occupant PR runs `wrangler d1 migrations apply` (new migrations only) and redeploys. A push to any other labelled PR, or when there is no occupant record, does nothing to staging and posts a "not-holder" comment telling the author to remove and re-add the label.
 - Last label wins. All runs share one concurrency group named `staging` with `cancel-in-progress: false`.
 - Label removal or PR close takes no infrastructure action; it only updates the PR comment.
 - Commit headers must be Conventional Commits and **<= 100 characters** (commitlint runs locally and in CI). Stage with `git add` in one command, commit in a separate command. Never `--no-verify`. If a commit fails with a confusing `Token` header-parsing error, `bw` is locked: ask the user to unlock it.
@@ -28,7 +30,7 @@
 
 ## File Structure
 
-- Modify `scripts/preview-env/provision.mjs` — reset/migrate/deploy; exports pure helpers `isDroppableTable`, `parseTableNames`, `buildResetSql`, `extractStagingUrls`.
+- Modify `scripts/preview-env/provision.mjs` — reset/redeploy modes; exports pure helpers `isDroppableTable`, `parseTableNames`, `buildResetSql`, `buildOccupantSql`, `parseOccupant`, `decideProvisionMode`, `extractStagingUrls`.
 - Modify `scripts/preview-env/provision.test.mjs` — tests for those helpers (old `shouldFullyProvision`, `generateSessionSecret`, `parseRowCount` tests are removed with their functions).
 - Modify `scripts/preview-env/upsert-comment.mjs` and `.test.mjs` — new states and commands.
 - Modify `.github/workflows/preview.yml` — rewritten; modify `.github/workflows/pr.yml` — one added step so these script tests run in CI.
@@ -37,7 +39,7 @@
 
 ---
 
-### Task 1: Reset-and-deploy core in `provision.mjs`
+### Task 1: Reset/redeploy core in `provision.mjs`
 
 **Files:**
 
@@ -50,8 +52,11 @@
   - `isDroppableTable(name: string): boolean`
   - `parseTableNames(jsonOutput: string): string[]` — input is `wrangler d1 execute --json` output for `SELECT name FROM sqlite_master WHERE type = 'table'`
   - `buildResetSql(tableNames: string[]): string`
+  - `buildOccupantSql(prNumber: string): string` — creates `_staging_occupant` and inserts the PR number; throws if `prNumber` is not a positive integer string.
+  - `parseOccupant(jsonOutput: string): number | null` — input is `--json` output for `SELECT pr FROM _staging_occupant`; `null` when the table has no rows.
+  - `decideProvisionMode({ action: string, occupant: number | null, prNumber: string }): 'reset' | 'redeploy' | 'not-occupant'` — `labeled` → `reset`; `synchronize` → `redeploy` only if `occupant === Number(prNumber)`, else `not-occupant`; any other action throws.
   - `extractStagingUrls(tomlText: string): { backendUrl: string, frontendUrl: string }`
-  - CLI: `node scripts/preview-env/provision.mjs` (no arguments); last stdout line is JSON `{ "backendUrl": "...", "frontendUrl": "..." }`.
+  - CLI: `node scripts/preview-env/provision.mjs <action> <pr-number>`; last stdout line is JSON, either `{ "outcome": "deployed", "mode": "reset" | "redeploy", "backendUrl": "...", "frontendUrl": "..." }` or `{ "outcome": "not-occupant", "occupant": <number> | null }`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -64,6 +69,9 @@ import {
   isDroppableTable,
   parseTableNames,
   buildResetSql,
+  buildOccupantSql,
+  parseOccupant,
+  decideProvisionMode,
   extractStagingUrls,
 } from './provision.mjs'
 
@@ -117,6 +125,80 @@ test('buildResetSql with no tables is only the pragma', () => {
   assert.equal(buildResetSql([]), 'PRAGMA defer_foreign_keys = on;')
 })
 
+test('buildOccupantSql creates the table and records the PR number', () => {
+  assert.equal(
+    buildOccupantSql('42'),
+    [
+      'CREATE TABLE _staging_occupant (pr INTEGER NOT NULL);',
+      'INSERT INTO _staging_occupant (pr) VALUES (42);',
+    ].join('\n'),
+  )
+})
+
+test('buildOccupantSql rejects anything that is not a positive integer', () => {
+  assert.throws(() => buildOccupantSql('42; DROP TABLE listeners'), /PR number/)
+  assert.throws(() => buildOccupantSql('0'), /PR number/)
+  assert.throws(() => buildOccupantSql(''), /PR number/)
+})
+
+test('parseOccupant reads the recorded PR number', () => {
+  const output = JSON.stringify([{ results: [{ pr: 42 }], success: true }])
+  assert.equal(parseOccupant(output), 42)
+})
+
+test('parseOccupant returns null when the table has no rows', () => {
+  const output = JSON.stringify([{ results: [], success: true }])
+  assert.equal(parseOccupant(output), null)
+})
+
+test('decideProvisionMode always resets on labeled, whoever held staging', () => {
+  assert.equal(
+    decideProvisionMode({ action: 'labeled', occupant: 7, prNumber: '42' }),
+    'reset',
+  )
+  assert.equal(
+    decideProvisionMode({ action: 'labeled', occupant: null, prNumber: '42' }),
+    'reset',
+  )
+})
+
+test('decideProvisionMode redeploys a push from the occupant PR', () => {
+  assert.equal(
+    decideProvisionMode({
+      action: 'synchronize',
+      occupant: 42,
+      prNumber: '42',
+    }),
+    'redeploy',
+  )
+})
+
+test('decideProvisionMode leaves staging alone for a push from another PR', () => {
+  assert.equal(
+    decideProvisionMode({ action: 'synchronize', occupant: 7, prNumber: '42' }),
+    'not-occupant',
+  )
+})
+
+test('decideProvisionMode leaves staging alone when there is no occupant record', () => {
+  assert.equal(
+    decideProvisionMode({
+      action: 'synchronize',
+      occupant: null,
+      prNumber: '42',
+    }),
+    'not-occupant',
+  )
+})
+
+test('decideProvisionMode throws for an unsupported action', () => {
+  assert.throws(
+    () =>
+      decideProvisionMode({ action: 'closed', occupant: 42, prNumber: '42' }),
+    /action/,
+  )
+})
+
 const TOML = `
 [vars]
 HOOK_BASE_URL = "https://prod-api.example.com"
@@ -165,11 +247,15 @@ Replace the whole file with:
 import { execSync } from 'node:child_process'
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 
-// Previews deploy to the one long-lived staging environment, wiping its
-// database on every run. Nothing is ever copied from production. See
-// docs/superpowers/specs/2026-10-15-staging-preview-design.md.
+// Previews deploy to the one long-lived staging environment. Adding the
+// `preview` label wipes its database (mode `reset`); a push to the PR that
+// currently holds staging only applies new migrations and redeploys (mode
+// `redeploy`), so hand-made test data survives. Nothing is ever copied from
+// production. See docs/superpowers/specs/2026-10-15-staging-preview-design.md.
 
 const RESET_FILE = '.reset-staging.sql'
+const OCCUPANT_FILE = '.occupant-staging.sql'
+const OCCUPANT_TABLE = '_staging_occupant'
 
 // SQLite's own bookkeeping tables and Cloudflare's internal `_cf_*` tables
 // can't (or must not) be dropped. Everything else, including d1_migrations,
@@ -193,6 +279,37 @@ export function buildResetSql(tableNames) {
     (name) => `DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}";`,
   )
   return ['PRAGMA defer_foreign_keys = on;', ...drops].join('\n')
+}
+
+// The occupant table is created by this script, not by a migration, so the
+// production schema is untouched. It is dropped by every reset along with the
+// data it describes. prNumber is validated because it is interpolated into SQL.
+export function buildOccupantSql(prNumber) {
+  if (!/^[1-9]\d*$/.test(prNumber)) {
+    throw new Error(`Invalid PR number: ${JSON.stringify(prNumber)}`)
+  }
+  return [
+    `CREATE TABLE ${OCCUPANT_TABLE} (pr INTEGER NOT NULL);`,
+    `INSERT INTO ${OCCUPANT_TABLE} (pr) VALUES (${prNumber});`,
+  ].join('\n')
+}
+
+// `wrangler d1 execute --json` output for `SELECT pr FROM _staging_occupant`.
+export function parseOccupant(jsonOutput) {
+  const rows = JSON.parse(jsonOutput)[0].results
+  return rows.length === 0 ? null : Number(rows[0].pr)
+}
+
+// `labeled` is the only event that may wipe staging. A push never does: it
+// redeploys only for the PR that already holds staging, because deploying
+// another PR's code onto the holder's schema would be wrong, and resetting
+// would destroy the holder's test data.
+export function decideProvisionMode({ action, occupant, prNumber }) {
+  if (action === 'labeled') return 'reset'
+  if (action === 'synchronize') {
+    return occupant === Number(prNumber) ? 'redeploy' : 'not-occupant'
+  }
+  throw new Error(`Unsupported action: ${action}`)
 }
 
 // Staging's public URLs already live in backend/wrangler.toml's
@@ -221,37 +338,76 @@ function run(command, options = {}) {
   execSync(command, { stdio: 'inherit', ...options })
 }
 
+// Runs a SQL file on remote staging, then removes it even if the run fails.
+function executeSqlFile(fileName, sql) {
+  const path = `backend/${fileName}`
+  writeFileSync(path, sql)
+  try {
+    run(
+      `npx wrangler d1 execute DB --remote --env staging --file=${fileName}`,
+      { cwd: 'backend' },
+    )
+  } finally {
+    unlinkSync(path)
+  }
+}
+
+function queryStaging(sql) {
+  return execSync(
+    `npx wrangler d1 execute DB --remote --env staging --json --command "${sql}"`,
+    { cwd: 'backend', encoding: 'utf8' },
+  )
+}
+
 function main() {
+  const [action, prNumber] = process.argv.slice(2)
+  if (!action || !/^[1-9]\d*$/.test(prNumber ?? '')) {
+    console.error('Usage: provision.mjs <labeled|synchronize> <pr-number>')
+    process.exit(1)
+  }
+
   const { backendUrl, frontendUrl } = extractStagingUrls(
     readFileSync('backend/wrangler.toml', 'utf8'),
   )
 
-  const tablesJson = execSync(
-    `npx wrangler d1 execute DB --remote --env staging --json --command "SELECT name FROM sqlite_master WHERE type = 'table'"`,
-    { cwd: 'backend', encoding: 'utf8' },
+  const tableNames = parseTableNames(
+    queryStaging("SELECT name FROM sqlite_master WHERE type = 'table'"),
   )
-  const tableNames = parseTableNames(tablesJson)
-  console.log(`Resetting staging: dropping ${tableNames.length} table(s)`)
+  // A staging DB that has never held a preview has no occupant table.
+  const occupant = tableNames.includes(OCCUPANT_TABLE)
+    ? parseOccupant(queryStaging(`SELECT pr FROM ${OCCUPANT_TABLE}`))
+    : null
 
-  const resetPath = `backend/${RESET_FILE}`
-  writeFileSync(resetPath, buildResetSql(tableNames))
-  try {
-    run(
-      `npx wrangler d1 execute DB --remote --env staging --file=${RESET_FILE}`,
-      { cwd: 'backend' },
-    )
-  } finally {
-    unlinkSync(resetPath)
+  const mode = decideProvisionMode({ action, occupant, prNumber })
+
+  if (mode === 'not-occupant') {
+    console.log(`Staging is not held by #${prNumber}; leaving it untouched`)
+    console.log(JSON.stringify({ outcome: 'not-occupant', occupant }))
+    return
   }
 
+  if (mode === 'reset') {
+    console.log(`Resetting staging: dropping ${tableNames.length} table(s)`)
+    executeSqlFile(RESET_FILE, buildResetSql(tableNames))
+  }
+
+  // On `redeploy` this applies only migrations not yet recorded in
+  // d1_migrations; on `reset` it applies all of them to the empty database.
   run(`npx wrangler d1 migrations apply DB --remote --env staging`, {
     cwd: 'backend',
   })
+
+  if (mode === 'reset') {
+    executeSqlFile(OCCUPANT_FILE, buildOccupantSql(prNumber))
+  }
+
   run(`npx wrangler deploy --env staging`, { cwd: 'backend' })
   // The workflow has already built the frontend with --mode staging.
   run(`npx wrangler deploy --env staging`, { cwd: 'frontend' })
 
-  console.log(JSON.stringify({ backendUrl, frontendUrl }))
+  console.log(
+    JSON.stringify({ outcome: 'deployed', mode, backendUrl, frontendUrl }),
+  )
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -267,7 +423,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test scripts/preview-env/provision.test.mjs`
-Expected: PASS, 10 tests.
+Expected: PASS, 19 tests.
 
 - [ ] **Step 5: Format and commit**
 
@@ -278,7 +434,7 @@ git add scripts/preview-env/provision.mjs scripts/preview-env/provision.test.mjs
 ```
 
 ```bash
-git commit -m "feat(ci): reset and deploy to staging in provision.mjs instead of copying prod"
+git commit -m "feat(ci): reset staging on label, redeploy on push, in provision.mjs"
 ```
 
 (The deleted helpers are still imported by files removed in Task 4; nothing else imports `provision.mjs`, so this is safe.)
@@ -294,9 +450,9 @@ git commit -m "feat(ci): reset and deploy to staging in provision.mjs instead of
 
 **Interfaces:**
 
-- Produces (exported): `buildCommentBody({ prNumber, status, backendUrl, frontendUrl, runUrl, supersededBy }): string` where `status` is `'provisioned' | 'failed' | 'superseded' | 'inactive'`; `findExistingComment(comments, prNumber)`; `isActiveComment(body): boolean`.
+- Produces (exported): `buildCommentBody({ prNumber, status, backendUrl, frontendUrl, runUrl, supersededBy, heldBy }): string` where `status` is `'provisioned' | 'failed' | 'superseded' | 'inactive' | 'not-holder'` (`heldBy` is the PR number holding staging, or undefined when there is no occupant record); `findExistingComment(comments, prNumber)`; `isActiveComment(body): boolean`.
 - Produces CLI commands used by Task 4's workflow:
-  - `upsert-comment.mjs upsert <pr> <status> <backendUrl> <frontendUrl> <runUrl>`
+  - `upsert-comment.mjs upsert <pr> <status> <backendUrl> <frontendUrl> <runUrl> [otherPr]` — `otherPr` is used as `supersededBy` for `superseded` and as `heldBy` for `not-holder`; pass `""` for the unused URL arguments.
   - `upsert-comment.mjs supersede-others <currentPr> <runUrl>`
   - `upsert-comment.mjs deactivate <pr> <runUrl>`
 - Marker format is now `<!-- preview-env:<pr> -->`. Old-format comments (`<!-- preview-env:<pr> db-id:... -->`) still match `findExistingComment` and get overwritten.
@@ -329,6 +485,7 @@ test('buildCommentBody renders provisioned with both URLs', () => {
   assert.match(body, /Frontend: https:\/\/app\.example\.workers\.dev/)
   assert.match(body, /Status: provisioned ✅/)
   assert.match(body, /shared staging environment/)
+  assert.match(body, /wiped when the `preview` label is added/)
 })
 
 test('buildCommentBody renders failed without URLs', () => {
@@ -359,6 +516,28 @@ test('buildCommentBody renders inactive', () => {
     runUrl: RUN,
   })
   assert.match(body, /Status: no longer active 🧹/)
+})
+
+test('buildCommentBody renders not-holder with the PR that holds staging', () => {
+  const body = buildCommentBody({
+    prNumber: '42',
+    status: 'not-holder',
+    runUrl: RUN,
+    heldBy: '43',
+  })
+  assert.match(body, /Status: staging is held by #43 ⏸️/)
+  assert.match(body, /remove and re-add the `preview` label/)
+  assert.doesNotMatch(body, /Backend:/)
+})
+
+test('buildCommentBody renders not-holder when no PR holds staging', () => {
+  const body = buildCommentBody({
+    prNumber: '42',
+    status: 'not-holder',
+    runUrl: RUN,
+  })
+  assert.match(body, /Status: staging has no recorded holder ⏸️/)
+  assert.match(body, /remove and re-add the `preview` label/)
 })
 
 test('buildCommentBody throws for an unknown status', () => {
@@ -405,8 +584,15 @@ test('isActiveComment is true only for a provisioned comment', () => {
     runUrl: RUN,
     supersededBy: '43',
   })
+  const notHolder = buildCommentBody({
+    prNumber: '42',
+    status: 'not-holder',
+    runUrl: RUN,
+    heldBy: '43',
+  })
   assert.equal(isActiveComment(active), true)
   assert.equal(isActiveComment(superseded), false)
+  assert.equal(isActiveComment(notHolder), false)
 })
 ```
 
@@ -430,6 +616,7 @@ export function buildCommentBody({
   frontendUrl,
   runUrl,
   supersededBy,
+  heldBy,
 }) {
   const lines = [
     `${MARKER_PREFIX}${prNumber} -->`,
@@ -442,7 +629,7 @@ export function buildCommentBody({
     lines.push(`- Frontend: ${frontendUrl}`)
     lines.push('')
     lines.push(
-      'This is the shared staging environment: its database is wiped on every deploy, and the most recently labelled or pushed PR holds it.',
+      'This is the shared staging environment: its database is wiped when the `preview` label is added (pushes keep your data), and the most recently labelled PR holds it.',
     )
     lines.push('')
     lines.push(`Status: provisioned ✅ · [workflow run](${runUrl})`)
@@ -454,6 +641,15 @@ export function buildCommentBody({
     )
   } else if (status === 'inactive') {
     lines.push(`Status: no longer active 🧹 · [workflow run](${runUrl})`)
+  } else if (status === 'not-holder') {
+    const holder = heldBy
+      ? `staging is held by #${heldBy}`
+      : 'staging has no recorded holder'
+    lines.push(`Status: ${holder} ⏸️ · [workflow run](${runUrl})`)
+    lines.push('')
+    lines.push(
+      'This push was not deployed. To take staging over (this wipes its database), remove and re-add the `preview` label.',
+    )
   } else {
     throw new Error(`Unknown status: ${status}`)
   }
@@ -558,8 +754,15 @@ async function main() {
   const [command, ...args] = process.argv.slice(2)
 
   if (command === 'upsert') {
-    const [prNumber, status, backendUrl, frontendUrl, runUrl] = args
-    await upsertComment(prNumber, { status, backendUrl, frontendUrl, runUrl })
+    const [prNumber, status, backendUrl, frontendUrl, runUrl, otherPr] = args
+    await upsertComment(prNumber, {
+      status,
+      backendUrl,
+      frontendUrl,
+      runUrl,
+      supersededBy: otherPr || undefined,
+      heldBy: otherPr || undefined,
+    })
     return
   }
   if (command === 'supersede-others') {
@@ -574,7 +777,7 @@ async function main() {
   }
 
   console.error(
-    'Usage: upsert-comment.mjs upsert <pr> <status> <backendUrl> <frontendUrl> <runUrl>\n' +
+    'Usage: upsert-comment.mjs upsert <pr> <status> <backendUrl> <frontendUrl> <runUrl> [otherPr]\n' +
       '       upsert-comment.mjs supersede-others <currentPr> <runUrl>\n' +
       '       upsert-comment.mjs deactivate <pr> <runUrl>',
   )
@@ -592,7 +795,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test scripts/preview-env/upsert-comment.test.mjs`
-Expected: PASS, 10 tests.
+Expected: PASS, 12 tests.
 
 - [ ] **Step 5: Format and commit**
 
@@ -603,7 +806,7 @@ git add scripts/preview-env/upsert-comment.mjs scripts/preview-env/upsert-commen
 ```
 
 ```bash
-git commit -m "feat(ci): add superseded and inactive states to the preview PR comment"
+git commit -m "feat(ci): add superseded, inactive and not-holder states to the preview comment"
 ```
 
 ---
@@ -619,7 +822,7 @@ This task proves the reset SQL works against real D1 semantics (Miniflare) with 
 
 **Interfaces:**
 
-- Consumes: `parseTableNames`, `buildResetSql` from Task 1.
+- Consumes: `parseTableNames`, `buildResetSql`, `buildOccupantSql`, `parseOccupant`, `decideProvisionMode` from Task 1.
 
 - [ ] **Step 1: Apply migrations to the local staging-binding database**
 
@@ -660,7 +863,7 @@ npx wrangler d1 execute DB --local --env staging --json --command "SELECT name F
 
 Expected: the reset succeeds, and the second command returns an empty `results` array. Failure: if the reset fails with a foreign-key error even with data present, `defer_foreign_keys` is not taking effect for `--file`. **Stop and report this to the user** before changing the approach; the fallback is to order drops children-first using `SELECT m.name, f."table" FROM sqlite_master m, pragma_foreign_key_list(m.name) f WHERE m.type = 'table'`, which would change `buildResetSql`'s signature and Task 1's tests.
 
-- [ ] **Step 6: Re-apply migrations to prove a clean rebuild**
+- [ ] **Step 5: Re-apply migrations to prove a clean rebuild**
 
 ```bash
 npx wrangler d1 migrations apply DB --local --env staging
@@ -669,9 +872,22 @@ npx wrangler d1 execute DB --local --env staging --json --command "SELECT (SELEC
 
 Expected: all migrations apply from scratch (the `d1_migrations` table was dropped), and `l = 0`, `r = 0`.
 
+- [ ] **Step 6: Record an occupant and prove a push does not wipe data**
+
+```bash
+node --input-type=module -e "import { writeFileSync } from 'node:fs'; const m = await import('../scripts/preview-env/provision.mjs'); writeFileSync(process.env.HOME + '/scratch/staging-reset/occupant.sql', m.buildOccupantSql('42'))"
+npx wrangler d1 execute DB --local --env staging --file ~/scratch/staging-reset/occupant.sql
+npx wrangler d1 execute DB --local --env staging --json --command "SELECT pr FROM _staging_occupant" > ~/scratch/staging-reset/occupant.json
+node --input-type=module -e "import { readFileSync } from 'node:fs'; const m = await import('../scripts/preview-env/provision.mjs'); const o = m.parseOccupant(readFileSync(process.env.HOME + '/scratch/staging-reset/occupant.json', 'utf8')); console.log(o, m.decideProvisionMode({ action: 'synchronize', occupant: o, prNumber: '42' }), m.decideProvisionMode({ action: 'synchronize', occupant: o, prNumber: '43' }))"
+```
+
+Expected: the node line prints `42 redeploy not-occupant`.
+
+Then re-insert the Step 2 parent and child rows, run `npx wrangler d1 migrations apply DB --local --env staging` again (the redeploy path), and confirm `l = 1`, `r = 1` still: a no-op migrate must not touch data. Finally run the Step 3 and Step 4 reset again and confirm `_staging_occupant` is gone along with everything else (the reset drops it, so a stale occupant can never survive a wipe).
+
 - [ ] **Step 7: Record the result**
 
-No commit. In the final report, state the outcome of Steps 4 and 6 explicitly.
+No commit. In the final report, state the outcome of Steps 4, 5 and 6 explicitly.
 
 ---
 
@@ -704,7 +920,7 @@ Expected: matches only in `.github/workflows/preview.yml` (rewritten next) and `
 
 - [ ] **Step 2: Rewrite `.github/workflows/preview.yml`**
 
-Replace the whole file with the following. Concurrency is set at **job** level, not workflow level, on purpose: a workflow-level group would let a no-op run (for example a push to an unlabelled PR) replace a pending deploy from another PR. Skipped jobs do not enter a job-level group. GitHub keeps at most one pending run per group, so a third queued run replaces the second; under "last label wins" that is acceptable.
+Replace the whole file with the following. Concurrency is set at **job** level, not workflow level, on purpose: a workflow-level group would let a no-op run (for example a push to an unlabelled PR) replace a pending deploy from another PR. Skipped jobs do not enter a job-level group. GitHub keeps at most one pending run per group, so a third queued run replaces the second. Under "last label wins" that is acceptable, with one caveat to note in the PR description: a pending `labeled` run (a reset) replaced by a later push run would drop the reset, and the push would then see no occupant and post the "not-holder" comment. The author recovers by removing and re-adding the label.
 
 ```yaml
 name: Staging Preview
@@ -719,9 +935,13 @@ permissions:
 
 jobs:
   deploy-staging:
+    # `labeled` must check the label that was just added, not the PR's label
+    # list: adding any unrelated label (say `bug`) to a PR that already has
+    # `preview` fires `labeled` too, and must not wipe staging.
     if: >
-      (github.event.action == 'labeled' || github.event.action == 'synchronize') &&
-      contains(github.event.pull_request.labels.*.name, 'preview')
+      (github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+      (github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'preview'))
     runs-on: ubuntu-latest
     # One shared environment: runs queue instead of racing. See
     # docs/superpowers/specs/2026-10-15-staging-preview-design.md.
@@ -733,6 +953,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      ACTION: ${{ github.event.action }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Checkout
@@ -756,17 +977,19 @@ jobs:
         working-directory: frontend
         run: npm run build -- --mode staging
 
-      # provision.mjs's wrangler subcommands stream to stdout; only the final
-      # line is the JSON result, so only that line goes to $GITHUB_OUTPUT.
-      - name: Reset staging database and deploy
+      # provision.mjs resets staging on `labeled`, redeploys on `synchronize`
+      # for the occupant PR, and otherwise leaves staging untouched. Its
+      # wiring subcommands stream to stdout; only the final line is the JSON
+      # result, so only that line goes to $GITHUB_OUTPUT.
+      - name: Reset or redeploy staging
         id: provision
         run: |
-          RESULT=$(node scripts/preview-env/provision.mjs)
+          RESULT=$(node scripts/preview-env/provision.mjs "$ACTION" "$PR_NUMBER")
           echo "$RESULT"
           echo "result=$(echo "$RESULT" | tail -1)" >> "$GITHUB_OUTPUT"
 
-      - name: Upsert PR comment (success)
-        if: success()
+      - name: Upsert PR comment (deployed)
+        if: steps.provision.outcome == 'success' && fromJSON(steps.provision.outputs.result).outcome == 'deployed'
         run: |
           BACKEND_URL=$(node -e "console.log(JSON.parse(process.argv[1]).backendUrl)" '${{ steps.provision.outputs.result }}')
           FRONTEND_URL=$(node -e "console.log(JSON.parse(process.argv[1]).frontendUrl)" '${{ steps.provision.outputs.result }}')
@@ -774,6 +997,15 @@ jobs:
             "$PR_NUMBER" provisioned "$BACKEND_URL" "$FRONTEND_URL" "$RUN_URL"
           node scripts/preview-env/upsert-comment.mjs supersede-others \
             "$PR_NUMBER" "$RUN_URL"
+
+      # A push to a PR that does not hold staging: nothing was deployed.
+      # `occupant` is null when staging has no recorded holder.
+      - name: Upsert PR comment (not the holder)
+        if: steps.provision.outcome == 'success' && fromJSON(steps.provision.outputs.result).outcome == 'not-occupant'
+        run: |
+          HELD_BY=$(node -e "console.log(JSON.parse(process.argv[1]).occupant ?? '')" '${{ steps.provision.outputs.result }}')
+          node scripts/preview-env/upsert-comment.mjs upsert \
+            "$PR_NUMBER" not-holder "" "" "$RUN_URL" "$HELD_BY"
 
       - name: Upsert PR comment (failure)
         if: failure()
@@ -841,7 +1073,7 @@ node --test "scripts/preview-env/*.test.mjs"
 cd backend && npm test
 ```
 
-Expected: script tests PASS (20 tests). Backend tests pass except the single known failure in `src/app.session.test.ts` (cookie `Domain`, caused by the local `.dev.vars`); no other failure. Note that the backend test count drops by the deleted scrub tests.
+Expected: script tests PASS (31 tests: 19 in `provision.test.mjs`, 12 in `upsert-comment.test.mjs`). Backend tests pass except the single known failure in `src/app.session.test.ts` (cookie `Domain`, caused by the local `.dev.vars`); no other failure. Note that the backend test count drops by the deleted scrub tests.
 
 Then: `npx prettier --check .github/workflows/preview.yml .github/workflows/pr.yml .gitignore` is not meaningful for `.gitignore`; run it on the two workflow files only.
 
@@ -852,7 +1084,7 @@ git add -A .github .gitignore scripts backend/src
 ```
 
 ```bash
-git commit -m "feat(ci): deploy preview-labelled PRs to a reset staging env, remove per-PR machinery"
+git commit -m "feat(ci): deploy preview-labelled PRs to shared staging, remove per-PR machinery"
 ```
 
 ---
@@ -870,10 +1102,10 @@ Find the bullet beginning `- **\`.github/workflows/preview.yml\`\*\*`and replace
 
 ```markdown
 - **`.github/workflows/preview.yml`** — runs when the `preview` label is
-  added to a PR (and on every push to a labelled PR): wipes the shared
-  staging D1 database, applies the branch's migrations, and deploys both
-  staging Workers, then posts the staging URLs as a PR comment. See "PR
-  preview environments" below.
+  added to a PR: wipes the shared staging D1 database, applies the branch's
+  migrations, and deploys both staging Workers, then posts the staging URLs
+  as a PR comment. Pushes to the PR that holds staging apply new migrations
+  and redeploy without wiping. See "PR preview environments" below.
 ```
 
 - [ ] **Step 2: Replace the "PR preview environments" section in `CLAUDE.md`**
@@ -892,19 +1124,23 @@ per-PR Worker + D1 model, which exported and scrubbed all of production and
 exhausted the account's daily D1 write budget (spec:
 `docs/superpowers/specs/2026-10-15-staging-preview-design.md`).
 
-- **Every run wipes staging.** Each label or push drops every table
-  (including `d1_migrations`), applies this branch's migrations from
-  scratch, and deploys both Workers with `--env staging`. There is no seed
-  data. Reviewers create their own listeners; test data does not survive a
-  push.
+- **Only adding the label wipes staging.** Adding `preview` drops every
+  table (including `d1_migrations`), applies this branch's migrations from
+  scratch, records the PR in a script-created `_staging_occupant` table, and
+  deploys both Workers with `--env staging`. There is no seed data;
+  reviewers create their own listeners. Adding an unrelated label to an
+  already-labelled PR does not trigger a wipe.
+- **Pushes keep your data.** A push to the PR that holds staging applies any
+  new migrations (not edits to already-applied ones; re-label for those) and
+  redeploys. A push to a PR that does not hold staging deploys nothing and
+  comments "staging is held by #N"; remove and re-add the label to take over.
 - **One preview at a time; last label wins.** A second labelled PR takes
   over staging, and the first PR's comment is rewritten to "superseded by
-  #N". A later push to the first PR takes staging back and wipes the
-  second's state. All runs share one job-level concurrency group named
-  `staging`, so they queue.
+  #N". All runs share one job-level concurrency group named `staging`, so
+  they queue.
 - **Removing the label or closing the PR does nothing to staging.** It only
   updates the PR comment (if that PR was the holder).
-- **Staging is also used for manual email tests.** A preview run wipes
+- **Staging is also used for manual email tests.** Adding the label wipes
   whatever is there.
 - Staging's `WL_SESSION_SECRET` and `RESEND_API_KEY` are Workers secrets set
   once with `wrangler secret put <NAME> --env staging`; the workflow never
@@ -929,7 +1165,8 @@ Replace the whole of item 13 (from `13. **PR preview environments**` through `ch
 ```markdown
 13. **PR preview environments** — adding the `preview` label to a PR
     deploys it to the shared staging environment after wiping the staging
-    D1 database (no data copied from production; last label wins). The
+    D1 database (no data copied from production; last label wins; pushes
+    keep the data and only the occupant PR redeploys). The
     staging URLs are posted as a PR comment (`.github/workflows/preview.yml`,
     scripts under `scripts/preview-env/`). See `CLAUDE.md`'s "PR preview
     environments" section and
@@ -977,7 +1214,7 @@ npx prettier --check CLAUDE.md STATUS.md docs/superpowers/specs/2026-10-15-stagi
 git log --oneline main..HEAD
 ```
 
-Expected: tests and Prettier pass; the log shows the spec, plan, and four implementation commits, each header <= 100 characters.
+Expected: tests and Prettier pass; the log shows the spec, spec revision, plan, plan revision, the `STATUS.md` 0013 fix, and the implementation commits, each header <= 100 characters.
 
 - [ ] **Step 2: Rename the branch to describe the whole change, then push**
 
@@ -1008,8 +1245,16 @@ query { viewer { accounts(filter: { accountTag: "9a42151a465b2da9ed7c88d6c72972d
       sum { rowsRead rowsWritten } } } } }
 ```
 
-Acceptance: `rowsWritten` for the hour of the run is under 5,000. Record the number in `STATUS.md` item 13 (replacing "Not yet verified") in a follow-up commit, and verify the comment on the PR shows `provisioned ✅` with working URLs. Then push a second commit to the PR and confirm staging is reset again and the comment updates. Remove the label and confirm the comment becomes `no longer active`.
+Acceptance: `rowsWritten` for the hour of the run is under 5,000. Record the number in `STATUS.md` item 13 (replacing "Not yet verified") in a follow-up commit, and verify the comment on the PR shows `provisioned ✅` with working URLs. Then check the rules that matter most to the owner, in this order:
+
+1. Sign in on staging, create a listener, and send it a request.
+2. Push a second commit to the PR. Confirm the workflow redeploys and the listener and request **still exist** (a push must not wipe data), and the comment still shows `provisioned ✅`.
+3. Add an unrelated label (for example `documentation`) to the PR. Confirm the data **still exists** (the workflow's `labeled` guard must ignore other labels).
+4. Remove and re-add `preview`. Confirm staging is now **empty** and the comment updates.
+5. Remove the label and confirm the comment becomes `no longer active`.
+
+If a second PR is available, label it and confirm the first PR's comment becomes `superseded by #N`, and that pushing to the first PR then posts `staging is held by #N` without touching staging.
 
 - [ ] **Step 5: Post-merge housekeeping**
 
-After the PR merges, tell the user that the saved memory notes `project_d1_free_tier_limits` ("avoid the `preview` label") is now out of date and should be updated, since a preview no longer burns the write budget.
+After the PR merges, tell the user that the saved memory note `project_d1_free_tier_limits` ("avoid the `preview` label") is now out of date and should be updated, since a preview no longer burns the write budget.
