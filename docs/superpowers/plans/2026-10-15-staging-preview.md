@@ -4,7 +4,7 @@
 
 **Goal:** Make the `preview` label deploy the PR to the one long-lived staging environment, wiping its D1 database only when the label is added (pushes keep data), instead of provisioning a per-PR database copied from production.
 
-**Architecture:** `provision.mjs` shrinks to two modes against `[env.staging]`: `reset` (on `labeled`: drop every table, migrate, record the PR in a one-row `_staging_occupant` table, deploy) and `redeploy` (on `synchronize`, only if the PR is the recorded occupant: apply new migrations, deploy; otherwise do nothing to staging). The workflow serialises all runs through one job-level concurrency group and only resets when the label added is `preview` itself. `upsert-comment.mjs` gains "superseded", "inactive" and "not-holder" states. All per-PR provisioning, teardown, scrub and wrangler-config-generation code is deleted.
+**Architecture:** `provision.mjs` shrinks to two modes against `[env.staging]`: `reset` (on `labeled`: drop every table, migrate, record the PR in a one-row `_staging_occupant` table, deploy) and `redeploy` (on `synchronize`, only if the PR is the recorded occupant: apply new migrations, deploy; otherwise do nothing to staging). The workflow serialises deploy runs through one job-level concurrency group (the comment-only job has its own per-PR group) and only resets when the label added is `preview` itself. `upsert-comment.mjs` gains "superseded", "inactive" and "not-holder" states. All per-PR provisioning, teardown, scrub and wrangler-config-generation code is deleted.
 
 **Tech Stack:** Node (`node:test` for `scripts/preview-env/*.test.mjs`), wrangler, GitHub Actions, Cloudflare D1 (Miniflare locally).
 
@@ -17,7 +17,7 @@
 - Reset **only** when the `preview` label itself is added (`labeled` with `github.event.label.name == 'preview'`). A push never wipes data. Reset drops **every** table in `sqlite_master` (excluding SQLite/Cloudflare internals), including `d1_migrations` and `_staging_occupant`, not a hardcoded list. No seed data.
 - Staging records its occupant in a script-created (not a migration) one-row table `_staging_occupant (pr INTEGER NOT NULL)`, written after each reset's migrations apply.
 - A push (`synchronize`) to the occupant PR runs `wrangler d1 migrations apply` (new migrations only) and redeploys. A push to any other labelled PR, or when there is no occupant record, does nothing to staging and posts a "not-holder" comment telling the author to remove and re-add the label.
-- Last label wins. All runs share one concurrency group named `staging` with `cancel-in-progress: false`.
+- Last label wins. Deploy runs share one concurrency group named `staging` with `cancel-in-progress: false`.
 - Label removal or PR close takes no infrastructure action; it only updates the PR comment.
 - Commit headers must be Conventional Commits and **<= 100 characters** (commitlint runs locally and in CI). Stage with `git add` in one command, commit in a separate command. Never `--no-verify`. If a commit fails with a confusing `Token` header-parsing error, `bw` is locked: ask the user to unlock it.
 - Run Prettier 3.6.2 from the repo root install (`npx prettier --check <files>` after `npm ci` at the root). A bare `npx prettier` gives false passes.
@@ -1141,8 +1141,13 @@ exhausted the account's daily D1 write budget (spec:
   comments "staging is held by #N"; remove and re-add the label to take over.
 - **One preview at a time; last label wins.** A second labelled PR takes
   over staging, and the first PR's comment is rewritten to "superseded by
-  #N". All runs share one job-level concurrency group named `staging`, so
-  they queue.
+  #N". Deploy runs share one job-level concurrency group named `staging`, so
+  they queue (GitHub keeps only the newest pending one). The comment-only
+  job (label removal or close) uses its own per-PR group, so it can never
+  displace a pending deploy. Caveat: a pending `labeled` reset can be
+  replaced by a later queued run for the same group; the push then finds no
+  occupant and comments "staging has no recorded holder". Recover by
+  removing and re-adding the label.
 - **Removing the label or closing the PR does nothing to staging.** It only
   updates the PR comment (if that PR was the holder).
 - **Staging is also used for manual email tests.** Adding the label wipes

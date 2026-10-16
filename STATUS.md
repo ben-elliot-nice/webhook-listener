@@ -148,16 +148,20 @@ In build order — each has a full design spec + implementation plan under
     footnote, not an ongoing concern.
 
 13. **PR preview environments** — adding the `preview` label to a PR
-    provisions a live, isolated Worker pair + D1 database for it, seeded
-    from a scrubbed copy of production with migrations pre-applied; the
-    preview URLs are posted as a PR comment, and the environment is torn
-    down automatically on label removal or PR close (`.github/workflows/preview.yml`,
-    orchestrating scripts under `scripts/preview-env/`). See `CLAUDE.md`'s
-    "PR preview environments" section and
-    `docs/superpowers/specs/2026-09-30-pr-preview-environments-design.md`.
+    deploys it to the shared staging environment after wiping the staging
+    D1 database (no data copied from production; last label wins; pushes
+    keep the data and only the occupant PR redeploys). The
+    staging URLs are posted as a PR comment (`.github/workflows/preview.yml`,
+    scripts under `scripts/preview-env/`). See `CLAUDE.md`'s "PR preview
+    environments" section and
+    `docs/superpowers/specs/2026-10-15-staging-preview-design.md`. The
+    per-PR model it replaced (`2026-09-30-pr-preview-environments-design.md`)
+    is historical. Not yet verified against a real run: the measured D1
+    write cost of one reset-and-deploy (acceptance bar: under 5,000 rows).
     A follow-on, sub-project 2 — opt-in automated production migrations,
     gated on a successful preview provision plus an explicit PR-body
-    checkbox at merge time — is designed separately and not yet built.
+    checkbox at merge time — is designed separately and not yet built; it
+    was designed against the per-PR model and needs revisiting.
 
 14. **D1 rows-read reduction** — request-history prune now runs on ~1 in 10
     captures, chosen at random per capture, instead of every capture, so a

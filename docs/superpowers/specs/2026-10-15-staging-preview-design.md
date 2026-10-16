@@ -73,8 +73,10 @@ handful of statements, independent of production's size.
 6. **Label removed or PR closed:** no infrastructure action. If the PR was the
    most recent holder, its comment is updated to say the preview is no longer
    active. Staging keeps running that PR's code and data until the next label.
-7. All runs share one `concurrency` group (`staging`, `cancel-in-progress:
-false`), so they queue rather than race.
+7. Deploy runs share one job-level `concurrency` group (`staging`,
+   `cancel-in-progress: false`), so they queue rather than race. The
+   comment-only job uses its own per-PR group so it can never displace a
+   pending deploy.
 
 ## Changes
 

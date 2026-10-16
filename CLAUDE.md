@@ -44,11 +44,10 @@ which section to look in:
   semantic-release version bump, `CHANGELOG.md`, GitHub Release, deploys
   both Workers. See "Deploying" below.
 - **`.github/workflows/preview.yml`** — runs when the `preview` label is
-  added to (or removed from) a PR, or the PR closes/merges while labeled:
-  provisions (or redeploys) a live, isolated per-PR Worker pair + D1
-  database seeded from scrubbed prod data, posts the preview URLs as a PR
-  comment, tears everything down on label removal or close/merge. See
-  "PR preview environments" below.
+  added to a PR: wipes the shared staging D1 database, applies the branch's
+  migrations, and deploys both staging Workers, then posts the staging URLs
+  as a PR comment. Pushes to the PR that holds staging apply new migrations
+  and redeploy without wiping. See "PR preview environments" below.
 
 ## Development workflow
 
@@ -165,54 +164,52 @@ yourself.
 
 ## PR preview environments
 
-Adding the `preview` label to a PR provisions a live, isolated environment
-for it: its own Worker pair (`webhook-api-pr-<N>`, `webhook-pr-<N>`) and
-its own D1 database (`webhook-listener-pr-<N>`), seeded from a **scrubbed**
-copy of production with pending migrations pre-applied. The preview URLs
-are posted (and kept updated) as a PR comment.
+Adding the `preview` label to a PR deploys it to the **shared staging
+environment** (`webhook-api-staging` + `webhook-staging` Workers on
+workers.dev, D1 `webhook-listener-staging`). Nothing is ever copied from
+production, so a preview's D1 write cost is the schema plus a handful of
+statements, independent of production's size. This replaced the earlier
+per-PR Worker + D1 model, which exported and scrubbed all of production and
+exhausted the account's daily D1 write budget (spec:
+`docs/superpowers/specs/2026-10-15-staging-preview-design.md`).
 
-- The first labeling (or any push that touches `backend/migrations/`)
-  triggers a full provision: export prod D1, scrub it
-  (`scripts/preview-env/scrub.sql`), import into the PR's own database,
-  apply migrations, then deploy both Workers. Any other push just
-  redeploys Worker code against the existing preview database.
-- **`scripts/preview-env/scrub.sql` is a hand-maintained list of every
-  sensitive column in the schema, not a generic scrubber.** If a migration
-  adds a table or column holding a token, email, IP address, or captured
-  payload content, update this file (and its duplicated mirror in
-  `backend/src/preview-scrub.test.ts`) in the same PR.
-- **Deliberately not scrubbed: `listeners.owner_email` / `projects.owner_email`.**
-  Everything else on those rows (share/webhook tokens, `owner_session`) is
-  still scrubbed, and hook content (`requests.headers`/`body`/etc.) is
-  always fully scrubbed regardless of owner — only the ownership _link_
-  survives. This is safe because the email access gate already requires
-  proving ownership of a real inbox (via magic link) before signing in as
-  that email, so preserving the link doesn't let anyone see data they
-  couldn't otherwise reach — it just means a PR reviewer signing in as
-  themselves sees their own existing (content-scrubbed) listeners/projects
-  instead of an empty account.
-- Removing the `preview` label, or closing/merging the PR, tears both
-  Workers and the D1 database down. A `workflow_dispatch` input (PR
-  number) is available as a manual safety net if a teardown is ever missed.
-- Requires the `CLOUDFLARE_API_TOKEN` secret to have `D1: Edit` permission
-  (in addition to the `Workers Scripts: Edit` permission `release.yml`
-  needs) and a `CLOUDFLARE_ACCOUNT_ID` repository variable to be set.
-- The frontend's API base URL is baked in at build time (Vite's
-  `import.meta.env.VITE_API_BASE_URL`, from `frontend/.env.production` by
-  default) — `scripts/preview-env/write-frontend-env.mjs` overrides it to
-  the PR's own backend Worker via `frontend/.env.production.local`
-  (Vite's highest-precedence override file) before the build runs. Without
-  this, a preview frontend would call the real prod backend and get
-  blocked by CORS.
-- Each `webhook-api-pr-<N>` Worker is a brand-new Cloudflare Worker
-  script — it does not inherit prod's `WL_SESSION_SECRET`/
-  `RESEND_API_KEY` (those are set once, directly, on the prod/staging
-  scripts only, and never touched by this workflow). `provision.mjs`
-  pushes a freshly generated, preview-only `WL_SESSION_SECRET` and the
-  `PREVIEW_RESEND_API_KEY` repo secret (a Resend key/sender **dedicated
-  to previews**, separate from prod's, so ephemeral test environments
-  never send through prod's sending identity) to every preview Worker via
-  `wrangler secret put`, on every deploy.
+- **Only adding the label wipes staging.** Adding `preview` drops every
+  table (including `d1_migrations`), applies this branch's migrations from
+  scratch, records the PR in a script-created `_staging_occupant` table, and
+  deploys both Workers with `--env staging`. There is no seed data;
+  reviewers create their own listeners. Adding an unrelated label to an
+  already-labelled PR does not trigger a wipe.
+- **Pushes keep your data.** A push to the PR that holds staging applies any
+  new migrations (not edits to already-applied ones; re-label for those) and
+  redeploys. A push to a PR that does not hold staging deploys nothing and
+  comments "staging is held by #N"; remove and re-add the label to take over.
+- **One preview at a time; last label wins.** A second labelled PR takes
+  over staging, and the first PR's comment is rewritten to "superseded by
+  #N". Deploy runs share one job-level concurrency group named `staging`, so
+  they queue (GitHub keeps only the newest pending one). The comment-only
+  job (label removal or close) uses its own per-PR group, so it can never
+  displace a pending deploy. Caveat: a pending `labeled` reset can be
+  replaced by a later queued run for the same group; the push then finds no
+  occupant and comments "staging has no recorded holder". Recover by
+  removing and re-adding the label.
+- **Removing the label or closing the PR does nothing to staging.** It only
+  updates the PR comment (if that PR was the holder).
+- **Staging is also used for manual email tests.** Adding the label wipes
+  whatever is there.
+- Staging's `WL_SESSION_SECRET` and `RESEND_API_KEY` are Workers secrets set
+  once with `wrangler secret put <NAME> --env staging`; the workflow never
+  touches them.
+- Previews no longer exercise production-shaped data, so a migration that is
+  fine on an empty database but slow at volume is only caught in
+  production. Check index/query-plan changes against a local Miniflare D1
+  with generated rows (this costs no D1 budget).
+- **D1 free-tier limits are account-wide**, not per database: 100,000 rows
+  written and 5M rows read per day across every database, resetting at
+  00:00 UTC. A separate database does not get a separate budget.
+- Requires the `CLOUDFLARE_API_TOKEN` secret to have `D1: Edit` and
+  `Workers Scripts: Edit`, and a `CLOUDFLARE_ACCOUNT_ID` repository variable.
+- The script unit tests under `scripts/preview-env/` run in `pr.yml`
+  (`node --test`).
 
 ## Access model — read this before changing anything auth-related
 
