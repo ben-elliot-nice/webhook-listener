@@ -27,8 +27,8 @@ before trusting it.
 - Frontend: `cd frontend && npm run build` → clean, 0 TypeScript errors;
   `cd frontend && npm test` (vitest, 27 tests) also runs in CI.
 - D1 migrations: `0001_init.sql` → `0013_listener_paging_indexes.sql`
-  (`0013` is additive and NOT yet applied to remote D1: two composite indexes for paged lists; apply
-  it to remote D1 before relying on the paged queries being cheap).
+  (`0013` is additive: two composite indexes for paged lists. Applied to remote D1 on 2026-10-16,
+  before PR #16 merged).
 - **Before deploying the updated backend Worker**, apply
   `0008_owner_email.sql` and `0009_magic_links.sql` to the remote D1
   database with `cd backend && npm run db:migrate:remote`. Both the
