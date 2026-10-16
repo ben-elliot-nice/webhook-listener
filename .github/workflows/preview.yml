@@ -93,8 +93,13 @@ jobs:
       (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
       (github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'preview'))
     runs-on: ubuntu-latest
+    # Comment-only job: it takes no infrastructure action, so it must never
+    # share the `staging` group. GitHub keeps one pending run per group, and
+    # an unlabel/close run would displace another PR's queued staging deploy.
+    # A per-PR group is enough; a deactivate racing an in-flight deploy for the
+    # same PR can only leave a stale comment, which is cosmetic.
     concurrency:
-      group: staging
+      group: preview-comment-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

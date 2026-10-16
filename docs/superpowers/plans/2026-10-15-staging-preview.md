@@ -920,7 +920,7 @@ Expected: matches only in `.github/workflows/preview.yml` (rewritten next) and `
 
 - [ ] **Step 2: Rewrite `.github/workflows/preview.yml`**
 
-Replace the whole file with the following. Concurrency is set at **job** level, not workflow level, on purpose: a workflow-level group would let a no-op run (for example a push to an unlabelled PR) replace a pending deploy from another PR. Skipped jobs do not enter a job-level group. GitHub keeps at most one pending run per group, so a third queued run replaces the second. Under "last label wins" that is acceptable, with one caveat to note in the PR description: a pending `labeled` run (a reset) replaced by a later push run would drop the reset, and the push would then see no occupant and post the "not-holder" comment. The author recovers by removing and re-adding the label.
+Replace the whole file with the following. Concurrency is set at **job** level, not workflow level, on purpose: a workflow-level group would let a no-op run (for example a push to an unlabelled PR) replace a pending deploy from another PR. Skipped jobs do not enter a job-level group. GitHub keeps at most one pending run per group, so a third queued run replaces the second. Under "last label wins" that is acceptable, with one caveat to note in the PR description: a pending `labeled` run (a reset) replaced by a later push run would drop the reset, and the push would then see no occupant and post the "not-holder" comment. The author recovers by removing and re-adding the label. The comment-only `release-comment` job uses its own per-PR concurrency group (`preview-comment-<N>`) so it can never displace a pending staging deploy; only `deploy-staging` uses the `staging` group.
 
 ```yaml
 name: Staging Preview
@@ -1018,8 +1018,13 @@ jobs:
       (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
       (github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'preview'))
     runs-on: ubuntu-latest
+    # Comment-only job: it takes no infrastructure action, so it must never
+    # share the `staging` group. GitHub keeps one pending run per group, and
+    # an unlabel/close run would displace another PR's queued staging deploy.
+    # A per-PR group is enough; a deactivate racing an in-flight deploy for the
+    # same PR can only leave a stale comment, which is cosmetic.
     concurrency:
-      group: staging
+      group: preview-comment-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
