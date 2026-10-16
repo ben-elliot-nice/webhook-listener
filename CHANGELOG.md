@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.2.0...v1.3.0) (2026-10-16)
+
+### Features
+
+* **ci:** deploy preview-labelled PRs to a reset staging env instead of copying prod ([#17](https://github.com/ben-elliot-nice/webhook-listener/issues/17)) ([b144f60](https://github.com/ben-elliot-nice/webhook-listener/commit/b144f6081bc5c857ef8553202461a306378e8982))
+
 ## [1.2.0](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.13...v1.2.0) (2026-10-16)
 
 ### Features
