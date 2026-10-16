@@ -174,9 +174,10 @@ exhausted the account's daily D1 write budget (spec:
 `docs/superpowers/specs/2026-10-15-staging-preview-design.md`).
 
 - **Only adding the label wipes staging.** Adding `preview` drops every
-  table (including `d1_migrations`), applies this branch's migrations from
-  scratch, records the PR in a script-created `_staging_occupant` table, and
-  deploys both Workers with `--env staging`. There is no seed data;
+  table (including `d1_migrations`), records the PR in a script-created
+  `_staging_occupant` table, applies this branch's migrations from scratch,
+  and deploys both Workers with `--env staging` (in that order, so a failed
+  migration can be retried by pushing). There is no seed data;
   reviewers create their own listeners. Adding an unrelated label to an
   already-labelled PR does not trigger a wipe.
 - **Pushes keep your data.** A push to the PR that holds staging applies any
@@ -187,11 +188,15 @@ exhausted the account's daily D1 write budget (spec:
   over staging, and the first PR's comment is rewritten to "superseded by
   #N". Deploy runs share one job-level concurrency group named `staging`, so
   they queue (GitHub keeps only the newest pending one). The comment-only
-  job (label removal or close) uses its own per-PR group, so it can never
-  displace a pending deploy. Caveat: a pending `labeled` reset can be
-  replaced by a later queued run for the same group; the push then finds no
-  occupant and comments "staging has no recorded holder". Recover by
-  removing and re-adding the label.
+  job (label removal or close) uses its own per-PR group, so it never
+  displaces a deploy; another deploy run for the `staging` group can still
+  replace a pending one, so a pending `labeled` reset may be dropped. The
+  push then finds no occupant and comments "staging has no recorded holder".
+- **Failed runs.** A failed run sets the PR comment to a `failed` state with
+  a recovery hint. If a run fails after the occupant is recorded, push a fix
+  and the push retries migrations. If a push says "staging has no recorded
+  holder" (the reset itself failed part-way, or a pending reset was
+  replaced), remove and re-add the `preview` label.
 - **Removing the label or closing the PR does nothing to staging.** It only
   updates the PR comment (if that PR was the holder).
 - **Staging is also used for manual email tests.** Adding the label wipes

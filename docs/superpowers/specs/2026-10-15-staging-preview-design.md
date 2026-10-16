@@ -45,8 +45,8 @@ handful of statements, independent of production's size.
 ## Behaviour
 
 1. **Label added** (`labeled`): build the frontend with `--mode staging`,
-   reset the staging D1 database, apply this branch's migrations, record the
-   PR as the staging occupant, deploy both Workers with `--env staging`, and
+   reset the staging D1 database, record the PR as the staging occupant,
+   apply this branch's migrations, deploy both Workers with `--env staging`, and
    upsert a PR comment with the staging URLs. This is the only event that
    wipes staging.
 2. **Push to a labelled PR** (`synchronize`): never wipes data, so a reviewer's
@@ -59,10 +59,12 @@ handful of statements, independent of production's size.
      staging and upsert a comment on this PR: "staging holds #N; re-add the
      label to take over". Deploying this PR's code onto the other PR's schema
      would be wrong, and resetting would break rule 1.
-3. **Occupant record.** After each reset the script creates a one-row
+3. **Occupant record.** Right after each reset, before migrations run, the script creates a one-row
    `_staging_occupant` table (script-created, not a migration, so the prod
    schema is untouched) holding the PR number. Reset drops every table, so
-   the record is cleared and rewritten with the data it describes.
+   the record is cleared and rewritten with the data it describes. Because
+   it is written before migrating, a failed migration leaves this PR as the
+   occupant, so a fix push retries `migrations apply` on the partial database.
 4. **Last label wins.** If a second PR is labelled while the first still
    carries the label, the second run resets and takes over staging. Open PRs
    labelled `preview` other than the current one have their preview comment
@@ -81,7 +83,7 @@ handful of statements, independent of production's size.
 ## Changes
 
 - `scripts/preview-env/provision.mjs`: two modes. `reset` (on `labeled`):
-  reset, migrate, write the occupant record, deploy. `redeploy` (on
+  reset, write the occupant record, migrate, deploy. `redeploy` (on
   `synchronize`): read the occupant record, and only if it matches this PR,
   migrate and deploy; otherwise exit with a "not the occupant" result that
   the workflow turns into a comment. The mode decision is a pure function

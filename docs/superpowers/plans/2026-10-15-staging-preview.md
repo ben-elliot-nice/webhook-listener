@@ -4,7 +4,7 @@
 
 **Goal:** Make the `preview` label deploy the PR to the one long-lived staging environment, wiping its D1 database only when the label is added (pushes keep data), instead of provisioning a per-PR database copied from production.
 
-**Architecture:** `provision.mjs` shrinks to two modes against `[env.staging]`: `reset` (on `labeled`: drop every table, migrate, record the PR in a one-row `_staging_occupant` table, deploy) and `redeploy` (on `synchronize`, only if the PR is the recorded occupant: apply new migrations, deploy; otherwise do nothing to staging). The workflow serialises deploy runs through one job-level concurrency group (the comment-only job has its own per-PR group) and only resets when the label added is `preview` itself. `upsert-comment.mjs` gains "superseded", "inactive" and "not-holder" states. All per-PR provisioning, teardown, scrub and wrangler-config-generation code is deleted.
+**Architecture:** `provision.mjs` shrinks to two modes against `[env.staging]`: `reset` (on `labeled`: drop every table, record the PR in a one-row `_staging_occupant` table, migrate, deploy) and `redeploy` (on `synchronize`, only if the PR is the recorded occupant: apply new migrations, deploy; otherwise do nothing to staging). The workflow serialises deploy runs through one job-level concurrency group (the comment-only job has its own per-PR group) and only resets when the label added is `preview` itself. `upsert-comment.mjs` gains "superseded", "inactive" and "not-holder" states. All per-PR provisioning, teardown, scrub and wrangler-config-generation code is deleted.
 
 **Tech Stack:** Node (`node:test` for `scripts/preview-env/*.test.mjs`), wrangler, GitHub Actions, Cloudflare D1 (Miniflare locally).
 
@@ -15,7 +15,7 @@
 - Staging D1 is `webhook-listener-staging` (`7f55f3f0-7fe0-4237-8307-8769755f4c3a`), already declared in `backend/wrangler.toml` `[env.staging]`; deploy with `--env staging`. Do not add a `routes` block.
 - Staging Workers: `webhook-api-staging` and `webhook-staging`, on workers.dev. Their `WL_SESSION_SECRET` and `RESEND_API_KEY` are set once and are never touched by the workflow.
 - Reset **only** when the `preview` label itself is added (`labeled` with `github.event.label.name == 'preview'`). A push never wipes data. Reset drops **every** table in `sqlite_master` (excluding SQLite/Cloudflare internals), including `d1_migrations` and `_staging_occupant`, not a hardcoded list. No seed data.
-- Staging records its occupant in a script-created (not a migration) one-row table `_staging_occupant (pr INTEGER NOT NULL)`, written after each reset's migrations apply.
+- Staging records its occupant in a script-created (not a migration) one-row table `_staging_occupant (pr INTEGER NOT NULL)`, written right after each reset, before its migrations apply.
 - A push (`synchronize`) to the occupant PR runs `wrangler d1 migrations apply` (new migrations only) and redeploys. A push to any other labelled PR, or when there is no occupant record, does nothing to staging and posts a "not-holder" comment telling the author to remove and re-add the label.
 - Last label wins. Deploy runs share one concurrency group named `staging` with `cancel-in-progress: false`.
 - Label removal or PR close takes no infrastructure action; it only updates the PR comment.
@@ -334,8 +334,10 @@ export function extractStagingUrls(tomlText) {
 }
 
 function run(command, options = {}) {
-  console.log(`$ ${command}`)
-  execSync(command, { stdio: 'inherit', ...options })
+  // stdout is reserved for the final JSON result line, so wrangler's own
+  // stdout goes to stderr (fd 2).
+  console.error(`$ ${command}`)
+  execSync(command, { stdio: ['inherit', 2, 'inherit'], ...options })
 }
 
 // Runs a SQL file on remote staging, then removes it even if the run fails.
@@ -381,14 +383,19 @@ function main() {
   const mode = decideProvisionMode({ action, occupant, prNumber })
 
   if (mode === 'not-occupant') {
-    console.log(`Staging is not held by #${prNumber}; leaving it untouched`)
+    console.error(`Staging is not held by #${prNumber}; leaving it untouched`)
     console.log(JSON.stringify({ outcome: 'not-occupant', occupant }))
     return
   }
 
   if (mode === 'reset') {
-    console.log(`Resetting staging: dropping ${tableNames.length} table(s)`)
+    console.error(`Resetting staging: dropping ${tableNames.length} table(s)`)
     executeSqlFile(RESET_FILE, buildResetSql(tableNames))
+    // This PR owns staging from here on. Recording it before migrating means
+    // that if a migration (or anything later) fails, a fix push is a
+    // `redeploy` that retries `migrations apply` on the partial database,
+    // rather than "no recorded holder".
+    executeSqlFile(OCCUPANT_FILE, buildOccupantSql(prNumber))
   }
 
   // On `redeploy` this applies only migrations not yet recorded in
@@ -396,10 +403,6 @@ function main() {
   run(`npx wrangler d1 migrations apply DB --remote --env staging`, {
     cwd: 'backend',
   })
-
-  if (mode === 'reset') {
-    executeSqlFile(OCCUPANT_FILE, buildOccupantSql(prNumber))
-  }
 
   run(`npx wrangler deploy --env staging`, { cwd: 'backend' })
   // The workflow has already built the frontend with --mode staging.
@@ -495,6 +498,7 @@ test('buildCommentBody renders failed without URLs', () => {
     runUrl: RUN,
   })
   assert.match(body, /Status: deploy failed ❌/)
+  assert.match(body, /re-add the \`preview\` label/)
   assert.doesNotMatch(body, /Backend:/)
 })
 
@@ -635,6 +639,10 @@ export function buildCommentBody({
     lines.push(`Status: provisioned ✅ · [workflow run](${runUrl})`)
   } else if (status === 'failed') {
     lines.push(`Status: deploy failed ❌ · [workflow run](${runUrl})`)
+    lines.push('')
+    lines.push(
+      'Fix the cause and push to retry. If the next push says staging has no recorded holder, remove and re-add the `preview` label (this wipes staging).',
+    )
   } else if (status === 'superseded') {
     lines.push(
       `Status: superseded by #${supersededBy} ⏭️ · [workflow run](${runUrl})`,
@@ -932,6 +940,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: read
 
 jobs:
   deploy-staging:
@@ -979,8 +988,9 @@ jobs:
 
       # provision.mjs resets staging on `labeled`, redeploys on `synchronize`
       # for the occupant PR, and otherwise leaves staging untouched. Its
-      # wiring subcommands stream to stdout; only the final line is the JSON
-      # result, so only that line goes to $GITHUB_OUTPUT.
+      # wrangler output goes to stderr (live in the Actions log, even on
+      # failure); stdout carries only the final JSON result line, which is
+      # what goes to $GITHUB_OUTPUT.
       - name: Reset or redeploy staging
         id: provision
         run: |
@@ -1130,9 +1140,10 @@ exhausted the account's daily D1 write budget (spec:
 `docs/superpowers/specs/2026-10-15-staging-preview-design.md`).
 
 - **Only adding the label wipes staging.** Adding `preview` drops every
-  table (including `d1_migrations`), applies this branch's migrations from
-  scratch, records the PR in a script-created `_staging_occupant` table, and
-  deploys both Workers with `--env staging`. There is no seed data;
+  table (including `d1_migrations`), records the PR in a script-created
+  `_staging_occupant` table, applies this branch's migrations from scratch,
+  and deploys both Workers with `--env staging` (in that order, so a failed
+  migration can be retried by pushing). There is no seed data;
   reviewers create their own listeners. Adding an unrelated label to an
   already-labelled PR does not trigger a wipe.
 - **Pushes keep your data.** A push to the PR that holds staging applies any
@@ -1143,11 +1154,15 @@ exhausted the account's daily D1 write budget (spec:
   over staging, and the first PR's comment is rewritten to "superseded by
   #N". Deploy runs share one job-level concurrency group named `staging`, so
   they queue (GitHub keeps only the newest pending one). The comment-only
-  job (label removal or close) uses its own per-PR group, so it can never
-  displace a pending deploy. Caveat: a pending `labeled` reset can be
-  replaced by a later queued run for the same group; the push then finds no
-  occupant and comments "staging has no recorded holder". Recover by
-  removing and re-adding the label.
+  job (label removal or close) uses its own per-PR group, so it never
+  displaces a deploy; another deploy run for the `staging` group can still
+  replace a pending one, so a pending `labeled` reset may be dropped. The
+  push then finds no occupant and comments "staging has no recorded holder".
+- **Failed runs.** A failed run sets the PR comment to a `failed` state with
+  a recovery hint. If a run fails after the occupant is recorded, push a fix
+  and the push retries migrations. If a push says "staging has no recorded
+  holder" (the reset itself failed part-way, or a pending reset was
+  replaced), remove and re-add the `preview` label.
 - **Removing the label or closing the PR does nothing to staging.** It only
   updates the PR comment (if that PR was the holder).
 - **Staging is also used for manual email tests.** Adding the label wipes
