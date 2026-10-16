@@ -1,52 +1,43 @@
-name: Preview Environment
+name: Staging Preview
 
 on:
   pull_request:
     types: [labeled, unlabeled, synchronize, closed]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to tear down (safety net for a missed closed event)'
-        required: true
 
 permissions:
   contents: read
   pull-requests: write
 
-# Serializes deploy-preview and teardown runs per PR. Without this, an
-# unlabel/close arriving right after a labeled/synchronize push can run
-# concurrently with an in-flight provision and delete the PR's D1 database
-# out from under it mid-import (observed for real: removing the `preview`
-# label immediately after a push raced a provision run and broke it).
-concurrency:
-  group: preview-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
-  cancel-in-progress: false
-
 jobs:
-  deploy-preview:
+  deploy-staging:
+    # `labeled` must check the label that was just added, not the PR's label
+    # list: adding any unrelated label (say `bug`) to a PR that already has
+    # `preview` fires `labeled` too, and must not wipe staging.
     if: >
-      github.event_name == 'pull_request' &&
-      (github.event.action == 'labeled' || github.event.action == 'synchronize') &&
-      contains(github.event.pull_request.labels.*.name, 'preview')
+      (github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+      (github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'preview'))
     runs-on: ubuntu-latest
+    # One shared environment: runs queue instead of racing. See
+    # docs/superpowers/specs/2026-10-15-staging-preview-design.md.
+    concurrency:
+      group: staging
+      cancel-in-progress: false
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PREVIEW_RESEND_API_KEY: ${{ secrets.PREVIEW_RESEND_API_KEY }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      ACTION: ${{ github.event.action }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: Install root dependencies
-        run: npm ci
 
       - name: Install backend dependencies
         working-directory: backend
@@ -56,60 +47,56 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # Vite bakes VITE_API_BASE_URL in at build time from
-      # frontend/.env.production, which points at the real prod backend.
-      # Without this, the preview frontend would call prod's API and get
-      # blocked by CORS (prod only allows the prod frontend origin).
-      - name: Write frontend preview env
-        run: node scripts/preview-env/write-frontend-env.mjs "${{ github.event.pull_request.number }}"
-
-      - name: Build frontend
+      # frontend/.env.staging points the build at the staging backend.
+      - name: Build frontend for staging
         working-directory: frontend
-        run: npm run build
+        run: npm run build -- --mode staging
 
-      # provision.mjs's wrangler subcommands run with stdio: 'inherit', so
-      # their output flows into this step's own stdout alongside the final
-      # JSON line — $RESULT ends up multi-line. Only the last line (the
-      # JSON) is safe to write to $GITHUB_OUTPUT; the full $RESULT is still
-      # echoed above it for log visibility.
-      - name: Provision or redeploy preview environment
+      # provision.mjs resets staging on `labeled`, redeploys on `synchronize`
+      # for the occupant PR, and otherwise leaves staging untouched. Its
+      # wiring subcommands stream to stdout; only the final line is the JSON
+      # result, so only that line goes to $GITHUB_OUTPUT.
+      - name: Reset or redeploy staging
         id: provision
         run: |
-          RESULT=$(node scripts/preview-env/provision.mjs \
-            "${{ github.event.pull_request.number }}" \
-            "${{ github.event.pull_request.base.sha }}" \
-            "${{ github.sha }}")
+          RESULT=$(node scripts/preview-env/provision.mjs "$ACTION" "$PR_NUMBER")
           echo "$RESULT"
           echo "result=$(echo "$RESULT" | tail -1)" >> "$GITHUB_OUTPUT"
 
-      - name: Upsert PR comment (success)
-        if: success()
+      - name: Upsert PR comment (deployed)
+        if: steps.provision.outcome == 'success' && fromJSON(steps.provision.outputs.result).outcome == 'deployed'
         run: |
           BACKEND_URL=$(node -e "console.log(JSON.parse(process.argv[1]).backendUrl)" '${{ steps.provision.outputs.result }}')
           FRONTEND_URL=$(node -e "console.log(JSON.parse(process.argv[1]).frontendUrl)" '${{ steps.provision.outputs.result }}')
-          DATABASE_ID=$(node -e "console.log(JSON.parse(process.argv[1]).databaseId)" '${{ steps.provision.outputs.result }}')
           node scripts/preview-env/upsert-comment.mjs upsert \
-            "${{ github.event.pull_request.number }}" provisioned \
-            "$BACKEND_URL" "$FRONTEND_URL" "$DATABASE_ID" \
-            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            "$PR_NUMBER" provisioned "$BACKEND_URL" "$FRONTEND_URL" "$RUN_URL"
+          node scripts/preview-env/upsert-comment.mjs supersede-others \
+            "$PR_NUMBER" "$RUN_URL"
+
+      # A push to a PR that does not hold staging: nothing was deployed.
+      # `occupant` is null when staging has no recorded holder.
+      - name: Upsert PR comment (not the holder)
+        if: steps.provision.outcome == 'success' && fromJSON(steps.provision.outputs.result).outcome == 'not-occupant'
+        run: |
+          HELD_BY=$(node -e "console.log(JSON.parse(process.argv[1]).occupant ?? '')" '${{ steps.provision.outputs.result }}')
+          node scripts/preview-env/upsert-comment.mjs upsert \
+            "$PR_NUMBER" not-holder "" "" "$RUN_URL" "$HELD_BY"
 
       - name: Upsert PR comment (failure)
         if: failure()
         run: |
           node scripts/preview-env/upsert-comment.mjs upsert \
-            "${{ github.event.pull_request.number }}" failed \
-            "" "" "" \
-            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            "$PR_NUMBER" failed "" "" "$RUN_URL"
 
-  teardown:
+  release-comment:
     if: >
-      github.event_name == 'workflow_dispatch' ||
       (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
       (github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'preview'))
     runs-on: ubuntu-latest
+    concurrency:
+      group: staging
+      cancel-in-progress: false
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
@@ -120,32 +107,10 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install backend dependencies (for wrangler)
-        working-directory: backend
-        run: npm ci
-
-      - name: Install frontend dependencies (for wrangler)
-        working-directory: frontend
-        run: npm ci
-
-      - name: Determine PR number
-        id: pr
+      # Staging itself is left as it is; only the comment stops advertising
+      # live URLs, and only if this PR was the most recent holder.
+      - name: Mark preview comment inactive
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "number=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Tear down preview environment
-        run: node scripts/preview-env/teardown.mjs "${{ steps.pr.outputs.number }}"
-
-      - name: Upsert PR comment (torn down)
-        run: |
-          node scripts/preview-env/upsert-comment.mjs upsert \
-            "${{ steps.pr.outputs.number }}" torn-down \
-            "" "" "" \
+          node scripts/preview-env/upsert-comment.mjs deactivate \
+            "${{ github.event.pull_request.number }}" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

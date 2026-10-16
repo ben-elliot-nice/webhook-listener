@@ -11,6 +11,5 @@ vite.config.d.ts
 .wrangler/
 .dev.vars
 *.dev.vars
-wrangler.pr-*.toml
-prod-dump*.sql
-frontend/.env.production.local
+backend/.reset-staging.sql
+backend/.occupant-staging.sql
