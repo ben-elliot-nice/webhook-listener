@@ -89,8 +89,10 @@ export function extractStagingUrls(tomlText) {
 }
 
 function run(command, options = {}) {
-  console.log(`$ ${command}`)
-  execSync(command, { stdio: 'inherit', ...options })
+  // stdout is reserved for the final JSON result line, so wrangler's own
+  // stdout goes to stderr (fd 2).
+  console.error(`$ ${command}`)
+  execSync(command, { stdio: ['inherit', 2, 'inherit'], ...options })
 }
 
 // Runs a SQL file on remote staging, then removes it even if the run fails.
@@ -136,14 +138,19 @@ function main() {
   const mode = decideProvisionMode({ action, occupant, prNumber })
 
   if (mode === 'not-occupant') {
-    console.log(`Staging is not held by #${prNumber}; leaving it untouched`)
+    console.error(`Staging is not held by #${prNumber}; leaving it untouched`)
     console.log(JSON.stringify({ outcome: 'not-occupant', occupant }))
     return
   }
 
   if (mode === 'reset') {
-    console.log(`Resetting staging: dropping ${tableNames.length} table(s)`)
+    console.error(`Resetting staging: dropping ${tableNames.length} table(s)`)
     executeSqlFile(RESET_FILE, buildResetSql(tableNames))
+    // This PR owns staging from here on. Recording it before migrating means
+    // that if a migration (or anything later) fails, a fix push is a
+    // `redeploy` that retries `migrations apply` on the partial database,
+    // rather than "no recorded holder".
+    executeSqlFile(OCCUPANT_FILE, buildOccupantSql(prNumber))
   }
 
   // On `redeploy` this applies only migrations not yet recorded in
@@ -151,10 +158,6 @@ function main() {
   run(`npx wrangler d1 migrations apply DB --remote --env staging`, {
     cwd: 'backend',
   })
-
-  if (mode === 'reset') {
-    executeSqlFile(OCCUPANT_FILE, buildOccupantSql(prNumber))
-  }
 
   run(`npx wrangler deploy --env staging`, { cwd: 'backend' })
   // The workflow has already built the frontend with --mode staging.

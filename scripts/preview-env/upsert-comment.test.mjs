@@ -31,6 +31,7 @@ test('buildCommentBody renders failed without URLs', () => {
     runUrl: RUN,
   })
   assert.match(body, /Status: deploy failed ❌/)
+  assert.match(body, /re-add the \`preview\` label/)
   assert.doesNotMatch(body, /Backend:/)
 })
 

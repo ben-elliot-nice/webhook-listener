@@ -27,6 +27,10 @@ export function buildCommentBody({
     lines.push(`Status: provisioned ✅ · [workflow run](${runUrl})`)
   } else if (status === 'failed') {
     lines.push(`Status: deploy failed ❌ · [workflow run](${runUrl})`)
+    lines.push('')
+    lines.push(
+      'Fix the cause and push to retry. If the next push says staging has no recorded holder, remove and re-add the `preview` label (this wipes staging).',
+    )
   } else if (status === 'superseded') {
     lines.push(
       `Status: superseded by #${supersededBy} ⏭️ · [workflow run](${runUrl})`,

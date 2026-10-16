@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: read
 
 jobs:
   deploy-staging:
@@ -54,8 +55,9 @@ jobs:
 
       # provision.mjs resets staging on `labeled`, redeploys on `synchronize`
       # for the occupant PR, and otherwise leaves staging untouched. Its
-      # wiring subcommands stream to stdout; only the final line is the JSON
-      # result, so only that line goes to $GITHUB_OUTPUT.
+      # wrangler output goes to stderr (live in the Actions log, even on
+      # failure); stdout carries only the final JSON result line, which is
+      # what goes to $GITHUB_OUTPUT.
       - name: Reset or redeploy staging
         id: provision
         run: |
