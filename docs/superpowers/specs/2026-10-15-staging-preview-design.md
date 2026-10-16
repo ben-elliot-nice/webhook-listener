@@ -1,6 +1,7 @@
 # Staging-based PR previews — design
 
-Status: draft, awaiting review. Date: 2026-10-15.
+Status: draft, awaiting review. Date: 2026-10-15. Revised after review: reset
+only on `labeled` (pushes keep data), occupant tracking added.
 
 Supersedes the per-PR provisioning model in
 `2026-09-30-pr-preview-environments-design.md`.
@@ -43,30 +44,46 @@ handful of statements, independent of production's size.
 
 ## Behaviour
 
-1. **Label added, or push to a labelled PR** (`labeled`, `synchronize`): build
-   the frontend with `--mode staging`, reset the staging D1 database, apply
-   this branch's migrations, deploy both Workers with `--env staging`, and
-   upsert a PR comment with the staging URLs.
-2. **Reset on every run.** The run is stateless: it never needs to know which
-   PR last held staging, so staging can never end up with one branch's code on
-   another branch's schema or data. Test data is lost on every push; this is
-   accepted because staging content is disposable by definition.
-3. **Last label wins.** If a second PR is labelled while the first still
+1. **Label added** (`labeled`): build the frontend with `--mode staging`,
+   reset the staging D1 database, apply this branch's migrations, record the
+   PR as the staging occupant, deploy both Workers with `--env staging`, and
+   upsert a PR comment with the staging URLs. This is the only event that
+   wipes staging.
+2. **Push to a labelled PR** (`synchronize`): never wipes data, so a reviewer's
+   hand-made listeners and requests survive pushes.
+   - If this PR is the staging occupant: run `wrangler d1 migrations apply`
+     (applies only new migrations, a no-op otherwise) and redeploy both
+     Workers. Editing an already-applied migration is not picked up; re-add
+     the label to reset.
+   - If another PR is the occupant (or there is no occupant): do nothing to
+     staging and upsert a comment on this PR: "staging holds #N; re-add the
+     label to take over". Deploying this PR's code onto the other PR's schema
+     would be wrong, and resetting would break rule 1.
+3. **Occupant record.** After each reset the script creates a one-row
+   `_staging_occupant` table (script-created, not a migration, so the prod
+   schema is untouched) holding the PR number. Reset drops every table, so
+   the record is cleared and rewritten with the data it describes.
+4. **Last label wins.** If a second PR is labelled while the first still
    carries the label, the second run resets and takes over staging. Open PRs
    labelled `preview` other than the current one have their preview comment
-   updated to "superseded by #N". A later push to the first PR takes staging
-   back and wipes the second PR's state. This is an accepted limitation.
-4. **No seed data.** Staging starts empty after every reset. A reviewer creates
+   updated to "superseded by #N". The first PR takes staging back only by
+   having its label removed and re-added.
+5. **No seed data.** Staging starts empty after every reset. A reviewer creates
    their own listeners. Fixtures can be added later if a feature needs them.
-5. **Label removed or PR closed:** no infrastructure action. If the PR was the
+6. **Label removed or PR closed:** no infrastructure action. If the PR was the
    most recent holder, its comment is updated to say the preview is no longer
-   active. Staging is left as it is.
-6. All runs share one `concurrency` group (`staging`, `cancel-in-progress:
+   active. Staging keeps running that PR's code and data until the next label.
+7. All runs share one `concurrency` group (`staging`, `cancel-in-progress:
 false`), so they queue rather than race.
 
 ## Changes
 
-- `scripts/preview-env/provision.mjs`: reduce to reset, migrate, deploy.
+- `scripts/preview-env/provision.mjs`: two modes. `reset` (on `labeled`):
+  reset, migrate, write the occupant record, deploy. `redeploy` (on
+  `synchronize`): read the occupant record, and only if it matches this PR,
+  migrate and deploy; otherwise exit with a "not the occupant" result that
+  the workflow turns into a comment. The mode decision is a pure function
+  with unit tests.
   - Reset drops **every** table found in `sqlite_master` (excluding SQLite
     internals), not a hardcoded list, so a future migration adding a table
     cannot leave stale state. Includes `d1_migrations`.
@@ -97,13 +114,17 @@ false`), so they queue rather than race.
   is only caught in production. The 0012/0013 index work is the example.
   Mitigation if wanted: a local Miniflare D1 loaded with generated rows,
   which costs no D1 budget. Out of scope here.
-- **One preview at a time.** See "last label wins" above.
+- **One preview at a time.** See "last label wins" above. Taking staging
+  back means removing and re-adding the label.
+- **Edited applied migrations need a re-label.** Pushes only apply new
+  migrations.
 - **Staging is also used for email tests.** A reset wipes whatever is there.
 
 ## Testing
 
 - Unit tests (node:test, as the existing `*.test.mjs`) for the reset SQL
-  generation and for the comment-state logic.
+  generation, the labeled/synchronize/occupant mode decision, and the
+  comment-state logic (including the "staging holds #N" state).
 - Dry-run the reset and migrate sequence against local Miniflare D1,
   including a schema with foreign keys, before any remote run.
 - A real remote run is deferred until the account's D1 write budget has reset
