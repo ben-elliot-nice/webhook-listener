@@ -6,7 +6,8 @@ export interface PollerEnv {
 }
 
 export interface PollerOptions {
-  intervalMs: number
+  // null: run once on start and on each return to a visible tab; never on a timer.
+  intervalMs: number | null
   idleMs: number
   onPausedChange?: (paused: boolean) => void
 }
@@ -47,12 +48,13 @@ export function createPoller(
 
   function schedule() {
     clearTimer()
-    if (stopped || env.isHidden()) return
+    const interval = options.intervalMs
+    if (stopped || interval === null || env.isHidden()) return
     if (env.now() - lastActivity >= options.idleMs) {
       setPaused(true)
       return
     }
-    timer = setTimeout(run, options.intervalMs)
+    timer = setTimeout(run, interval)
   }
 
   async function run() {

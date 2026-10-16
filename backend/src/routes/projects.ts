@@ -19,10 +19,13 @@ import {
   isUniqueConstraintError,
   getListenerByProjectAndSlug,
   createProjectListener,
-  getListenersByProjectSorted,
   parseSortMode,
-  PROJECT_LISTENERS_LIMIT,
 } from '../listeners.repo'
+import {
+  InvalidCursorError,
+  getListenersPage,
+  parsePageLimit,
+} from '../listenersPaging'
 import { serializeListener } from './listeners'
 
 function projectShareUrlFor(
@@ -66,16 +69,31 @@ projectRoutes.get('/api/projects/:id', async (c) => {
   if (!project) {
     return c.json({ error: 'project not found' }, 404)
   }
-  const { listeners, hasMore } = await getListenersByProjectSorted(
-    c.env.DB,
-    project.id,
-    parseSortMode(c.req.query('sort')),
-    PROJECT_LISTENERS_LIMIT,
-  )
+  let page
+  try {
+    page = await getListenersPage(
+      c.env.DB,
+      { kind: 'project', projectId: project.id },
+      parseSortMode(c.req.query('sort')),
+      {
+        cursor: c.req.query('cursor'),
+        limit: parsePageLimit(c.req.query('limit')),
+      },
+    )
+  } catch (err) {
+    if (err instanceof InvalidCursorError) {
+      return c.json({ error: 'invalid cursor' }, 400)
+    }
+    throw err
+  }
   return c.json({
     project: serializeProject(c.env, project),
-    listeners: listeners.map((listener) => serializeListener(c.env, listener)),
-    hasMore,
+    listeners: page.listeners.map((listener) =>
+      serializeListener(c.env, listener),
+    ),
+    nextCursor: page.nextCursor,
+    truncated: page.truncated,
+    hasMore: page.nextCursor !== null || page.truncated,
   })
 })
 

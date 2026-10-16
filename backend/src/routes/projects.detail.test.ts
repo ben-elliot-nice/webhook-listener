@@ -8,6 +8,8 @@ interface DetailBody {
   project: { id: string; label: string | null }
   listeners: { id: string; slug: string | null; projectId: string | null }[]
   hasMore: boolean
+  nextCursor: string | null
+  truncated: boolean
 }
 
 describe('GET /api/projects/:id', () => {
@@ -76,19 +78,79 @@ describe('GET /api/projects/:id', () => {
     expect(response.status).toBe(404)
   })
 
-  it('caps at 100 listeners and reports hasMore when 101 exist (newest first by default)', async () => {
-    await seedListeners(projectId, 101)
+  it('defaults to 50 per page and reports a cursor when more exist', async () => {
+    await seedListeners(projectId, 51)
     const body = (await (await getDetail(projectId)).json()) as DetailBody
-    expect(body.listeners).toHaveLength(100)
+    expect(body.listeners).toHaveLength(50)
     expect(body.hasMore).toBe(true)
-    expect(body.listeners[0].slug).toBe('l100')
-    expect(body.listeners.map((l) => l.slug)).not.toContain('l000')
+    expect(body.nextCursor).not.toBeNull()
+    expect(body.truncated).toBe(false)
+    expect(body.listeners[0].slug).toBe('l050')
   })
 
-  it('reports hasMore=false at exactly 100 listeners', async () => {
-    await seedListeners(projectId, 100)
-    const body = (await (await getDetail(projectId)).json()) as DetailBody
+  it('honours limit=100 (the max) and clamps larger values', async () => {
+    await seedListeners(projectId, 101)
+    const body = (await (
+      await getDetail(projectId, '?limit=100')
+    ).json()) as DetailBody
     expect(body.listeners).toHaveLength(100)
+    expect(body.hasMore).toBe(true)
+    const clamped = (await (
+      await getDetail(projectId, '?limit=9999')
+    ).json()) as DetailBody
+    expect(clamped.listeners).toHaveLength(100)
+  })
+
+  it('reports no cursor and hasMore=false at exactly the page size', async () => {
+    await seedListeners(projectId, 100)
+    const body = (await (
+      await getDetail(projectId, '?limit=100')
+    ).json()) as DetailBody
+    expect(body.listeners).toHaveLength(100)
+    expect(body.nextCursor).toBeNull()
+    expect(body.hasMore).toBe(false)
+  })
+
+  it('walks every listener across pages via nextCursor (no duplicates, none missing)', async () => {
+    await seedListeners(projectId, 7)
+    const slugs: string[] = []
+    let cursor: string | null = null
+    for (let i = 0; i < 10; i++) {
+      const query: string =
+        cursor === null ? '?limit=3' : `?limit=3&cursor=${cursor}`
+      const body = (await (
+        await getDetail(projectId, query)
+      ).json()) as DetailBody
+      slugs.push(...body.listeners.map((l) => l.slug ?? ''))
+      cursor = body.nextCursor
+      if (cursor === null) break
+    }
+    expect(slugs).toEqual([
+      'l006',
+      'l005',
+      'l004',
+      'l003',
+      'l002',
+      'l001',
+      'l000',
+    ])
+  })
+
+  it('returns 400 for a malformed cursor', async () => {
+    const response = await getDetail(projectId, '?cursor=garbage')
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: string }).error).toBe(
+      'invalid cursor',
+    )
+  })
+
+  it('name sort is unpaged: no cursor, truncated=false for a small project', async () => {
+    await seedListeners(projectId, 3)
+    const body = (await (
+      await getDetail(projectId, '?sort=name')
+    ).json()) as DetailBody
+    expect(body.nextCursor).toBeNull()
+    expect(body.truncated).toBe(false)
     expect(body.hasMore).toBe(false)
   })
 

@@ -68,7 +68,7 @@ non-trivial work, not a hard requirement for everything). The one loose end:
   working tree — add `.DS_Store` to `.gitignore` rather than letting them
   get committed by accident.
 - `backend/migrations/0009_magic_links.sql` is now in use (email access
-  gate, shipped 2026-09-22) — the next migration number to use is `0010`.
+  gate, shipped 2026-09-22) — the next migration number to use is `0014`.
 
 ## Outstanding manual check
 

@@ -21,6 +21,11 @@ import {
   LabelValidationError,
   type ListenerRecord,
 } from '../listeners.repo'
+import {
+  InvalidCursorError,
+  getListenersPage,
+  parsePageLimit,
+} from '../listenersPaging'
 import { getRequestsPage, getRequestById } from '../requests.repo'
 import {
   serializeRequestListItem,
@@ -69,6 +74,32 @@ listenerRoutes.get('/api/listeners', async (c) => {
     sort,
   )
   return c.json(listeners.map((listener) => serializeListener(c.env, listener)))
+})
+
+listenerRoutes.get('/api/standalone-listeners', async (c) => {
+  try {
+    const page = await getListenersPage(
+      c.env.DB,
+      { kind: 'standalone', email: c.get('email') },
+      parseSortMode(c.req.query('sort')),
+      {
+        cursor: c.req.query('cursor'),
+        limit: parsePageLimit(c.req.query('limit')),
+      },
+    )
+    return c.json({
+      listeners: page.listeners.map((listener) =>
+        serializeListener(c.env, listener),
+      ),
+      nextCursor: page.nextCursor,
+      truncated: page.truncated,
+    })
+  } catch (err) {
+    if (err instanceof InvalidCursorError) {
+      return c.json({ error: 'invalid cursor' }, 400)
+    }
+    throw err
+  }
 })
 
 function isReorderItem(value: unknown): value is ReorderItem {

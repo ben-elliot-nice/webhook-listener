@@ -14,7 +14,9 @@ import {
   type ReorderItem,
   type SortMode,
 } from '../api'
-import { usePolling } from '../hooks/usePolling'
+import { POLL_INTERVAL_MS, usePolling } from '../hooks/usePolling'
+import { usePaginatedList, type ListPage } from '../hooks/usePaginatedList'
+import { isPagedSort } from '../lib/listPaging'
 import { PollingPausedNote } from '../components/PollingPausedNote'
 import { useSettings } from '../hooks/useSettings'
 import { WIDTH_CLASSES } from '../lib/settings'
@@ -45,8 +47,6 @@ export function ProjectDetail() {
   const navigate = useNavigate()
   const { width } = useSettings()
   const [project, setProject] = useState<Project | null>(null)
-  const [children, setChildren] = useState<Listener[]>([])
-  const [hasMore, setHasMore] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -66,11 +66,45 @@ export function ProjectDetail() {
     if (projectId) setSort(loadStoredSort(projectId))
   }, [projectId])
 
+  const paged = isPagedSort(sort)
+
+  const fetchPage = useCallback(
+    async (cursor?: string): Promise<ListPage<Listener>> => {
+      const data = await getProject(projectId!, sort, cursor)
+      setProject(data.project)
+      return {
+        items: data.listeners,
+        nextCursor: data.nextCursor ?? null,
+        truncated: data.truncated ?? false,
+      }
+    },
+    [projectId, sort],
+  )
+
+  const {
+    items: children,
+    setItems: setChildren,
+    hasMore,
+    truncated,
+    loaded,
+    loadingMore,
+    loadError,
+    loadMore,
+    retryLoadMore,
+    refreshFirstPage,
+  } = usePaginatedList(fetchPage, paged)
+
+  // Sort buttons stay put while a sort change reloads (items are briefly empty);
+  // they only update once a load completes.
+  const [sortVisible, setSortVisible] = useState(false)
+  useEffect(() => {
+    if (loaded) setSortVisible(children.length > 0)
+  }, [loaded, children.length])
+
   const refresh = useCallback(async (): Promise<boolean> => {
     if (!projectId) return false
-    let data
     try {
-      data = await getProject(projectId, sort)
+      await refreshFirstPage()
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         consecutiveNotFoundRef.current += 1
@@ -83,13 +117,32 @@ export function ProjectDetail() {
       throw err
     }
     consecutiveNotFoundRef.current = 0
-    setProject(data.project)
-    setChildren(data.listeners)
-    setHasMore(data.hasMore)
     return true
-  }, [projectId, sort])
+  }, [projectId, refreshFirstPage])
 
-  const { paused } = usePolling(refresh)
+  // Date and Recent activity poll the first page; Name and Custom re-sort the
+  // whole project server-side, so they load once (and again when the tab
+  // becomes visible or after the user's own edits) instead of polling.
+  const { paused } = usePolling(refresh, {
+    intervalMs: paged ? POLL_INTERVAL_MS : null,
+  })
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!hasMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
 
   async function handleCopy() {
     if (!project) return
@@ -179,7 +232,7 @@ export function ProjectDetail() {
   }
 
   function handleDrop(targetId: string) {
-    if (!dragKey || dragKey === targetId) return
+    if (!dragKey || dragKey === targetId || truncated) return
     const before = dropIndicator?.key === targetId ? dropIndicator.before : true
     const previousChildren = children
     const current = [...children]
@@ -395,7 +448,7 @@ export function ProjectDetail() {
         </form>
       </div>
 
-      {children.length > 0 && (
+      {sortVisible && (
         <div
           className="mb-2 flex items-center gap-1"
           role="group"
@@ -416,7 +469,7 @@ export function ProjectDetail() {
           ))}
         </div>
       )}
-      {children.length === 0 ? (
+      {!loaded ? null : children.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           No requests yet — point your test script at the URL above (with a real
           identifier in place of <code>&lt;identifier&gt;</code>) to get
@@ -432,7 +485,7 @@ export function ProjectDetail() {
             return (
               <li
                 key={listener.id}
-                draggable={sort === 'custom'}
+                draggable={sort === 'custom' && !truncated}
                 onDragStart={(e) => {
                   e.dataTransfer.setData('text/plain', listener.id)
                   setTransparentDragImage(e)
@@ -463,7 +516,7 @@ export function ProjectDetail() {
                     : ''
                 }`}
               >
-                {sort === 'custom' && (
+                {sort === 'custom' && !truncated && (
                   <span
                     className="cursor-grab text-slate-400 dark:text-slate-400"
                     aria-hidden="true"
@@ -499,9 +552,27 @@ export function ProjectDetail() {
           })}
         </ul>
       )}
-      {hasMore && (
+      {hasMore && <div ref={sentinelRef} aria-hidden="true" className="h-4" />}
+      {loadingMore && (
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-          Showing the first 100 listeners — more exist.
+          Loading more…
+        </p>
+      )}
+      {loadError && (
+        <p
+          role="alert"
+          className="mt-3 text-xs text-rose-600 dark:text-rose-400"
+        >
+          Failed to load more listeners.{' '}
+          <button type="button" onClick={retryLoadMore} className="underline">
+            Retry
+          </button>
+        </p>
+      )}
+      {truncated && (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Showing the first 500 listeners — more exist.
+          {sort === 'custom' ? ' Reordering is unavailable.' : ''}
         </p>
       )}
     </main>

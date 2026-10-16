@@ -174,4 +174,21 @@ describe('createPoller', () => {
     expect(tick).toHaveBeenCalledTimes(1)
     expect(t.listenerCount()).toBe(0)
   })
+
+  it('with intervalMs null: ticks on start and on each return to visible, never on a timer', async () => {
+    const t = makeEnv()
+    const tick = vi.fn().mockResolvedValue(true)
+    createPoller(tick, { intervalMs: null, idleMs: 600000 }, t.env).start()
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(tick).toHaveBeenCalledTimes(1)
+
+    t.setHidden(true)
+    await vi.advanceTimersByTimeAsync(1000)
+    t.setHidden(false)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(tick).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(tick).toHaveBeenCalledTimes(2)
+  })
 })
