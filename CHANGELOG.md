@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.13...v1.2.0) (2026-10-16)
+
+### Features
+
+* infinite scroll for listener lists with keyset pagination ([#16](https://github.com/ben-elliot-nice/webhook-listener/issues/16)) ([eab4172](https://github.com/ben-elliot-nice/webhook-listener/commit/eab4172b222f323bd58d17733301c15423019085))
+
 ## [1.1.13](https://github.com/ben-elliot-nice/webhook-listener/compare/v1.1.12...v1.1.13) (2026-10-15)
 
 ### Performance Improvements
